@@ -30,3 +30,20 @@ schema: spec-driven
 #     archive:
 #       guidance:
 #         - Summarize the archive outcome before finishing
+
+# ---- Configuración activa del proyecto ----
+
+operations:
+  apply:
+    guidance:
+      - >-
+        Al terminar cada funcionalidad (una tarea o bloque coherente de
+        tareas), generar los commits necesarios siguiendo Conventional
+        Commits: `tipo(alcance): descripcion` en imperativo (tipos: feat,
+        fix, docs, refactor, test, chore, ci, build, perf), subject de
+        como máximo 72 caracteres y cuerpo explicando el porqué, no el qué.
+      - >-
+        Cada commit creado con ayuda de LLM debe incluir SIEMPRE el trailer
+        de coautoría del LLM que ha hecho el trabajo, con nombre de modelo y
+        proveedor. Ejemplo:
+        Co-Authored-By: Qwen3.8-27B-Uncensored-MLX <noreply@orcarouter>
