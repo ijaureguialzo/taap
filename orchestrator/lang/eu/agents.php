@@ -1,0 +1,27 @@
+<?php
+
+return array (
+  'title' => 'Agentak',
+  'new' => 'Agente berria',
+  'name' => 'Izena',
+  'description' => 'Deskribapena',
+  'runtime' => 'Runtime',
+  'model' => 'Modeloa',
+  'internet' => 'Interneta (irteera kontrolatuak)',
+  'auto_restart' => 'Berreskuratze automatikoa',
+  'system_prompt' => 'sistema-prompta',
+  'status' => 'Egoera',
+  'container' => 'Kontainailea',
+  'ip' => 'IP',
+  'owner' => 'Jabea',
+  'created' => 'Sortuta',
+  'empty' => 'Ez duzu agenterik. Sortu lehenengoa.',
+  'start' => 'Abiarazi',
+  'stop' => 'Gelditu',
+  'restart' => 'Berrabiarazi',
+  'delete' => 'Ezabatu',
+  'delete_confirm' => 'Ezabatu agentea eta bere kontainailea? Kontserrakzioa datu-eremuan gordetzen da.',
+  'quota' => 'Agenten kuota (abian)',
+  'select_model' => 'Hautatu modelo bat',
+  'no_models' => 'Ez dago modelorik. Sortu eskaintzaile eta modelo bat lehenik.',
+);

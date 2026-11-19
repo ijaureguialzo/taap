@@ -21,6 +21,7 @@ class User extends Authenticatable
         'password',
         'role',
         'locale',
+        'active',
         'agent_quota',
     ];
 
@@ -35,6 +36,7 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'role' => UserRole::class,
+            'active' => 'boolean',
             'agent_quota' => 'integer',
         ];
     }

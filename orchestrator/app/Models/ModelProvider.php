@@ -19,6 +19,6 @@ class ModelProvider extends Model
 
     public function models(): HasMany
     {
-        return $this->hasMany(\App\Models\Model::class);
+        return $this->hasMany(\App\Models\Model::class, 'provider_id');
     }
 }

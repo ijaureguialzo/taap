@@ -10,7 +10,8 @@ return new class extends Migration
     {
         Schema::table('users', function (Blueprint $table) {
             $table->string('role', 16)->default('user')->index()->after('password');
-            $table->string('locale', 2)->default('es')->after('role');
+            $table->boolean('active')->default(true)->after('role');
+            $table->string('locale', 2)->default('es')->after('active');
             $table->unsignedSmallInteger('agent_quota')->nullable()->after('locale');
         });
     }
@@ -19,7 +20,7 @@ return new class extends Migration
     {
         Schema::table('users', function (Blueprint $table) {
             $table->dropIndex(['role']);
-            $table->dropColumn(['role', 'locale', 'agent_quota']);
+            $table->dropColumn(['role', 'active', 'locale', 'agent_quota']);
         });
     }
 };

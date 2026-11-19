@@ -22,4 +22,8 @@ enum AgentStatus: string
     {
         return $this->isRunning() || $this === self::Error;
     }
+    public static function fromString(string $v): self
+    {
+        return self::from($v);
+    }
 }

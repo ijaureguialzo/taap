@@ -12,6 +12,11 @@ enum AgentRuntime: string
         return array_column(self::cases(), 'value');
     }
 
+    public static function fromString(string $v): self
+    {
+        return self::from($v);
+    }
+
     public function label(): string
     {
         return config("taap.runtimes.{$this->value}.label", $this->value);
