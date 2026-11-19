@@ -24,6 +24,9 @@ class McpServer extends Model
         ];
     }
 
+    /**
+     * @return BelongsToMany<Agent, $this>
+     */
     public function agents(): BelongsToMany
     {
         return $this->belongsToMany(Agent::class, 'agent_mcp_servers');

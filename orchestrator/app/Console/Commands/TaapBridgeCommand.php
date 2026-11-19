@@ -2,8 +2,7 @@
 
 namespace App\Console\Commands;
 
-use Illuminate\Support\Facades\Log;
-
+use App\Agents\AgentEvent;
 use App\Agents\AgentManager;
 use App\Agents\AgentRuntimeAdapter;
 use App\Agents\EventSink;
@@ -11,10 +10,13 @@ use App\Agents\RuntimeAdapters;
 use App\Enums\AgentRuntime;
 use App\Enums\AgentStatus;
 use App\Models\Agent;
+use App\Support\DockerClient;
 use App\Support\ProcessStreams;
 use Illuminate\Console\Command;
+use Illuminate\Contracts\Debug\ExceptionHandler;
 use Illuminate\Queue\Worker;
-use Symfony\Component\Process\Process;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Demonio 24/7 del orquestador: el corazon del "dejar instrucciones y
@@ -36,12 +38,14 @@ class TaapBridgeCommand extends Command
 
     protected $description = 'Puente de larga vida entre el orquestador y los contenedores de agentes';
 
-    /** @var array<int, array{agent: Agent, adapter: AgentRuntimeAdapter, deadSince: ?int}> */
+    /**
+     * @var array<int, array{agent: Agent, adapter: AgentRuntimeAdapter, deadSince: int|null, lastProbe: int|null, dir?: string}>
+     */
     protected array $sessions = [];
 
-    protected ?\App\Support\ProcessStreams $workerBridge = null;
+    protected ?ProcessStreams $workerBridge = null;
 
-    protected ?\App\Support\ProcessStreams $workerDefault = null;
+    protected ?ProcessStreams $workerDefault = null;
 
     protected bool $running = true;
 
@@ -52,9 +56,9 @@ class TaapBridgeCommand extends Command
     ): int {
         /** @var Worker $worker */
         $worker = new Worker(
-            $this->laravel['queue'],
-            $this->laravel['events'],
-            $this->laravel[\Illuminate\Contracts\Debug\ExceptionHandler::class],
+            $this->laravel->make('queue'),
+            $this->laravel->make('events'),
+            $this->laravel->make(ExceptionHandler::class),
             fn () => $this->laravel->isDownForMaintenance(),
         );
         $this->info('TaapBridge: arrancando');
@@ -103,9 +107,9 @@ class TaapBridgeCommand extends Command
                         // El contenedor vive: (re)adjuntar el IPC y despertar
                         $adapter->attach($agent);
                         if (! $agent->status->isRunning() && $agent->status !== AgentStatus::Starting) {
-                            Log::info("bridge: forceStart {$agent->id} desde " . $agent->status->value);
+                            Log::info("bridge: forceStart {$agent->id} desde ".$agent->status->value);
                             $agent->forceFill(['status' => AgentStatus::Starting])->save();
-                            $sink->dispatch($agent->refresh(), \App\Agents\AgentEvent::statusChange(AgentStatus::Starting->value));
+                            $sink->dispatch($agent->refresh(), AgentEvent::statusChange(AgentStatus::Starting->value));
                         }
                     } elseif ($agent->status->isRunning() || $agent->status === AgentStatus::Starting) {
                         // Grace: un docker restart rompe el IPC 1-2s
@@ -113,7 +117,7 @@ class TaapBridgeCommand extends Command
                         $session['deadSince'] = $since ?? $now;
                         if ($now - $session['deadSince'] > (int) $this->option('offline-after')) {
                             $agent->forceFill(['status' => AgentStatus::Offline])->save();
-                            $sink->dispatch($agent->refresh(), \App\Agents\AgentEvent::statusChange(AgentStatus::Offline->value));
+                            $sink->dispatch($agent->refresh(), AgentEvent::statusChange(AgentStatus::Offline->value));
                         }
                     }
                 } elseif ($agent->runtime === AgentRuntime::Pi) {
@@ -141,13 +145,12 @@ class TaapBridgeCommand extends Command
                     $session['lastProbe'] = $now;
                     try {
                         $probe = $adapter->status($agent);
-                        if ($probe === AgentStatus::Idle
-                            && $agent->status !== AgentStatus::Idle) {
+                        if ($probe === AgentStatus::Idle) {
                             $agent->forceFill(['status' => AgentStatus::Idle, 'last_activity_at' => now()])->save();
-                            $sink->dispatch($agent->refresh(), \App\Agents\AgentEvent::statusChange(AgentStatus::Idle->value));
+                            $sink->dispatch($agent->refresh(), AgentEvent::statusChange(AgentStatus::Idle->value));
                         }
                     } catch (\Throwable $e) {
-                        Log::debug("bridge: sonda Hermes {$agent->id}: " . $e->getMessage());
+                        Log::debug("bridge: sonda Hermes {$agent->id}: ".$e->getMessage());
                     }
                 }
             }
@@ -169,15 +172,22 @@ class TaapBridgeCommand extends Command
 
             usleep(100_000);
 
-
             if ($now - $lastStatus >= (int) $this->option('status-every')) {
                 $lastStatus = $now;
+                // Sincronizar los modelos de sesion con la BD (un
+                // re-provision cambia container_id y el lector de Pi debe
+                // ver el cambio para re-adjuntarse al contenedor nuevo).
+                foreach ($this->liveAgents() as $agent) {
+                    if (isset($this->sessions[$agent->id])) {
+                        $this->sessions[$agent->id]['agent'] = $agent;
+                    }
+                }
                 foreach ($this->liveAgents() as $agent) {
                     if ($agent->runtime === AgentRuntime::Hermes) {
                         $status = $adapters->for($agent)->status($agent);
                         if ($status !== $agent->status) {
                             $agent->forceFill(['status' => $status])->save();
-                            $sink->dispatch($agent->refresh(), \App\Agents\AgentEvent::statusChange($status->value));
+                            $sink->dispatch($agent->refresh(), AgentEvent::statusChange($status->value));
                         }
                     }
                 }
@@ -196,7 +206,7 @@ class TaapBridgeCommand extends Command
                 foreach (Agent::where('status', AgentStatus::Offline->value)->get() as $agent) {
                     if ($this->dockerState($agent) === 'running') {
                         $agent->forceFill(['status' => AgentStatus::Starting])->save();
-                        $sink->dispatch($agent->refresh(), \App\Agents\AgentEvent::statusChange(AgentStatus::Starting->value));
+                        $sink->dispatch($agent->refresh(), AgentEvent::statusChange(AgentStatus::Starting->value));
                         $this->ensureSession($agent, $adapters);
                     }
                 }
@@ -207,7 +217,7 @@ class TaapBridgeCommand extends Command
                 try {
                     $manager->reconcile();
                 } catch (\Throwable $e) {
-                    $this->error('reconcile: ' . $e->getMessage());
+                    $this->error('reconcile: '.$e->getMessage());
                 }
                 $this->sweepDeadAgents($adapters, $sink);
             }
@@ -225,14 +235,17 @@ class TaapBridgeCommand extends Command
 
         // Barrido final: no dejar bucles writer/lector huérfanos
         foreach ($this->sessions as $id => $session) {
-            $dir = $session['dir'] ?? app(\App\Support\DockerClient::class)->rpcDir($id);
-            app(\App\Support\DockerClient::class)->killCoprocess($dir, 'reader');
-            app(\App\Support\DockerClient::class)->killCoprocess($dir, 'writer');
+            $dir = $session['dir'] ?? app(DockerClient::class)->rpcDir($id);
+            app(DockerClient::class)->killCoprocess($dir, 'reader');
+            app(DockerClient::class)->killCoprocess($dir, 'writer');
         }
 
         return self::SUCCESS;
     }
 
+    /**
+     * @return Collection<int, Agent>
+     */
     protected function liveAgents()
     {
         return Agent::whereNotIn('status', [AgentStatus::Stopped->value, AgentStatus::Offline->value])
@@ -254,12 +267,14 @@ class TaapBridgeCommand extends Command
         $this->sessions[$agent->id] = [
             'agent' => $agent->refresh(),
             'adapter' => $adapter,
+            'deadSince' => null,
+            'lastProbe' => null,
         ];
     }
 
     protected function dockerState(Agent $agent): ?string
     {
-        return app(\App\Support\DockerClient::class)->status($agent->container_name);
+        return app(DockerClient::class)->status($agent->container_name);
     }
 
     protected function sweepDeadAgents(RuntimeAdapters $adapters, EventSink $sink): void
@@ -272,7 +287,7 @@ class TaapBridgeCommand extends Command
             if ($this->dockerState($agent) === null && $agent->status->isRunning()) {
                 $agent->status = $agent->auto_restart ? AgentStatus::Error : AgentStatus::Offline;
                 $agent->save();
-                $sink->dispatch($agent->refresh(), \App\Agents\AgentEvent::statusChange($agent->status->value));
+                $sink->dispatch($agent->refresh(), AgentEvent::statusChange($agent->status->value));
             }
         }
     }

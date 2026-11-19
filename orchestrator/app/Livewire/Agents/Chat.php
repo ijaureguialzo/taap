@@ -2,9 +2,10 @@
 
 namespace App\Livewire\Agents;
 
+use App\Agents\ChatService;
 use App\Models\Agent;
 use App\Models\ChatMessage;
-use App\Models\AgentEvent;
+use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Component;
 
@@ -22,13 +23,21 @@ class Chat extends Component
     /** Texto parcial del mensaje que esta escribiendo el agente. */
     public ?string $streaming = null;
 
-    /** Progreso del run actual (herramienta en uso, etc.). */
+    /**
+     * Progreso del run actual (herramienta en uso, etc.).
+     *
+     * @var array<string, mixed>|null
+     */
     public ?array $activity = null;
 
     /** id de la aprobacion pendiente (approval.request). */
     public ?string $pendingApproval = null;
 
-    /** Eventos de proceso recientes (tool.start/end, run.*) para la UI. */
+    /**
+     * Eventos de proceso recientes (tool.start/end, run.*) para la UI.
+     *
+     * @var list<array{type: string, label: string, at: string}>
+     */
     public array $events = [];
 
     public function mount(Agent $agent): void
@@ -49,7 +58,7 @@ class Chat extends Component
         }
 
         try {
-            app(\App\Agents\ChatService::class)->send($this->agent, $user, $content);
+            app(ChatService::class)->send($this->agent, $user, $content);
         } catch (\Throwable $e) {
             report($e);
             session()->flash('error', $e->getMessage());
@@ -67,7 +76,7 @@ class Chat extends Component
             return;
         }
 
-        app(\App\Agents\ChatService::class)->resolveApproval(
+        app(ChatService::class)->resolveApproval(
             $this->agent,
             Auth::user(),
             $this->pendingApproval,
@@ -78,7 +87,11 @@ class Chat extends Component
         $this->pendingApproval = null;
     }
 
-    /** Recibe los eventos del canal `agent.{id}` (via JS/Echo). */
+    /**
+     * Recibe los eventos del canal `agent.{id}` (via JS/Echo).
+     *
+     * @param  array<string, mixed>  $payload
+     */
     public function agentEvent(array $payload): void
     {
         if (($payload['agent_id'] ?? null) != $this->agent->id) {
@@ -90,7 +103,7 @@ class Chat extends Component
 
         switch ($type) {
             case 'message.delta':
-                $this->streaming = ($this->streaming ?? '') . ($data['content'] ?? ($data['text'] ?? ''));
+                $this->streaming = ($this->streaming ?? '').($data['content'] ?? ($data['text'] ?? ''));
                 break;
 
             case 'message.final':
@@ -131,6 +144,9 @@ class Chat extends Component
         }
     }
 
+    /**
+     * @param  array<string, mixed>  $data
+     */
     protected function pushEvent(string $type, array $data): void
     {
         $this->events[] = [
@@ -145,8 +161,9 @@ class Chat extends Component
 
     protected function refreshHistory(): void
     {
-        // Fuerza la vista a re-ejecutar la consulta del historial.
-        $this->forceRefresh();
+        // Livewire 4 re-renderiza en cada update (render()); la consulta del
+        // historial se ejecuta de nuevo con el mensaje finalizado. (v3 usaba
+        // forceRefresh(); ya no existe).
     }
 
     /** @return array<int, array<string, mixed>> */
@@ -167,7 +184,7 @@ class Chat extends Component
             ->all();
     }
 
-    public function render()
+    public function render(): View
     {
         return view('livewire.agents.chat', [
             'history' => $this->history(),

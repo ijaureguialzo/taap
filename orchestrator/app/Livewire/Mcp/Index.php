@@ -3,6 +3,7 @@
 namespace App\Livewire\Mcp;
 
 use App\Models\McpServer;
+use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
 use Livewire\Component;
@@ -10,13 +11,19 @@ use Livewire\Component;
 class Index extends Component
 {
     public bool $creating = false;
+
     public ?int $edit_id = null;
 
     public string $name = '';
+
     public string $type = 'http';
+
     public string $command = '';
+
     public string $args = '';
+
     public string $url = '';
+
     public bool $enabled = true;
 
     public function startCreate(): void
@@ -88,7 +95,7 @@ class Index extends Component
         McpServer::whereKey($id)->where('created_by', Auth::user()->id)->delete();
     }
 
-    public function render()
+    public function render(): View
     {
         $servers = McpServer::withCount('agents')
             ->where('created_by', Auth::user()->id)

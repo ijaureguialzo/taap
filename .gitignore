@@ -118,3 +118,11 @@ mobile/ios/.DS_Store
 deploy/.env
 xcuserdata/
 data/
+
+### Xcode / macOS (mobile)
+*.xcodeproj/xcuserdata/
+*.xcuserstate
+*.xcscmblueprint
+.DS_Store
+build/
+DerivedData/

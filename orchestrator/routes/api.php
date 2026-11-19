@@ -8,6 +8,8 @@ use App\Http\Controllers\Api\ModelController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Proxy\McpBridgeController;
 use App\Http\Controllers\Proxy\ModelProxyController;
+use App\Models\Agent;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -18,6 +20,48 @@ use Illuminate\Support\Facades\Route;
 Route::prefix('v1')->group(function () {
     /* auth */
     Route::post('auth/login', [AuthController::class, 'login']);
+
+    // (autorizacion via el mismo criterio que AgentController) (protocolo Pusher): la app firma su suscripcion.
+    // Respuesta: { auth: "key:signature" }
+    Route::post('broadcasting/auth', function (Request $request) {
+        $channel = (string) $request->input('channel_name', '');
+        $socketId = (string) $request->input('socket_id', '');
+
+        $name = str_replace('private-', '', $channel);
+        if (! str_starts_with($name, 'agent.')) {
+            return response()->json(['message' => 'Canal no autorizado'], 403);
+        }
+
+        $parts = explode('.', $name);
+        $agent = Agent::find((int) ($parts[1] ?? 0));
+        $user = $request->user();
+        if (! $agent || (! $user->isAdmin() && $agent->owner_id !== $user->id)) {
+            return response()->json(['message' => 'Canal no autorizado'], 403);
+        }
+
+        // Firma Pusher: hmac-sha256("canal:socket_id:payload", app_secret)
+        $conn = config('broadcasting.connections.reverb');
+        $payload = json_encode(['user_id' => $user->id, 'user_info' => ['name' => $user->name]]);
+        $sig = hash_hmac('sha256', $channel.':'.$socketId.':'.$payload, $conn['secret']);
+
+        return response()->json(['auth' => $conn['key'].':'.$sig]);
+    })->middleware('auth:sanctum');
+
+    // Config del canal WSS (la web la recibe en el layout; la app la pide aqui)
+    Route::get('reverb-config', function () {
+        $conn = config('broadcasting.connections.reverb');
+        $public = config('taap.public');
+
+        return response()->json([
+            'config' => [
+                'key' => $conn['key'],
+                'appId' => $conn['app_id'],
+                'host' => $public['host'],
+                'port' => (int) $public['port'],
+                'scheme' => $public['scheme'],
+            ],
+        ]);
+    })->middleware('auth:sanctum');
 
     Route::middleware('auth:sanctum')->group(function () {
         Route::post('auth/logout', [AuthController::class, 'logout']);
@@ -40,6 +84,7 @@ Route::prefix('v1')->group(function () {
 
         /* chat */
         Route::get('agents/{agent}/messages', [ChatController::class, 'messages']);
+        Route::get('agents/{agent}/timeline', [ChatController::class, 'timeline']);
         Route::post('agents/{agent}/messages', [ChatController::class, 'send']);
         Route::post('agents/{agent}/approvals/{approvalId}', [ChatController::class, 'approve']);
 
@@ -75,4 +120,3 @@ Route::prefix('proxy/agents/{agent}')->group(function () {
 });
 
 Route::post('mcp/agents/{agent}/bridge', [McpBridgeController::class, '__invoke']);
-

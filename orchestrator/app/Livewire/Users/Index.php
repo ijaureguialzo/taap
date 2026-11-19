@@ -4,15 +4,20 @@ namespace App\Livewire\Users;
 
 use App\Enums\UserRole;
 use App\Models\User;
+use Illuminate\Contracts\View\View;
 use Illuminate\Validation\Rule;
 use Livewire\Component;
 
 class Index extends Component
 {
     public ?int $edit_id = null;
+
     public ?UserRole $role = null;
+
     public ?bool $active = null;
+
     public ?int $max_agents = null;
+
     public string $language = 'es';
 
     public function startEdit(int $id): void
@@ -53,12 +58,13 @@ class Index extends Component
     {
         if ($id === auth()->id()) {
             session()->flash('error', 'No puedes eliminarte a ti mismo.');
+
             return;
         }
         User::whereKey($id)->delete(); // soft delete
     }
 
-    public function render()
+    public function render(): View
     {
         $users = User::withCount('agents')
             ->latest('id')

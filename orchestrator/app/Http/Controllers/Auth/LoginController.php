@@ -21,7 +21,7 @@ class LoginController extends Controller
 
         $user = User::where('email', $data['email'])->first();
 
-        if (! $user || (! $user->active && $user->active !== null) || ! Hash::check($data['password'], $user->password)) {
+        if (! $user || ! $user->active || ! Hash::check($data['password'], $user->password)) {
             throw ValidationException::withMessages([
                 'email' => [__('login.fails')],
             ]);

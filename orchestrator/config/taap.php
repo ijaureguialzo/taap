@@ -14,6 +14,25 @@ return [
     /* Idiomas soportados (el preferido por usuario se guarda en users.locale). */
     'locales' => ['es', 'en', 'eu'],
 
+    // Sin preferencia de usuario ni Accept-Language: se usa este (spec
+    // localizacion: "default: locale del navegador soportado, si no es").
+    'default_locale' => env('TAAP_DEFAULT_LOCALE', 'es'),
+
+    /*
+    | Datos publicos para que los clientes (web/iOS) abran el canal WSS.
+    | Son la cara externa del Reverb interno (TAAP_PUBLIC_*).
+    */
+    'public' => [
+        'host' => env('TAAP_PUBLIC_HOST', env('REVERB_HOST', '127.0.0.1')),
+        'port' => (int) env('TAAP_REVERB_PUBLIC_PORT', env('REVERB_PORT', 8080)),
+        'scheme' => env('TAAP_PUBLIC_SCHEME', env('REVERB_SCHEME', 'http')),
+    ],
+
+    /* Solo seed (php artisan db:seed); no usarse en codigo de produccion. */
+    'seed' => [
+        'qwen_base_url' => env('TAAP_QWEN_BASE_URL', 'http://127.0.0.1:8000/v1'),
+    ],
+
     'agents' => [
         /* Cuota por defecto de agentes EN EJECUCION por usuario (administrable). */
         'default_quota' => (int) env('TAAP_AGENT_QUOTA', 3),
@@ -26,7 +45,7 @@ return [
         'ip_subnet' => env('TAAP_AGENT_SUBNET', '172.30.0.0/24'),
 
         /* Proxy de egress (solo para agentes con internet_enabled). */
-        'egress_proxy' => env('TAAP_EGRESS_PROXY', 'http://taap-egress:3128'),
+        'egress_proxy' => env('TAAP_EGRESS_PROXY', 'http://10.163.3.2:3128'),
         /* URL con la que el orquestador se alcanza desde el host/contenedores. */
         'orchestrator_url' => env('TAAP_ORCHESTRATOR_URL', 'http://taap-orchestrator:8000'),
 
@@ -87,6 +106,11 @@ return [
     'proxy' => [
         // Tope de salida por defecto (ver ModelProxyController::mergeReasoning)
         'default_max_tokens' => (int) env('TAAP_PROXY_DEFAULT_MAX_TOKENS', 2048),
+        // Modelos de razonamiento: con 'low' Qwen se queda en pensamientos
+        // y no invoca tools; con 'high' invoca de forma fiable.
+        'default_reasoning_effort' => env('TAAP_PROXY_REASONING_EFFORT', 'high'),
+        // Muestreo estable para que la decision de tool-calls no sea moneda al aire.
+        'default_temperature' => (float) env('TAAP_PROXY_TEMPERATURE', 0),
         'token_length' => 48,
         /* Como se alcanza el orquestador desde los contenedores de agente. */
         'internal_url' => env('TAAP_PROXY_INTERNAL_URL', 'http://taap-orchestrator:8000'),
@@ -97,6 +121,14 @@ return [
        del agente, o URL con credenciales de TAAP). */
     'mcp' => [
         'route_prefix' => '/mcp/{agent}/bridge',
+    ],
+
+    // Timeline (7.2, design D6): sintesis de ventanas de trabajo desde
+    // agent_events. "hueco" = separacion minima entre eventos para abrir
+    // una ventana nueva.
+    'timeline' => [
+        'hours' => (int) env('TAAP_TIMELINE_HOURS', 24),
+        'gap_minutes' => (int) env('TAAP_TIMELINE_GAP_MINUTES', 15),
     ],
 
     /* Fichero de ACLs del proxy squid, gestionado por el orquestador. */

@@ -6,6 +6,7 @@ use App\Actions\Fortify\CreateNewUser;
 use App\Actions\Fortify\ResetUserPassword;
 use Illuminate\Auth\Middleware\RequirePassword;
 use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Contracts\View\Factory;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
@@ -28,6 +29,13 @@ class FortifyServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        // La vista de auth vive en resources/views/pages; la exponemos como
+        // namespace para poder referirla como pages::auth.*
+        $this->app->make(Factory::class)->addNamespace(
+            'pages',
+            $this->app->resourcePath('views/pages'),
+        );
+
         $this->configureActions();
         $this->configureViews();
         $this->configureRateLimiting();

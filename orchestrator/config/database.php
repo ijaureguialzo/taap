@@ -41,8 +41,6 @@ return [
             /* Multiples procesos locales escriben: WAL + reintentos de lock. */
             'busy_timeout' => 5000,
             'journal_mode' => 'wal',
-            'busy_timeout' => null,
-            'journal_mode' => null,
             'synchronous' => null,
             'transaction_mode' => 'DEFERRED',
         ],

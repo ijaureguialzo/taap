@@ -2,12 +2,12 @@
 
 namespace App\Broadcasts;
 
+use Illuminate\Broadcasting\Channel;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
-use Illuminate\Broadcasting\Channel;
 
 /**
  * Difusion de un evento del agente por Reverb (canal `agent.{id}`).
@@ -21,6 +21,9 @@ class AgentEventBroadcast implements ShouldBroadcast
 
     public int $tries = 2;
 
+    /**
+     * @param  array<string, mixed>  $payload
+     */
     public function __construct(
         public int $agentId,
         public string $type,
@@ -30,7 +33,7 @@ class AgentEventBroadcast implements ShouldBroadcast
 
     public function broadcastOn(): array
     {
-        return [new Channel('agent.' . $this->agentId)];
+        return [new Channel('agent.'.$this->agentId)];
     }
 
     public function broadcastAs(): string
@@ -38,6 +41,9 @@ class AgentEventBroadcast implements ShouldBroadcast
         return 'agent-event';
     }
 
+    /**
+     * @return array<string, mixed>
+     */
     public function broadcastWith(): array
     {
         return [

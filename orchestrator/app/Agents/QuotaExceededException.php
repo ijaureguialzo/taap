@@ -2,6 +2,4 @@
 
 namespace App\Agents;
 
-class QuotaExceededException extends \DomainException
-{
-}
+class QuotaExceededException extends \DomainException {}

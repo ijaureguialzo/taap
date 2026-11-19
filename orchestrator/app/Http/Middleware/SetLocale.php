@@ -2,7 +2,6 @@
 
 namespace App\Http\Middleware;
 
-use App\Enums\UserRole;
 use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -17,12 +16,17 @@ class SetLocale
     public function handle(Request $request, Closure $next): Response
     {
         $locales = config('taap.locales', ['es', 'en', 'eu']);
+        if (! is_array($locales) || $locales === []) {
+            $locales = ['es', 'en', 'eu'];
+        }
 
-        $locale = $request->user()?->locale
-            ?? $this->fromAcceptLanguage($request);
+        $locale = $request->user()?->locale;
+        $locale ??= $this->fromAcceptLanguage($request);
 
         if (! in_array($locale, $locales, true)) {
-            $locale = config('app.locale', 'es');
+            // Spec localizacion: default sin preferencia = `es`.
+            $default = config('taap.default_locale', 'es');
+            $locale = is_string($default) && $default !== '' ? $default : 'es';
         }
 
         app()->setLocale($locale);

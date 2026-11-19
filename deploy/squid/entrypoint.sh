@@ -8,7 +8,8 @@ if [ ! -f /etc/squid/taap/taap-acl.conf ]; then
     cat > /etc/squid/taap/taap-acl.conf <<'EOF'
 acl taap_agents src 127.0.0.1
 acl taap_internet src 127.0.0.1
-acl model_hosts url_regex ^!
+acl model_hosts_url url_regex ^!
+acl model_hosts_dns dstdomain .noexist.taap
 EOF
 fi
 chown -R squid:squid /etc/squid/taap /var/log/squid /var/spool/squid /run/squid

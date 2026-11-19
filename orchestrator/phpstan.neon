@@ -11,3 +11,12 @@ parameters:
         - routes/
 
     level: 7
+
+    # La phpdoc de Sanctum dice que currentAccessToken() no devuelve null,
+    # pero a runtime lo hace (usuarios autenticados sin token de portador).
+    # Sin esto, PHPStan marca los nullsafe legítimos como si nunca fallaran.
+    treatPhpDocTypesAsCertain: false
+
+    # Los modelos de Laravel 13 declaran los casts en el metodo casts();
+    # sin esto larastan solo ve el tipo de la columna (string) y no el enum.
+    parseModelCastsMethod: true

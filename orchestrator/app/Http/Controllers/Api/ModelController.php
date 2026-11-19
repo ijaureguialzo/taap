@@ -5,13 +5,14 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Model;
 use App\Models\ModelProvider;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class ModelController extends Controller
 {
     /* ---------- providers ---------- */
 
-    public function providers(Request $request)
+    public function providers(Request $request): JsonResponse
     {
         return response()->json([
             'providers' => ModelProvider::withCount('models')->orderBy('name')->get()->map(fn ($p) => [
@@ -25,7 +26,7 @@ class ModelController extends Controller
         ]);
     }
 
-    public function storeProvider(Request $request)
+    public function storeProvider(Request $request): JsonResponse
     {
         $this->requireAdmin($request);
 
@@ -41,23 +42,29 @@ class ModelController extends Controller
         return response()->json(['provider' => $this->providerPayload($provider)], 201);
     }
 
-    public function updateProvider(Request $request, ModelProvider $provider)
+    public function updateProvider(Request $request, ModelProvider $provider): JsonResponse
     {
         $this->requireAdmin($request);
 
         $data = $request->validate([
-            'name' => ['required', 'string', 'max:64', 'unique:model_providers,name,' . $provider->id],
+            'name' => ['required', 'string', 'max:64', 'unique:model_providers,name,'.$provider->id],
             'type' => ['required', 'in:openai,anthropic,other'],
             'base_url' => ['required', 'url'],
             'api_key' => ['nullable', 'string', 'max:255'],
         ]);
+
+        // Semantica de la clave: omitida = no se toca; null = borrar;
+        // string = sustituirla (el payload nunca la devuelve).
+        if (! $request->has('api_key')) {
+            unset($data['api_key']);
+        }
 
         $provider->update($data);
 
         return response()->json(['provider' => $this->providerPayload($provider->refresh())]);
     }
 
-    public function deleteProvider(Request $request, ModelProvider $provider)
+    public function deleteProvider(Request $request, ModelProvider $provider): JsonResponse
     {
         $this->requireAdmin($request);
         $provider->delete();
@@ -67,7 +74,7 @@ class ModelController extends Controller
 
     /* ---------- modelos ---------- */
 
-    public function index(Request $request)
+    public function index(Request $request): JsonResponse
     {
         $models = Model::with('provider:id,name')->orderBy('provider_id')->orderBy('name')->get();
 
@@ -85,7 +92,7 @@ class ModelController extends Controller
         ]);
     }
 
-    public function store(Request $request)
+    public function store(Request $request): JsonResponse
     {
         $this->requireAdmin($request);
 
@@ -107,7 +114,7 @@ class ModelController extends Controller
         return response()->json(['ok' => true], 201);
     }
 
-    public function delete(Request $request, Model $model)
+    public function delete(Request $request, Model $model): JsonResponse
     {
         $this->requireAdmin($request);
         $model->delete();
@@ -122,6 +129,9 @@ class ModelController extends Controller
         }
     }
 
+    /**
+     * @return array<string, mixed>
+     */
     protected function providerPayload(ModelProvider $p): array
     {
         return [

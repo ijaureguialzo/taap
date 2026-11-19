@@ -5,8 +5,9 @@ namespace App\Agents;
 use App\Enums\AgentStatus;
 use App\Models\Agent;
 use App\Support\DockerClient;
-use Illuminate\Support\Facades\Log;
 use App\Support\ProcessStreams;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 
 /**
  * Adaptador Pi (superficie nativa: `pi --mode rpc`, JSONL por stdio).
@@ -30,15 +31,14 @@ use App\Support\ProcessStreams;
 class PiAdapter implements AgentRuntimeAdapter
 {
     /**
-     * @var array<int, array{reader: ?ProcessStreams, writer: ?ProcessStreams, dir: string, offset: int, buffer: string}>
+     * @var array<int, array{reader: ?ProcessStreams, writer: ?ProcessStreams, dir: string, container_id: ?string, offset: int, buffer: string, lastOutChange: float, run_id: ?string}>
      */
     protected array $sessions = [];
 
     public function __construct(
         protected DockerClient $docker,
         protected EventSink $sink,
-    ) {
-    }
+    ) {}
 
     public function attach(Agent $agent): void
     {
@@ -55,24 +55,16 @@ class PiAdapter implements AgentRuntimeAdapter
         }
 
         $dir = $this->docker->rpcDir($agent->id);
-        $this->sessions[$agent->id] = [
-            'reader' => null,
-            'writer' => null,
-            'dir' => $dir,
-            'offset' => 0,
-            'buffer' => '',
-        ];
+        $this->sessions[$agent->id] = $this->newSessionState($agent, $dir, 0);
 
         // Determinismo: hay un SOLO lector y un SOLO escritor por agente.
         // Se matan los previos (posibles huérfanos de un bridge anterior)
         // y se spawnean de cero.
-        $this->docker->killCoprocess($dir, 'reader');
-        $this->docker->killCoprocess($dir, 'writer');
-        $this->sessions[$agent->id]['reader'] = $this->docker->attachReader($agent->container_name, $dir);
-        $this->sessions[$agent->id]['writer'] = $this->docker->startWriter($agent->container_name, $dir);
+        $session = &$this->sessions[$agent->id];
+        $this->spawnCoprocesses($agent->container_name, $session);
 
         // Probar el RPC: get_state -> el sink marca al agente "ready"
-        $this->write($agent, ['type' => 'get_state', 'id' => 'taap-ready-' . $agent->id]);
+        $this->write($agent, ['type' => 'get_state', 'id' => 'taap-ready-'.$agent->id]);
 
         Log::info("PiAdapter: IPC establecido con {$agent->container_name}");
     }
@@ -100,15 +92,82 @@ class PiAdapter implements AgentRuntimeAdapter
         }
         $dir = $session['dir'];
 
+        // El lector sigue el contenedor que existia al attach; si el
+        // agente tiene otro (re-provisionado), hay que re-attachar.
+        if (($session['container_id'] ?? null) !== ($agent->container_id ?? null)) {
+            return false;
+        }
+
         return $this->docker->coprocessAlive($dir, 'reader', $dir)
             && $this->docker->coprocessAlive($dir, 'writer', $dir);
+    }
+
+    /**
+     * @return array{reader: ?ProcessStreams, writer: ?ProcessStreams, dir: string, container_id: ?string, offset: int, buffer: string, lastOutChange: float, run_id: ?string}
+     */
+    protected function newSessionState(Agent $agent, string $dir, int $offset): array
+    {
+        return [
+            'reader' => null,
+            'writer' => null,
+            'dir' => $dir,
+            // `docker logs -f` resuelve el nombre al spawnearse: si el
+            // contenedor se re-crea (nuevo ID, mismo nombre) el lector
+            // antiguo sigue al cadaver. Guardamos el ID y lo validamos en
+            // isAttached para forzar el re-attach.
+            'container_id' => $agent->container_id,
+            'offset' => $offset,
+            'buffer' => '',
+            'lastOutChange' => microtime(true),
+            'run_id' => null,
+        ];
+    }
+
+    /**
+     * @param  array{reader: ?ProcessStreams, writer: ?ProcessStreams, dir: string, container_id: ?string, offset: int, buffer: string, lastOutChange: float, run_id: ?string}  $session
+     */
+    protected function spawnCoprocesses(string $containerName, array &$session): void
+    {
+        $this->docker->killCoprocess($session['dir'], 'reader');
+        $this->docker->killCoprocess($session['dir'], 'writer');
+        $session['reader'] = $this->docker->attachReader($containerName, $session['dir']);
+        $session['writer'] = $this->docker->startWriter($containerName, $session['dir']);
+    }
+
+    protected function detachForDir(string $dir): void
+    {
+        $this->docker->killCoprocess($dir, 'reader');
+        $this->docker->killCoprocess($dir, 'writer');
+    }
+
+    /**
+     * El lector (`docker logs -f`) puede quedarse mudo sin morir: el daemon
+     * suelta el stream y el proceso sigue vivo. Se considera stale si hay
+     * trabajo pendiente (input sin entregar o agente activo) y `out` no
+     * crece en 60s.
+     *
+     * @param  array{reader: ?ProcessStreams, writer: ?ProcessStreams, dir: string, container_id: ?string, offset: int, buffer: string, lastOutChange: float, run_id: ?string}  $session
+     */
+    protected function readerStale(array $session, Agent $agent): bool
+    {
+        if (microtime(true) - ($session['lastOutChange'] ?? microtime(true)) < 60) {
+            return false;
+        }
+
+        $inSize = (int) (@filesize($session['dir'].'/in') ?: 0);
+        $inOff = (int) (@filesize($session['dir'].'/in.off') ?: 0);
+
+        return $inSize > $inOff
+            || $agent->status === AgentStatus::Working
+            || $agent->status === AgentStatus::Starting
+            || $agent->status === AgentStatus::WaitingApproval;
     }
 
     /** Sonda el RPC (get_state); el bridge lo llama hasta que el agente esta "ready". */
     public function probe(Agent $agent): void
     {
         if ($this->ensureAttached($agent)) {
-            $this->write($agent, ['type' => 'get_state', 'id' => 'taap-ready-' . $agent->id . '-' . time()]);
+            $this->write($agent, ['type' => 'get_state', 'id' => 'taap-ready-'.$agent->id.'-'.time()]);
         }
     }
 
@@ -121,7 +180,7 @@ class PiAdapter implements AgentRuntimeAdapter
             $this->attach($agent);
         }
 
-        return $this->sessions[$agent->id] !== null && $this->isAttached($agent);
+        return isset($this->sessions[$agent->id]) && $this->isAttached($agent);
     }
 
     /**
@@ -137,13 +196,34 @@ class PiAdapter implements AgentRuntimeAdapter
         }
         $session = &$this->sessions[$idx]; // por referencia: el offset se conserva
 
-        $out = $session['dir'] . '/out';
+        // Watchdog: `docker logs -f` puede quedarse mudo (el daemon suelta el
+        // stream) sin que el proceso lector muera. Si hay trabajo pendiente y
+        // el archivo `out` no crece en un minuto, se re-adjunta el IPC.
+        if ($this->readerStale($session, $agent)) {
+            Log::warning("PiAdapter: lector stale en {$agent->container_name}; re-adjuntando");
+            $agentId = $agent->id;
+            $containerName = $agent->container_name;
+            $dir = $session['dir'];
+            unset($this->sessions[$idx]);
+            $this->detachForDir($dir);
+            if ($this->docker->status($containerName) === 'running') {
+                $fresh = $this->newSessionState($agent, $dir, (int) (@filesize("$dir/out") ?: 0));
+                $this->sessions[$agentId] = $fresh;
+                $session = &$this->sessions[$agentId];
+                $this->spawnCoprocesses($containerName, $session);
+            }
+
+            return [];
+        }
+
+        $out = $session['dir'].'/out';
         $size = @filesize($out);
         if ($size === false || $size < $session['offset']) {
             // truncado (nuevo attach): reiniciar
             $session['offset'] = 0;
             $session['buffer'] = '';
-            $size = @filesize($out) ?? 0;
+            $size = @filesize($out);
+            $size = $size === false ? 0 : $size;
         }
         if ($size <= $session['offset']) {
             return [];
@@ -154,9 +234,10 @@ class PiAdapter implements AgentRuntimeAdapter
             return [];
         }
         fseek($handle, $session['offset']);
-        $chunk = (string) fread($handle, (int) ($size - $session['offset']));
+        $chunk = (string) fread($handle, max(1, $size - $session['offset']));
         fclose($handle);
         $session['offset'] = $size;
+        $session['lastOutChange'] = microtime(true);
 
         $session['buffer'] .= $chunk;
         $events = [];
@@ -168,9 +249,9 @@ class PiAdapter implements AgentRuntimeAdapter
             }
             $decoded = json_decode($line, true);
             if (is_array($decoded)) {
-                $events = array_merge($events, $this->normalize($decoded));
+                $events = array_merge($events, $this->normalize($decoded, $agent->id));
             } else {
-                Log::debug('Pi: linea no-JSON de ' . $agent->id . ': ' . substr($line, 0, 200));
+                Log::debug('Pi: linea no-JSON de '.$agent->id.': '.substr($line, 0, 200));
             }
         }
 
@@ -184,7 +265,7 @@ class PiAdapter implements AgentRuntimeAdapter
         }
 
         $command = [
-            'id' => \Illuminate\Support\Str::uuid()->toString(),
+            'id' => Str::uuid()->toString(),
             'type' => 'prompt',
             'message' => $content,
         ];
@@ -198,10 +279,15 @@ class PiAdapter implements AgentRuntimeAdapter
 
     public function resolveApproval(Agent $agent, string $approvalId, bool $approved, ?string $note = null): void
     {
+        // El shape cubre los tres dialogos del modo RPC: confirm lee
+        // `confirmed`, select/input leen `value`. Sin `confirmed`, un
+        // confirm aprobado se resolveria como denegado.
         $command = [
             'id' => $approvalId,
             'type' => 'extension_ui_response',
-            'value' => $approved ? ($note ?: 'ok') : ($note ?: 'denied'),
+            'confirmed' => $approved,
+            'value' => $note ?? ($approved ? 'ok' : 'denied'),
+            'cancelled' => false,
         ];
         $this->write($agent, $command);
 
@@ -233,11 +319,22 @@ class PiAdapter implements AgentRuntimeAdapter
         $this->detach($agent);
     }
 
-    /** @param array<string, mixed> $event */
-    protected function normalize(array $event): array
+    /**
+     * @param  array<string, mixed>  $event
+     * @return list<AgentEvent>
+     */
+    protected function normalize(array $event, int $agentId): array
     {
         $type = $event['type'] ?? '';
-        $runId = $event['run_id'] ?? null;
+        // Pi no lleva run_id en sus eventos RPC: se correlaciona localmente.
+        // agent_start abre una corrida (id nuevo) y agent_settled la cierra;
+        // todo lo intermedio hereda el id.
+        if ($type === 'agent_start') {
+            $runId = Str::uuid();
+            $this->sessions[$agentId]['run_id'] = $runId;
+        } else {
+            $runId = $this->sessions[$agentId]['run_id'] ?? $event['run_id'] ?? null;
+        }
         $out = [];
 
         switch ($type) {
@@ -250,13 +347,14 @@ class PiAdapter implements AgentRuntimeAdapter
                 break;
 
             case 'agent_start':
-                $out[] = AgentEvent::runStart((string) ($runId ?? \Illuminate\Support\Str::uuid()));
+                $out[] = AgentEvent::runStart((string) ($runId ?? Str::uuid()));
                 $out[] = AgentEvent::statusChange('working');
                 break;
 
             case 'agent_settled':
                 $out[] = AgentEvent::runEnd((string) ($runId ?? 'run'), ! ($event['aborted'] ?? false));
                 $out[] = AgentEvent::statusChange('idle');
+                $this->sessions[$agentId]['run_id'] = null;
                 break;
 
             case 'message_update':
@@ -304,10 +402,15 @@ class PiAdapter implements AgentRuntimeAdapter
                 break;
 
             case 'extension_ui_request':
+                // confirm: {title, message}; select/input: {title, options|placeholder}
+                $title = (string) ($event['title'] ?? '');
+                $body = trim((string) ($event['message'] ?? $event['prompt'] ?? ''));
+                $label = $title !== '' && $body !== '' ? $title.': '.$body
+                    : ($title !== '' ? $title : ($body !== '' ? $body : 'Se requiere una decision'));
                 $out[] = AgentEvent::approvalRequest(
                     $runId,
-                    (string) ($event['id'] ?? \Illuminate\Support\Str::uuid()),
-                    (string) ($event['message'] ?? $event['prompt'] ?? 'Se requiere una decisión'),
+                    (string) ($event['id'] ?? Str::uuid()),
+                    $label,
                     (array) ($event['options'] ?? [])
                 );
                 break;
@@ -347,10 +450,13 @@ class PiAdapter implements AgentRuntimeAdapter
         return implode('', $parts);
     }
 
+    /**
+     * @param  array<string, mixed>  $command
+     */
     protected function write(Agent $agent, array $command): void
     {
         $dir = $this->sessions[$agent->id]['dir'] ?? $this->docker->rpcDir($agent->id);
-        if (@file_put_contents($dir . '/in', json_encode($command) . "\n", FILE_APPEND | LOCK_EX) === false) {
+        if (@file_put_contents($dir.'/in', json_encode($command)."\n", FILE_APPEND | LOCK_EX) === false) {
             throw new \RuntimeException('No se pudo escribir en el IPC del agente');
         }
     }
@@ -373,7 +479,7 @@ class PiAdapter implements AgentRuntimeAdapter
         }
 
         $command = [
-            'id' => \Illuminate\Support\Str::uuid()->toString(),
+            'id' => Str::uuid()->toString(),
             'type' => 'prompt',
             'message' => $content,
         ];

@@ -4,11 +4,12 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class UserController extends Controller
 {
-    public function index(Request $request)
+    public function index(Request $request): JsonResponse
     {
         $this->requireAdmin($request);
 
@@ -28,14 +29,14 @@ class UserController extends Controller
         ]);
     }
 
-    public function update(Request $request, User $user)
+    public function update(Request $request, User $user): JsonResponse
     {
         $this->requireAdmin($request);
 
         $data = $request->validate([
             'role' => ['required', 'in:user,admin'],
             'agent_quota' => ['nullable', 'integer', 'min:0', 'max:100'],
-            'locale' => ['nullable', 'in:' . implode(',', config('taap.locales'))],
+            'locale' => ['nullable', 'in:'.implode(',', config('taap.locales'))],
         ]);
 
         if (($data['role'] ?? null) === 'user' && $user->id === $request->user()->id && ! $request->user()->isAdmin()) {

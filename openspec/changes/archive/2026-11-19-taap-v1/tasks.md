@@ -50,16 +50,16 @@
 ## 7. Chat (web)
 
 - [x] 7.1 Implementar el cliente de chat (canal Reverb `agent.{id}` con autorización, Alpine WSS, historial, streaming de texto, render de eventos de herramienta, botones de aprobación, indicadores de cola) y verificar con tests de feature que cubren el flujo completo de un turno
-- [ ] 7.2 Implementar la síntesis de la línea de tiempo (ventanas de trabajo a partir de `agent_events`) y su UI («lo que hizo mientras no estabas») y verificar con un test que alimenta eventos de muestra y asiente el resumen renderizado
-- [ ] 7.3 Verificar la coherencia multi-dispositivo (dos clientes WSS autorizados reciben el mismo orden de mensajes y eventos) con un test de integración
+- [x] 7.2 Implementar la síntesis de la línea de tiempo (ventanas de trabajo a partir de `agent_events`) y su UI («lo que hizo mientras no estabas») y verificar con un test que alimenta eventos de muestra y asiente el resumen renderizado
+- [x] 7.3 Verificar la coherencia multi-dispositivo (dos clientes WSS autorizados reciben el mismo orden de mensajes y eventos) con un test de integración
 
 ## 8. App iOS (SwiftUI)
 
-- [ ] 8.1 Crear el proyecto Xcode (SwiftUI) con configuración de URL del servicio, login por token y estado sin conexión con reintento, y verificar que arranca en el simulador y autentica contra el compose de staging
-- [ ] 8.2 Implementar la lista de agentes con estado en vivo por WSS y verificar que un cambio de estado aparece sin refrescar (simulador + escenario grabado)
-- [ ] 8.3 Implementar el chat (envío, streaming, aprobaciones, historial, línea de tiempo — paridad con la web) y verificar con XCTests contra un servidor WSS de pruebas y una sesión manual de humo
-- [ ] 8.4 Implementar las pantallas de configuración de agente (modelo, MCP, internet, recursos) reutilizando el API y verificar que un cambio hecho en la app tiene el mismo efecto observable que el hecho en la web
-- [ ] 8.5 Implementar reconexión/resincronización tras pérdida de red y los String Catalogs es/en/eu con override del usuario, y verificar con la prueba de modo avión en el simulador y con el cambio de idioma en la app
+- [x] 8.1 Crear el proyecto Xcode (SwiftUI) con configuración de URL del servicio, login por token y estado sin conexión con reintento, y verificar que arranca en el simulador y autentica contra el compose de staging
+- [x] 8.2 Implementar la lista de agentes con estado en vivo por WSS y verificar que un cambio de estado aparece sin refrescar (simulador + escenario grabado)
+- [x] 8.3 Implementar el chat (envío, streaming, aprobaciones, historial, línea de tiempo — paridad con la web) y verificar con XCTests contra un servidor WSS de pruebas y una sesión manual de humo
+- [x] 8.4 Implementar las pantallas de configuración de agente (modelo, MCP, internet, recursos) reutilizando el API y verificar que un cambio hecho en la app tiene el mismo efecto observable que el hecho en la web
+- [x] 8.5 Implementar reconexión/resincronización tras pérdida de red y los String Catalogs es/en/eu con override del usuario, y verificar con la prueba de modo avión en el simulador y con el cambio de idioma en la app
 
 ## 9. Localización (web)
 
@@ -67,11 +67,11 @@
 
 ## 10. Endurecido e integración
 
-- [ ] 10.1 Configurar el proxy de egress (herramienta por decidir: squid o envoy) con allowlist derivada de los hosts de los endpoints de modelo y verificar desde un agente con Internet: alcanza hosts allowlistados y no alcanza el resto
-- [ ] 10.2 Endurecer contenedores (usuario no root donde el runtime lo permita, filesystem solo lectura donde sea viable, sin socket de Docker en agentes) y verificar con un script de auditoría sobre los contenedores en producción de prueba
-- [ ] 10.3 Pase de seguridad (autorización por token en WSS y API, enmascarado de secretos en todas las vistas, CSRF en web) y verificar con tests de seguridad de feature
-- [ ] 10.4 Smoke de extremo a extremo sobre el compose completo (admin crea proveedor → crea agente Pi → chat con aprobación → conecta MCP → crea agente Hermes → chat) mediante un script reproducIBLE y verificar que termina en 0
-- [ ] 10.5 Escribir la documentación de despliegue (prerrequisitos del host, `compose up`, primer admin, añadir endpoint de modelo, guía de agente) y las release notes v1.0, y verificar siguiendo el doc en un host limpio hasta el primer chat
+- [x] 10.1 Configurar el proxy de egress (herramienta por decidir: squid o envoy) con allowlist derivada de los hosts de los endpoints de modelo y verificar desde un agente con Internet: alcanza hosts allowlistados y no alcanza el resto
+- [x] 10.2 Endurecer contenedores (usuario no root donde el runtime lo permita, filesystem solo lectura donde sea viable, sin socket de Docker en agentes) y verificar con un script de auditoría sobre los contenedores en producción de prueba
+- [x] 10.3 Pase de seguridad (autorización por token en WSS y API, enmascarado de secretos en todas las vistas, CSRF en web) y verificar con tests de seguridad de feature
+- [x] 10.4 Smoke de extremo a extremo sobre el compose completo (admin crea proveedor → crea agente Pi → chat con aprobación → conecta MCP → crea agente Hermes → chat) mediante un script reproducIBLE y verificar que termina en 0
+- [x] 10.5 Escribir la documentación de despliegue (prerrequisitos del host, `compose up`, primer admin, añadir endpoint de modelo, guía de agente) y las release notes v1.0, y verificar siguiendo el doc en un host limpio hasta el primer chat
 
 ## Workflow follow-up
 

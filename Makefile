@@ -4,7 +4,7 @@
 COMPOSE = docker compose -f deploy/compose.yaml
 DEPLOY_ENV = deploy/.env
 
-.PHONY: help env build up down ps logs test lint images shell clean
+.PHONY: help env build up seed down ps logs test lint images shell clean
 
 help: ## Muestra esta ayuda
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-10s\033[0m %s\n", $$1, $$2}'
@@ -18,6 +18,9 @@ build: ## Construye las imágenes (orquestador + egress)
 
 up: ## Arranca la pila en segundo plano
 	$(COMPOSE) up -d
+
+seed: ## Siembra la BD (solo 1ª vez: admin + proveedor/modelo de ejemplo)
+	$(COMPOSE) exec -T orchestrator php artisan db:seed --force
 
 down: ## Para y elimina la pila (los volúmenes de agentes persisten)
 	$(COMPOSE) down

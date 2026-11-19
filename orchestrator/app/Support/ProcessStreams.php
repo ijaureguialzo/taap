@@ -24,10 +24,17 @@ class ProcessStreams
 
     public int $pid;
 
+    /**
+     * @var resource proceso de proc_open (sigue vivo hasta cerrar los pipes)
+     */
     protected $proc;
 
     protected ?bool $running = null;
 
+    /**
+     * @param  list<string>  $command
+     * @param  array<string, string>|null  $env
+     */
     public function __construct(array $command, ?array $env = null, ?string $cwd = null)
     {
         $spec = [
@@ -36,13 +43,14 @@ class ProcessStreams
             2 => ['pipe', 'r'],
         ];
 
-        $this->proc = proc_open($command, $spec, $pipes, $cwd, $env ?? null);
+        $proc = proc_open($command, $spec, $pipes, $cwd, $env ?? null);
 
-        if (! is_resource($this->proc)) {
-            throw new RuntimeException('proc_open falló para: ' . implode(' ', $command));
+        if (! is_resource($proc)) {
+            throw new RuntimeException('proc_open falló para: '.implode(' ', $command));
         }
 
-        $this->pid = proc_get_status($this->proc)['pid'];
+        $this->proc = $proc;
+        $this->pid = proc_get_status($proc)['pid'];
         $this->stdin = $pipes[0];
         $this->stdout = $pipes[1];
         $this->stderr = $pipes[2];
@@ -57,7 +65,7 @@ class ProcessStreams
         }
 
         $status = @proc_get_status($this->proc);
-        $this->running = $status !== false && $status['running'];
+        $this->running = $status['running'];
 
         if (! $this->running) {
             $this->close();
@@ -80,15 +88,16 @@ class ProcessStreams
         posix_kill($this->pid, SIGTERM);
 
         $deadline = microtime(true) + $timeoutSeconds;
-        while (microtime(true) < $deadline && $this->isRunning()) {
+        do {
             usleep(50_000);
-        }
+            $status = @proc_get_status($this->proc);
+        } while (microtime(true) < $deadline && $status['running']);
 
-        if ($this->isRunning()) {
+        if ($status['running']) {
             posix_kill($this->pid, SIGKILL);
-            $this->isRunning();
         }
 
+        $this->running = false;
         $this->close();
     }
 

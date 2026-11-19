@@ -2,12 +2,20 @@
 
 namespace App\Models;
 
+use Database\Factories\ModelFactory;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model as EloquentModel;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
+/**
+ * @property-read ModelProvider|null $provider
+ */
 class Model extends EloquentModel
 {
+    /** @use HasFactory<ModelFactory> */
+    use HasFactory;
+
     protected $table = 'models';
 
     protected $fillable = [
@@ -22,11 +30,17 @@ class Model extends EloquentModel
         ];
     }
 
+    /**
+     * @return BelongsTo<ModelProvider, $this>
+     */
     public function provider(): BelongsTo
     {
         return $this->belongsTo(ModelProvider::class, 'provider_id');
     }
 
+    /**
+     * @return HasMany<Agent, $this>
+     */
     public function agents(): HasMany
     {
         return $this->hasMany(Agent::class);
@@ -34,6 +48,6 @@ class Model extends EloquentModel
 
     public function fullId(): string
     {
-        return $this->provider->name . '/' . $this->model_id;
+        return $this->provider->name.'/'.$this->model_id;
     }
 }

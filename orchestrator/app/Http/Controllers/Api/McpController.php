@@ -4,18 +4,19 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\McpServer;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class McpController extends Controller
 {
-    public function index(Request $request)
+    public function index(Request $request): JsonResponse
     {
         return response()->json([
             'servers' => McpServer::orderBy('name')->get()->map(fn ($s) => $this->payload($s)),
         ]);
     }
 
-    public function store(Request $request)
+    public function store(Request $request): JsonResponse
     {
         $this->requireAdmin($request);
 
@@ -28,19 +29,19 @@ class McpController extends Controller
         return response()->json(['server' => $this->payload($server)], 201);
     }
 
-    public function update(Request $request, McpServer $server)
+    public function update(Request $request, McpServer $server): JsonResponse
     {
         $this->requireAdmin($request);
 
         $data = $this->validated($request, $server);
-        $data['name'] = $request->validate(['name' => ['required', 'string', 'max:64', 'unique:mcp_servers,name,' . $server->id]])['name'];
+        $data['name'] = $request->validate(['name' => ['required', 'string', 'max:64', 'unique:mcp_servers,name,'.$server->id]])['name'];
 
         $server->update($data);
 
         return response()->json(['server' => $this->payload($server->refresh())]);
     }
 
-    public function destroy(Request $request, McpServer $server)
+    public function destroy(Request $request, McpServer $server): JsonResponse
     {
         $this->requireAdmin($request);
         $server->delete();
@@ -48,6 +49,9 @@ class McpController extends Controller
         return response()->json(['ok' => true]);
     }
 
+    /**
+     * @return array<string, mixed>
+     */
     protected function validated(Request $request, ?McpServer $existing = null): array
     {
         $data = $request->validate([
@@ -64,7 +68,7 @@ class McpController extends Controller
         ]);
 
         if (($data['type'] ?? null) === 'stdio' && empty($data['command']) && ! $existing?->command) {
-            $data['command'] = $existing->command;
+            $data['command'] = $existing?->command;
         }
 
         return $data;
@@ -77,6 +81,9 @@ class McpController extends Controller
         }
     }
 
+    /**
+     * @return array<string, mixed>
+     */
     protected function payload(McpServer $s): array
     {
         return [

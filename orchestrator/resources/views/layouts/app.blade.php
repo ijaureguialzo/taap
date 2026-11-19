@@ -20,9 +20,9 @@
         'key' => config('broadcasting.connections.reverb.key'),
         'secret' => config('broadcasting.connections.reverb.secret'),
         'appId' => config('broadcasting.connections.reverb.app_id'),
-        'host' => config('broadcasting.connections.reverb.options.host'),
-        'port' => config('broadcasting.connections.reverb.options.port'),
-        'scheme' => config('broadcasting.connections.reverb.options.scheme'),
+        'host' => config('taap.public.host'),
+        'port' => (int) config('taap.public.port'),
+        'scheme' => config('taap.public.scheme'),
         'authEndpoint' => url('/broadcasting/auth'),
     ], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP);
 @endphp

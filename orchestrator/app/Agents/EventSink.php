@@ -7,6 +7,7 @@ use App\Enums\AgentStatus;
 use App\Models\Agent;
 use App\Models\AgentEventRow;
 use App\Models\ChatMessage;
+use Illuminate\Broadcasting\BroadcastEvent;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Log;
 
@@ -40,7 +41,7 @@ class EventSink
         // v1: los deltas no se difunden por cola (volumen); la Web recibe
         // final/status. La difusion token-a-token llega en v1.1.
         if ($event->type !== 'message.delta') {
-            Bus::dispatch(new \Illuminate\Broadcasting\BroadcastEvent(new AgentEventBroadcast(
+            Bus::dispatch(new BroadcastEvent(new AgentEventBroadcast(
                 $agent->id,
                 $event->type,
                 $event->payload,
@@ -113,13 +114,31 @@ class EventSink
                 break;
 
             case 'approval.resolved':
+                // Marca la fila del request como resuelta (sino queda
+                // para siempre en pending_approvals; el whereNot con NULL
+                // la escondia).
+                $reqId = $payload['id'] ?? null;
+                if ($reqId !== null) {
+                    $requestRow = AgentEventRow::where('agent_id', $agent->id)
+                        ->where('type', 'approval.request')
+                        ->where('payload->id', $reqId)
+                        ->where('payload->resolved', '!=', true)
+                        ->latest('occurred_at')
+                        ->first();
+                    if ($requestRow) {
+                        $p = $requestRow->payload;
+                        $p['resolved'] = true;
+                        $p['approved'] = $payload['approved'] ?? null;
+                        $requestRow->forceFill(['payload' => $p])->save();
+                    }
+                }
                 if ($agent->status === AgentStatus::WaitingApproval) {
                     $this->setStatus($agent, AgentStatus::Idle);
                 }
                 break;
 
             case 'error':
-                Log::warning('Agente ' . $agent->id . ': ' . ($payload['message'] ?? 'error sin detalle'));
+                Log::warning('Agente '.$agent->id.': '.($payload['message'] ?? 'error sin detalle'));
                 break;
         }
     }
@@ -130,7 +149,7 @@ class EventSink
             return;
         }
 
-        Log::info("EventSink: setStatus {$agent->id} " . $agent->status->value . " -> " . $status->value . " de: " . collect(debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 4))->map(fn ($f) => ($f['class'] ?? '?') . '::' . ($f['function'] ?? '?'))->implode(' <- '));
+        Log::info("EventSink: setStatus {$agent->id} ".$agent->status->value.' -> '.$status->value.' de: '.collect(debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 4))->map(fn ($f) => ($f['class'] ?? '?').'::'.$f['function'])->implode(' <- '));
         $agent->status = $status;
         if ($status === AgentStatus::Working || $status === AgentStatus::Idle) {
             $agent->last_active_at = now();

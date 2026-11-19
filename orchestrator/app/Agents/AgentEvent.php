@@ -20,12 +20,15 @@ namespace App\Agents;
  */
 class AgentEvent
 {
+    /**
+     * @param  array<string, mixed>  $payload
+     */
     public function __construct(
         public string $type,
         public array $payload = [],
         public ?\DateTimeImmutable $at = null,
     ) {
-        $this->at ??= new \DateTimeImmutable();
+        $this->at ??= new \DateTimeImmutable;
     }
 
     public static function messageDelta(?string $runId, string $content): self
@@ -38,6 +41,9 @@ class AgentEvent
         return new self('message.final', ['run_id' => $runId, 'content' => $content]);
     }
 
+    /**
+     * @param  array<string, mixed>  $args
+     */
     public static function toolStart(?string $runId, string $tool, array $args = []): self
     {
         return new self('tool.start', ['run_id' => $runId, 'tool' => $tool, 'args' => $args]);
@@ -48,9 +54,12 @@ class AgentEvent
         return new self('tool.result', ['run_id' => $runId, 'tool' => $tool, 'ok' => $ok, 'summary' => $summary]);
     }
 
+    /**
+     * @param  array<string, mixed>  $options
+     */
     public static function approvalRequest(?string $runId, string $id, string $prompt, array $options = []): self
     {
-        return new self('approval.request', ['run_id' => $runId, 'id' => $id, 'prompt' => $prompt, 'options' => $options]);
+        return new self('approval.request', ['run_id' => $runId, 'id' => $id, 'prompt' => $prompt, 'options' => $options, 'resolved' => false]);
     }
 
     public static function approvalResolved(?string $runId, string $id, bool $approved, ?string $note = null): self
@@ -78,6 +87,9 @@ class AgentEvent
         return new self('error', ['message' => $message]);
     }
 
+    /**
+     * @return array{type: string, payload: array<string, mixed>, at: string}
+     */
     public function toArray(): array
     {
         return [

@@ -2,28 +2,38 @@
 
 namespace App\Livewire\Agents;
 
+use App\Agents\AgentManager;
 use App\Enums\AgentRuntime;
+use App\Enums\AgentStatus;
 use App\Models\Agent;
 use App\Models\Model;
+use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Livewire\Component;
 
 class Create extends Component
 {
     public string $name = '';
+
     public string $description = '';
+
     public string $runtime = 'pi';
+
     public ?int $model_id = null;
+
     public bool $internet_enabled = false;
+
     public bool $auto_restart = true;
+
     public string $system_prompt = '';
 
     public function submit(): void
     {
         $this->validate([
             'name' => ['required', 'string', 'max:64', 'alpha_dash',
-                \Illuminate\Validation\Rule::unique(Agent::class, 'name')->where(fn ($q) => $q->whereNull('deleted_at'))],
+                Rule::unique(Agent::class, 'name')->where(fn ($q) => $q->whereNull('deleted_at'))],
             'description' => ['nullable', 'string', 'max:500'],
             'runtime' => ['required', 'in:pi,hermes'],
             'model_id' => ['required', 'exists:models,id'],
@@ -42,19 +52,19 @@ class Create extends Component
                 'internet_enabled' => $this->internet_enabled,
                 'auto_restart' => $this->auto_restart,
                 'owner_id' => $user->id,
-                'status' => \App\Enums\AgentStatus::Offline,
-                'image' => config('taap.runtimes.' . $this->runtime . '.image'),
+                'status' => AgentStatus::Offline,
+                'image' => config('taap.runtimes.'.$this->runtime.'.image'),
             ]);
 
             $agent->save();
 
-            app(\App\Agents\AgentManager::class)->provision($agent);
-            app(\App\Agents\AgentManager::class)->start($agent);
+            app(AgentManager::class)->provision($agent);
+            app(AgentManager::class)->start($agent);
         } catch (ValidationException $e) {
             throw $e;
         } catch (\Throwable $e) {
             report($e);
-            session()->flash('error', __('agents.title') . ': ' . $e->getMessage());
+            session()->flash('error', __('agents.title').': '.$e->getMessage());
 
             return;
         }
@@ -62,7 +72,7 @@ class Create extends Component
         $this->redirectRoute('agents.show', $agent->refresh(), navigate: true);
     }
 
-    public function render()
+    public function render(): View
     {
         $models = Model::with('provider')->get()->keyBy('id');
 

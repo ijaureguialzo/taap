@@ -44,6 +44,49 @@
                 </div>
             </div>
 
+            {{-- Linea de tiempo (7.2, design D6) --}}
+            <div class="card">
+                <div class="card-header">{{ __('timeline.title') }}</div>
+                <div class="card-body small">
+                    @forelse ($windows as $w)
+                        <div class="border-bottom py-2 mb-2 {{ $w['open'] ? 'border-primary' : '' }}">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <span class="fw-semibold {{ $w['open'] ? 'text-primary' : 'text-success' }}">
+                                    {{ $w['open'] ? __('timeline.open') : __('timeline.done') }}
+                                </span>
+                                <span class="text-muted">
+                                    {{ $w['start']->format('d/m H:i') }}
+                                    @if ($w['end']) – {{ $w['end']->format('H:i') }} @endif
+                                    · {{ app(App\Agents\Timeline::class)->humanDuration($w) }}
+                                </span>
+                            </div>
+                            @if ($w['note'])
+                                <div class="text-truncate" title="{{ $w['note'] }}">{{ $w['note'] }}</div>
+                            @endif
+                            <div class="d-flex flex-wrap gap-1 mt-1">
+                                @if ($w['messages'] > 0)
+                                    <span class="badge text-bg-light border">{{ __('timeline.messages') }}: {{ $w['messages'] }}</span>
+                                @endif
+                                @if ($w['tool_calls'] > 0)
+                                    <span class="badge text-bg-light border">{{ __('timeline.tools') }}: {{ $w['tool_calls'] }}</span>
+                                    @foreach (array_slice($w['tools'], 0, 4) as $tool)
+                                        <span class="badge text-bg-secondary">{{ $tool }}</span>
+                                    @endforeach
+                                @endif
+                                @if ($w['approvals'] > 0)
+                                    <span class="badge text-bg-warning">{{ __('timeline.approvals') }}: {{ $w['approvals'] }}</span>
+                                @endif
+                                @if ($w['errors'] > 0)
+                                    <span class="badge text-bg-danger">{{ __('timeline.errors') }}: {{ $w['errors'] }}</span>
+                                @endif
+                            </div>
+                        </div>
+                    @empty
+                        <p class="text-muted mb-0">{{ __('timeline.empty') }}</p>
+                    @endforelse
+                </div>
+            </div>
+
             {{-- Configuracion --}}
             @if ($canManage)
                 <div class="card">

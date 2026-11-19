@@ -1,6 +1,6 @@
 <?php
 
-return array (
-  'admin' => 'admin',
-  'user' => 'erabiltzailea',
-);
+return [
+    'admin' => 'admin',
+    'user' => 'erabiltzailea',
+];

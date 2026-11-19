@@ -3,7 +3,6 @@
 namespace App\Jobs;
 
 use App\Agents\RuntimeAdapters;
-
 use App\Models\Agent;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -14,15 +13,15 @@ use Illuminate\Queue\SerializesModels;
 /**
  * Orden del demonio del bridge: BridgeAttach.
  */
-
 class BridgeAttach implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     public int $tries = 3;
+
     public int $timeout = 30;
 
-public function __construct(public int $agentId) {}
+    public function __construct(public int $agentId) {}
 
     public function handle(RuntimeAdapters $adapters): void
     {

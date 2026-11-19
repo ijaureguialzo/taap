@@ -2,8 +2,12 @@
 
 namespace App\Livewire\Agents;
 
+use App\Agents\AgentManager;
+use App\Agents\Timeline;
 use App\Enums\AgentStatus;
 use App\Models\Agent;
+use App\Models\Model;
+use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Component;
 
@@ -12,8 +16,11 @@ class Detail extends Component
     public Agent $agent;
 
     public string $system_prompt = '';
+
     public bool $internet_enabled = false;
+
     public bool $auto_restart = false;
+
     public ?int $model_id = null;
 
     /** Estado en vivo (canal Reverb) para el badge del header. */
@@ -34,6 +41,9 @@ class Detail extends Component
         $this->liveStatus = $agent->status->value;
     }
 
+    /**
+     * @param  array<string, mixed>  $payload
+     */
     public function agentEvent(array $payload): void
     {
         if (($payload['agent_id'] ?? null) != $this->agent->id) {
@@ -46,7 +56,7 @@ class Detail extends Component
 
     public function lifecycle(string $action): void
     {
-        $manager = app(\App\Agents\AgentManager::class);
+        $manager = app(AgentManager::class);
 
         try {
             $this->agent = match ($action) {
@@ -73,7 +83,7 @@ class Detail extends Component
 
         $this->agent->system_prompt = $this->system_prompt ?: null;
         $this->agent->auto_restart = $this->auto_restart;
-        if ($this->model_id) {
+        if (($this->model_id ?? 0) > 0) {
             $this->agent->model_id = $this->model_id;
         }
         $this->agent->save();
@@ -83,7 +93,7 @@ class Detail extends Component
             $this->agent->internet_enabled = $this->internet_enabled;
             $this->agent->save();
             try {
-                $this->agent = app(\App\Agents\AgentManager::class)->provision($this->agent);
+                $this->agent = app(AgentManager::class)->provision($this->agent);
             } catch (\Throwable $e) {
                 session()->flash('error', $e->getMessage());
             }
@@ -94,7 +104,7 @@ class Detail extends Component
 
     public function delete(): void
     {
-        $manager = app(\App\Agents\AgentManager::class);
+        $manager = app(AgentManager::class);
 
         try {
             $manager->terminate($this->agent);
@@ -109,7 +119,7 @@ class Detail extends Component
         $this->redirectRoute('agents.index', navigate: true);
     }
 
-    public function render()
+    public function render(): View
     {
         $user = Auth::user();
         $canManage = $user->isAdmin() || $user->id === $this->agent->owner_id;
@@ -123,12 +133,16 @@ class Detail extends Component
             }
         }
 
-        $models = \App\Models\Model::with('provider')->get()->keyBy('id');
+        $models = Model::with('provider')->get()->keyBy('id');
+
+        // 7.2: lineas de tiempo (ventanas de trabajo, design D6).
+        $windows = app(Timeline::class)->windows($this->agent->id);
 
         return view('livewire.agents.detail', [
             'status' => $status,
             'canManage' => $canManage,
             'models' => $models,
+            'windows' => $windows,
         ]);
     }
 }

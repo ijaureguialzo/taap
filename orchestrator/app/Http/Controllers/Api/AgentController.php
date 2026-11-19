@@ -3,23 +3,23 @@
 namespace App\Http\Controllers\Api;
 
 use App\Agents\AgentManager;
+use App\Agents\ConfigRenderer;
+use App\Agents\EgressSync;
 use App\Agents\QuotaExceededException;
-use App\Agents\RuntimeAdapters;
 use App\Enums\AgentRuntime;
-use App\Jobs\BridgeApplyConfig;
+use App\Enums\AgentStatus;
 use App\Http\Controllers\Controller;
+use App\Jobs\BridgeApplyConfig;
 use App\Models\Agent;
-use App\Models\User;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Http\Response;
+use Illuminate\Validation\Rule;
 
 class AgentController extends Controller
 {
-    public function __construct(protected AgentManager $manager)
-    {
-    }
+    public function __construct(protected AgentManager $manager) {}
 
-    public function index(Request $request)
+    public function index(Request $request): JsonResponse
     {
         $agents = Agent::query()
             ->visibleTo($request->user())
@@ -32,12 +32,12 @@ class AgentController extends Controller
         ]);
     }
 
-    public function store(Request $request)
+    public function store(Request $request): JsonResponse
     {
         $data = $request->validate([
-            'name' => ['required', 'string', 'max:64', \Illuminate\Validation\Rule::unique('agents', 'name')->whereNull('deleted_at')],
+            'name' => ['required', 'string', 'max:64', Rule::unique('agents', 'name')->whereNull('deleted_at')],
             'description' => ['nullable', 'string', 'max:500'],
-            'runtime' => ['required', 'in:' . implode(',', AgentRuntime::supported())],
+            'runtime' => ['required', 'in:'.implode(',', AgentRuntime::supported())],
             'model_id' => ['nullable', 'integer', 'exists:models,id'],
             'system_prompt' => ['nullable', 'string', 'max:20000'],
             'internet_enabled' => ['boolean'],
@@ -61,15 +61,15 @@ class AgentController extends Controller
             'system_prompt' => $data['system_prompt'] ?? null,
             'internet_enabled' => (bool) ($data['internet_enabled'] ?? false),
             'working_dir' => $data['working_dir'] ?? null,
-            'image' => config('taap.runtimes.' . $data['runtime'] . '.image'),
-            'status' => \App\Enums\AgentStatus::Offline,
+            'image' => config('taap.runtimes.'.$data['runtime'].'.image'),
+            'status' => AgentStatus::Offline,
         ]);
         $agent->save();
 
         if (! empty($data['mcp_server_ids'])) {
-            $agent->mcpServers()->sync(
-                collect($data['mcp_server_ids'])->mapWithKeys(fn ($id) => [$id => []])->all()
-            );
+            /** @var list<int> $mcpIds */
+            $mcpIds = $data['mcp_server_ids'];
+            $agent->mcpServers()->sync(collect($mcpIds)->mapWithKeys(fn (int $id) => [$id => []])->all());
         }
 
         $agent = $this->manager->provision($agent);
@@ -80,7 +80,7 @@ class AgentController extends Controller
         return response()->json(['agent' => $this->payload($agent)], 201);
     }
 
-    public function show(Request $request, Agent $agent)
+    public function show(Request $request, Agent $agent): JsonResponse
     {
         $this->authorize($request, $agent);
         $agent->load(['model', 'model.provider', 'token', 'mcpServers']);
@@ -90,12 +90,12 @@ class AgentController extends Controller
         ]);
     }
 
-    public function update(Request $request, Agent $agent)
+    public function update(Request $request, Agent $agent): JsonResponse
     {
         $this->authorize($request, $agent);
 
         $data = $request->validate([
-            'name' => ['required', 'string', 'max:64', 'unique:agents,name,' . $agent->id],
+            'name' => ['required', 'string', 'max:64', 'unique:agents,name,'.$agent->id],
             'description' => ['nullable', 'string', 'max:500'],
             'model_id' => ['nullable', 'integer', 'exists:models,id'],
             'system_prompt' => ['nullable', 'string', 'max:20000'],
@@ -125,25 +125,25 @@ class AgentController extends Controller
             $agent->save();
 
             if (array_key_exists('mcp_server_ids', $data)) {
-                $agent->mcpServers()->sync(
-                    collect($data['mcp_server_ids'])->mapWithKeys(fn ($id) => [$id => []])->all()
-                );
+                /** @var list<int> $mcpIds */
+                $mcpIds = $data['mcp_server_ids'];
+                $agent->mcpServers()->sync(collect($mcpIds)->mapWithKeys(fn (int $id) => [$id => []])->all());
             }
 
             $configChanged = true;
         }
 
         // Re-renderiza la config nativa y la aplica sin perder la sesion
-        app(\App\Agents\ConfigRenderer::class)->render($agent);
-        app(\App\Agents\EgressSync::class)->sync();
-        BridgeApplyConfig::dispatch('taap-bridge', $agent->id);
+        app(ConfigRenderer::class)->render($agent);
+        app(EgressSync::class)->sync();
+        BridgeApplyConfig::dispatch($agent->id);
 
         $agent->load('model', 'model.provider', 'token');
 
         return response()->json(['agent' => $this->payload($agent)]);
     }
 
-    public function destroy(Request $request, Agent $agent)
+    public function destroy(Request $request, Agent $agent): JsonResponse
     {
         $this->authorize($request, $agent);
 
@@ -155,7 +155,7 @@ class AgentController extends Controller
 
     /* ------- acciones de ciclo de vida ------- */
 
-    public function start(Request $request, Agent $agent)
+    public function start(Request $request, Agent $agent): JsonResponse
     {
         $this->authorize($request, $agent);
 
@@ -169,7 +169,7 @@ class AgentController extends Controller
         return response()->json(['agent' => $this->payload($agent->refresh())]);
     }
 
-    public function stop(Request $request, Agent $agent)
+    public function stop(Request $request, Agent $agent): JsonResponse
     {
         $this->authorize($request, $agent);
         $this->manager->stop($agent);
@@ -177,7 +177,7 @@ class AgentController extends Controller
         return response()->json(['agent' => $this->payload($agent->refresh())]);
     }
 
-    public function restart(Request $request, Agent $agent)
+    public function restart(Request $request, Agent $agent): JsonResponse
     {
         $this->authorize($request, $agent);
         $this->manager->restart($agent);
@@ -185,7 +185,7 @@ class AgentController extends Controller
         return response()->json(['agent' => $this->payload($agent->refresh())]);
     }
 
-    public function status(Request $request, Agent $agent)
+    public function status(Request $request, Agent $agent): JsonResponse
     {
         $this->authorize($request, $agent);
         $agent->refresh();
@@ -205,6 +205,9 @@ class AgentController extends Controller
         }
     }
 
+    /**
+     * @return array<string, mixed>
+     */
     protected function payload(Agent $agent, bool $full = false): array
     {
         $data = [

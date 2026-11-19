@@ -1,10 +1,13 @@
 <?php
 
+use App\Http\Controllers\Auth\LoginController;
+use App\Http\Controllers\Auth\RegisterController;
 use App\Livewire\Agents;
 use App\Livewire\Mcp;
 use App\Livewire\Models;
 use App\Livewire\Providers;
 use App\Livewire\Users;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
 Route::view('/', 'welcome')->name('home');
@@ -12,12 +15,12 @@ Route::view('/', 'welcome')->name('home');
 // Autenticación (paginas Blade con Livewire para el form)
 Route::middleware('guest')->group(function () {
     Route::get('login', fn () => view('pages.auth.login'))->name('login');
-    Route::post('login', [App\Http\Controllers\Auth\LoginController::class, 'login'])->name('login.store');
+    Route::post('login', [LoginController::class, 'login'])->name('login.store');
     Route::get('register', fn () => view('pages.auth.register'))->name('register');
-    Route::post('register', [App\Http\Controllers\Auth\RegisterController::class, 'register'])->name('register.store');
+    Route::post('register', [RegisterController::class, 'register'])->name('register.store');
 });
 
-Route::post('logout', [App\Http\Controllers\Auth\LoginController::class, 'logout'])
+Route::post('logout', [LoginController::class, 'logout'])
     ->middleware('auth')->name('logout');
 
 Route::middleware(['auth'])->group(function () {
@@ -35,7 +38,7 @@ Route::middleware(['auth'])->group(function () {
         ->middleware('role:admin')->name('users.index');
 
     Route::get('profile/language', fn () => view('pages.profile.language'))->name('profile.language');
-    Route::post('profile/language', function (\Illuminate\Http\Request $request) {
+    Route::post('profile/language', function (Request $request) {
         $data = $request->validate(['locale' => ['required', 'in:es,en,eu']]);
         $request->user()->forceFill(['locale' => $data['locale']])->save();
         session()->put('locale', $data['locale']);

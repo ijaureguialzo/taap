@@ -3,6 +3,7 @@
 namespace App\Livewire\Providers;
 
 use App\Models\ModelProvider;
+use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Validation\Rule;
@@ -13,14 +14,25 @@ class Index extends Component
     public bool $creating = false;
 
     public string $name = '';
+
     public string $type = 'openai';
+
     public string $base_url = '';
+
     public string $api_key = '';
+
     public ?int $edit_id = null;
+
+    /** El proveedor ya tiene clave guardada (el formulario la enmascara). */
+    public bool $key_set = false;
+
+    public bool $delete_key = false;
 
     public function startCreate(): void
     {
         $this->reset('name', 'type', 'base_url', 'api_key', 'edit_id');
+        $this->key_set = false;
+        $this->delete_key = false;
         $this->creating = true;
     }
 
@@ -39,10 +51,15 @@ class Index extends Component
             $this->name = $p->name;
             $this->type = $p->type;
             $this->base_url = $p->base_url;
-            $this->api_key = $p->api_key ?? '';
+            // La clave NO se envia en claro al navegador: campo vacio =
+            // conservar la existente; texto nuevo = sustituirla.
+            $this->key_set = filled($p->api_key);
+            $this->api_key = '';
         } else {
             $this->reset('name', 'type', 'base_url', 'api_key');
+            $this->key_set = false;
         }
+        $this->delete_key = false;
     }
 
     public function save(): void
@@ -54,17 +71,31 @@ class Index extends Component
             'api_key' => ['nullable', 'string', 'max:512'],
         ]);
 
+        if ($this->delete_key && $this->key_set) {
+            $key = null;
+        } elseif ($this->api_key !== '') {
+            $key = $this->api_key;
+        } elseif ($this->key_set) {
+            // Campo vacio con clave existente: se conserva (no se toca).
+            $key = null;
+        } else {
+            $key = null;
+        }
+
         $data = [
             'name' => $this->name,
             'type' => $this->type,
             'base_url' => $this->base_url,
-            'api_key' => $this->api_key ?: null,
             'created_by' => Auth::user()->id,
         ];
 
         if ($this->edit_id) {
+            if ($key !== null || $this->delete_key) {
+                $data['api_key'] = $key;
+            }
             ModelProvider::whereKey($this->edit_id)->where('created_by', Auth::user()->id)->update($data);
         } else {
+            $data['api_key'] = $key;
             ModelProvider::create($data);
         }
 
@@ -76,17 +107,17 @@ class Index extends Component
     public function check(?int $id): void
     {
         $p = ModelProvider::findOrFail($id);
-        $headers = $p->api_key ? ['Authorization' => 'Bearer ' . $p->api_key] : [];
+        $headers = $p->api_key ? ['Authorization' => 'Bearer '.$p->api_key] : [];
 
         try {
             $res = Http::timeout(15)
                 ->withHeaders($headers)
-                ->get(rtrim($p->base_url, '/') . '/models');
+                ->get(rtrim($p->base_url, '/').'/models');
 
             if ($res->successful()) {
                 session()->flash('success', __('providers.check_ok'));
             } else {
-                session()->flash('error', __('providers.check_fail') . " ({$res->status()})");
+                session()->flash('error', __('providers.check_fail')." ({$res->status()})");
             }
         } catch (\Throwable $e) {
             session()->flash('error', __('providers.check_fail'));
@@ -98,7 +129,7 @@ class Index extends Component
         ModelProvider::whereKey($id)->where('created_by', Auth::user()->id)->delete();
     }
 
-    public function render()
+    public function render(): View
     {
         $providers = ModelProvider::withCount('models')
             ->where('created_by', Auth::user()->id)

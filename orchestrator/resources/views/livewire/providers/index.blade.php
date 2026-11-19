@@ -30,7 +30,14 @@
                     <div class="col-md-3">
                         <label class="form-label small">{{ __('providers.api_key') }}</label>
                         <input type="password" wire:model="api_key" class="form-control form-control-sm"
+                               placeholder="{{ $key_set ? __('providers.key_set') : '' }}"
                                autocomplete="new-password">
+                        @if ($key_set)
+                            <div class="form-check mt-2">
+                                <input class="form-check-input" type="checkbox" wire:model="delete_key" id="deleteKey">
+                                <label class="form-check-label small" for="deleteKey">{{ __('providers.delete_key') }}</label>
+                            </div>
+                        @endif
                     </div>
                 </div>
                 <div class="mt-3">

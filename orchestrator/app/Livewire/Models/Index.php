@@ -4,6 +4,7 @@ namespace App\Livewire\Models;
 
 use App\Models\Model;
 use App\Models\ModelProvider;
+use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
 use Livewire\Component;
@@ -11,10 +12,15 @@ use Livewire\Component;
 class Index extends Component
 {
     public bool $creating = false;
+
     public ?int $provider_id = null;
+
     public string $model_id = '';
+
     public string $name = '';
+
     public ?int $context_window = null;
+
     public ?int $max_tokens = null;
 
     public function startCreate(): void
@@ -55,7 +61,7 @@ class Index extends Component
         Model::whereKey($id)->delete();
     }
 
-    public function render()
+    public function render(): View
     {
         $user = Auth::user();
 

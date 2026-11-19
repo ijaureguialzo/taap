@@ -51,6 +51,13 @@ interface AgentRuntimeAdapter
     /** Estado actual del agente (el bridge lo usa para sincronizar). */
     public function status(Agent $agent): AgentStatus;
 
+    /**
+     * Sondea el runtime para confirmar el arranque (el bridge lo llama
+     * mientras el agente esta en `starting`). Hermes: sin-op (el sondeo
+     * lo hace el bridge via status()).
+     */
+    public function probe(Agent $agent): void;
+
     /** Detenidamente: mata la sesion/runtime (el contenedor sigue si auto_restart). */
     public function destroy(Agent $agent): void;
 }

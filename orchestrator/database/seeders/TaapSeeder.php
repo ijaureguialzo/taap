@@ -46,7 +46,7 @@ class TaapSeeder extends Seeder
 
         // Provider local de ejemplo (router Qwen en el host; en el
         // despliegue en contenedor se resuelve via host.docker.internal).
-        $qwenBase = env('TAAP_QWEN_BASE_URL', 'http://127.0.0.1:8000/v1');
+        $qwenBase = (string) config('taap.seed.qwen_base_url');
         $qwen = ModelProvider::firstOrCreate(
             ['name' => 'qwen-local'],
             [

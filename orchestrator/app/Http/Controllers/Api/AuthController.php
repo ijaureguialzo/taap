@@ -3,20 +3,22 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\User;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
 
 class AuthController extends Controller
 {
-    public function login(Request $request)
+    public function login(Request $request): JsonResponse
     {
         $credentials = $request->validate([
             'email' => ['required', 'email'],
             'password' => ['required', 'string'],
         ]);
 
-        $user = \App\Models\User::where('email', $credentials['email'])->first();
+        $user = User::where('email', $credentials['email'])->first();
 
         if (! $user || ! Hash::check($credentials['password'], $user->password)) {
             throw ValidationException::withMessages([
@@ -24,7 +26,8 @@ class AuthController extends Controller
             ]);
         }
 
-        // Regenera el token actual (login recurrente del cliente)
+        // Regenera el token actual si hubiera (login recurrente del
+        // cliente); en un usuario traido de la BD no hay access token.
         $user->currentAccessToken()?->delete();
         $token = $user->createToken('taap')->plainTextToken;
 
@@ -34,14 +37,14 @@ class AuthController extends Controller
         ]);
     }
 
-    public function logout(Request $request)
+    public function logout(Request $request): JsonResponse
     {
-        $request->user()->currentAccessToken()->delete();
+        $request->user()->currentAccessToken()?->delete();
 
         return response()->json(['ok' => true]);
     }
 
-    public function me(Request $request)
+    public function me(Request $request): JsonResponse
     {
         return response()->json([
             'user' => $this->userPayload($request->user()),
@@ -49,7 +52,7 @@ class AuthController extends Controller
     }
 
     /** Tokens de API del usuario (para la app iOS). */
-    public function tokens(Request $request)
+    public function tokens(Request $request): JsonResponse
     {
         return response()->json([
             'tokens' => $request->user()->tokens()->orderByDesc('created_at')
@@ -63,7 +66,7 @@ class AuthController extends Controller
         ]);
     }
 
-    public function createToken(Request $request)
+    public function createToken(Request $request): JsonResponse
     {
         $request->validate(['name' => ['required', 'string', 'max:64']]);
         $token = $request->user()->createToken($request->input('name'))->plainTextToken;
@@ -71,18 +74,18 @@ class AuthController extends Controller
         return response()->json(['token' => $token], 201);
     }
 
-    public function deleteToken(Request $request, int $tokenId)
+    public function deleteToken(Request $request, int $tokenId): JsonResponse
     {
         $request->user()->tokens()->whereKey($tokenId)->delete();
 
         return response()->json(['ok' => true]);
     }
 
-    public function updateProfile(Request $request)
+    public function updateProfile(Request $request): JsonResponse
     {
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
-            'locale' => ['required', 'in:' . implode(',', config('taap.locales'))],
+            'locale' => ['required', 'in:'.implode(',', config('taap.locales'))],
             'password' => ['nullable', 'string', 'min:8', 'confirmed'],
         ]);
 
@@ -97,7 +100,10 @@ class AuthController extends Controller
         return response()->json(['user' => $this->userPayload($user->refresh())]);
     }
 
-    protected function userPayload(\App\Models\User $user): array
+    /**
+     * @return array<string, mixed>
+     */
+    protected function userPayload(User $user): array
     {
         return [
             'id' => $user->id,

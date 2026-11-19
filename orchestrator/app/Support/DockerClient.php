@@ -6,7 +6,6 @@ use App\Models\Agent;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Log;
 use Symfony\Component\Process\Process;
-use App\Support\ProcessStreams;
 
 /**
  * Delgada capa de abstraccion sobre el Docker Engine (CLI `docker`).
@@ -20,18 +19,18 @@ class DockerClient
 {
     public function __construct(
         protected string $bin = 'docker',
-    ) {
-    }
+    ) {}
 
     /* ---------------- contenedores ---------------- */
 
     /**
      * Crea (no arranca) un contenedor.
      *
-     * @param  array{image: string, name: string, networks: list<array{name: string, ip?: ?string}>,
+     * @param  array{agent_id: int, image: string, name: string, networks: list<array{name: string, ip?: ?string}>,
      *               volumes?: list<string>, env?: array<string, string>,
      *               restart?: ?string, labels?: array<string, string>,
-     *               cmd?: list<string>, openStdin?: bool, tty?: bool}  $spec
+     *               cmd?: list<string>, openStdin?: bool, tty?: bool,
+     *               readonly?: bool, tmpfs?: list<string>}  $spec
      */
     public function createContainer(array $spec): string
     {
@@ -63,6 +62,17 @@ class DockerClient
         if (! empty($spec['restart'])) {
             $args[] = '--restart';
             $args[] = $spec['restart'];
+        }
+
+        // Endurecimiento: rootfs solo lectura (los areas escribibles son
+        // binds de datos o tmpfs); el contenedor no debe poder plantar nada
+        // fuera de ellos (design.md: contenedores endurecidos).
+        if (! empty($spec['readonly'])) {
+            $args[] = '--read-only';
+        }
+        foreach ($spec['tmpfs'] ?? [] as $mount) {
+            $args[] = '--tmpfs';
+            $args[] = $mount;
         }
 
         foreach ($spec['labels'] ?? [] as $key => $value) {
@@ -104,7 +114,7 @@ class DockerClient
 
     public function remove(string $name, bool $force = true): void
     {
-        Log::info("DockerClient: rm {$name} (force=" . ($force ? 1 : 0) . ") de: " . collect(debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 6))->map(fn ($f) => ($f['class'] ?? '?') . '::' . ($f['function'] ?? '?'))->implode(' <- '));
+        Log::info("DockerClient: rm {$name} (force=".($force ? 1 : 0).') de: '.collect(debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 6))->map(fn ($f) => ($f['class'] ?? '?').'::'.$f['function'])->implode(' <- '));
         $this->run(['rm', $force ? '-f' : null, $name], allowFail: true);
     }
 
@@ -126,6 +136,9 @@ class DockerClient
         }
     }
 
+    /**
+     * @return array<string, mixed>|null
+     */
     public function inspect(string $name): ?array
     {
         try {
@@ -140,7 +153,7 @@ class DockerClient
     /**
      * Contenedores gestionados por TAAP (todos los que llevan la etiqueta).
      *
-     * @return list<array{name: string, id: string, agent: ?int, state: string}>
+     * @return list<array{name: string, id: string, agent: int|null, instance: string, state: string}>
      */
     public function managedContainers(): array
     {
@@ -154,7 +167,7 @@ class DockerClient
         }
 
         $result = [];
-        foreach (preg_split('/\R/', $output) as $line) {
+        foreach (preg_split('/\R/', $output) ?: [] as $line) {
             if ($line === '') {
                 continue;
             }
@@ -183,7 +196,7 @@ class DockerClient
     public function rpcDir(int $agentId): string
     {
         $base = (string) config('taap.agents.rpc_base', '/tmp/taap-rpc');
-        $dir = $base . '/' . $agentId;
+        $dir = $base.'/'.$agentId;
         File::ensureDirectoryExists($dir);
 
         // Solo crear si no existen: truncar en cada llamada borraria el
@@ -206,9 +219,9 @@ class DockerClient
     {
         $process = new ProcessStreams([
             'sh', '-c',
-            'trap "kill $(jobs -p)" TERM INT; docker logs -f --tail 0 ' . escapeshellarg($name) . " >> $dir/out 2>> $dir/err & wait",
+            'trap "kill $(jobs -p)" TERM INT; docker logs -f --tail 0 '.escapeshellarg($name)." >> $dir/out 2>> $dir/err & wait",
         ]);
-        file_put_contents($dir . '/reader.pid', (string) $process->pid);
+        file_put_contents($dir.'/reader.pid', (string) $process->pid);
 
         return $process;
     }
@@ -239,9 +252,9 @@ done
 SH;
         $process = new ProcessStreams([
             'sh', '-c',
-            'trap "kill \$(jobs -p)" TERM INT; ' . $script . ' & wait',
+            'trap "kill \$(jobs -p)" TERM INT; '.$script.' & wait',
         ]);
-        file_put_contents($dir . '/writer.pid', (string) $process->pid);
+        file_put_contents($dir.'/writer.pid', (string) $process->pid);
 
         return $process;
     }
@@ -253,22 +266,32 @@ SH;
      */
     public function killCoprocess(string $dir, string $which): void
     {
-        $file = $dir . '/' . $which . '.pid';
+        $file = $dir.'/'.$which.'.pid';
         if (is_file($file)) {
             $pid = (int) trim((string) file_get_contents($file));
-            if ($pid > 0 && extension_loaded('posix') && @posix_kill($pid, 0)) {
+            $alive = $this->pidAlive($pid);
+            if ($alive) {
                 @posix_kill($pid, SIGTERM);
                 // dar un momento a cerrar ficheros
-                for ($i = 0; $i < 10 && @posix_kill($pid, 0); $i++) {
+                for ($i = 0; $i < 10 && $alive; $i++) {
                     usleep(100_000);
+                    $alive = $this->pidAlive($pid);
                 }
-                if (@posix_kill($pid, 0)) {
+                if ($alive) {
                     @posix_kill($pid, SIGKILL);
                 }
             }
             @unlink($file);
         }
         $this->killOrphans($dir);
+    }
+
+    /**
+     * El pid sigue vivo? (probe de señal 0; el posix puede no estar).
+     */
+    protected function pidAlive(int $pid): bool
+    {
+        return $pid > 0 && extension_loaded('posix') && @posix_kill($pid, 0);
     }
 
     /**
@@ -282,7 +305,7 @@ SH;
             return;
         }
         foreach (glob('/proc/[0-9]*') ?: [] as $proc) {
-            $cmd = str_replace("\0", ' ', (string) @file_get_contents($proc . '/cmdline'));
+            $cmd = str_replace("\0", ' ', (string) @file_get_contents($proc.'/cmdline'));
             if ($cmd !== '' && str_contains($cmd, $dir)) {
                 @posix_kill((int) basename($proc), SIGKILL);
             }
@@ -295,7 +318,7 @@ SH;
      */
     public function coprocessAlive(string $dir, string $which, ?string $signature = null): bool
     {
-        $file = $dir . '/' . $which . '.pid';
+        $file = $dir.'/'.$which.'.pid';
         if (! is_file($file)) {
             return false;
         }
@@ -329,6 +352,9 @@ SH;
         return $this->run(['logs', '--tail', (string) $tail, $name], allowFail: true);
     }
 
+    /**
+     * @param  list<string>  $command
+     */
     public function exec(string $name, array $command, bool $tty = false): Process
     {
         $args = ['exec'];
@@ -337,8 +363,7 @@ SH;
         } else {
             $args[] = '-i';
         }
-        $process = new Process(array_merge($args, [$name]));
-        $process->setCommand(array_merge($args, [$name, ...$command]));
+        $process = new Process(array_merge($args, [$name, ...$command]));
         $process->setTimeout(120);
 
         return $process;
@@ -399,7 +424,7 @@ SH;
         $inUse = $this->usedIps($networkName);
 
         for ($i = 2; $i < $count; $i++) {
-            $candidate = "{$prefix}." . ($last + $i);
+            $candidate = "{$prefix}.".($last + $i);
             if (! in_array($candidate, $inUse, true)) {
                 return $candidate;
             }
@@ -408,23 +433,29 @@ SH;
         return null;
     }
 
+    /**
+     * @return list<string>
+     */
     protected function usedIps(string $networkName): array
     {
         try {
             $nl = chr(10);
             $output = $this->run([
                 'network', 'inspect', $networkName,
-                '--format', '{{range $k, $v := .Containers}}{{$v.IPv4Address}}' . $nl . '{{end}}',
+                '--format', '{{range $k, $v := .Containers}}{{$v.IPv4Address}}'.$nl.'{{end}}',
             ], json: false);
         } catch (DockerException) {
             return [];
         }
 
-        return array_values(array_filter(array_map(fn ($ip) => explode('/', trim($ip))[0], preg_split('/\R/', $output))));
+        return array_values(array_filter(array_map(fn ($ip) => explode('/', trim($ip))[0], preg_split('/\R/', $output) ?: [])));
     }
 
     /* ---------------- base ---------------- */
 
+    /**
+     * @param  list<string|null>  $args
+     */
     protected function run(array $args, bool $json = true, bool $allowFail = false): string
     {
         $args = array_filter($args, fn ($a) => $a !== null);

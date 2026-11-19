@@ -7,6 +7,9 @@ enum AgentRuntime: string
     case Pi = 'pi';
     case Hermes = 'hermes';
 
+    /**
+     * @return list<string>
+     */
     public static function supported(): array
     {
         return array_column(self::cases(), 'value');
@@ -22,6 +25,9 @@ enum AgentRuntime: string
         return config("taap.runtimes.{$this->value}.label", $this->value);
     }
 
+    /**
+     * @return array<string, mixed>
+     */
     public function registry(): array
     {
         return config("taap.runtimes.{$this->value}");

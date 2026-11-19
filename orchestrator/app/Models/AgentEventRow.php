@@ -2,17 +2,26 @@
 
 namespace App\Models;
 
+use Database\Factories\AgentEventRowFactory;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
- * Fila de la cronologia agent_events.
+ * Fila de la cronologia agent_events (la escritura la hace EventSink).
  *
- * No hereda del modelo base (AgentEvent, que difunde al guardarse): la
- * difusion la hace EventSink via SendMessageToChannel, sin duplicidad.
+ * La difusion al canal `agent.{id}` la hace EventSink via
+ * BroadcastEvent(AgentEventBroadcast); la lectura la hace el modelo
+ * App\Models\AgentEvent (agent.{id} -> pending approvals, lineas de
+ * tiempo) que NO difunde.
+ *
+ * @use HasFactory<AgentEventRowFactory>
  */
 class AgentEventRow extends Model
 {
+    /** @use HasFactory<AgentEventRowFactory> */
+    use HasFactory;
+
     public $timestamps = false;
 
     protected $table = 'agent_events';
@@ -27,6 +36,9 @@ class AgentEventRow extends Model
         ];
     }
 
+    /**
+     * @return BelongsTo<Agent, $this>
+     */
     public function agent(): BelongsTo
     {
         return $this->belongsTo(Agent::class);

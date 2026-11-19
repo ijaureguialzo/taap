@@ -1,8 +1,8 @@
 <?php
 
-return array (
-  'save' => 'Guardar',
-  'cancel' => 'Cancelar',
-  'back' => 'Volver',
-  'edit' => 'Editar',
-);
+return [
+    'save' => 'Guardar',
+    'cancel' => 'Cancelar',
+    'back' => 'Volver',
+    'edit' => 'Editar',
+];

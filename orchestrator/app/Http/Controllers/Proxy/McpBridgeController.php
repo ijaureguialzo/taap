@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Proxy;
 use App\Http\Controllers\Controller;
 use App\Models\Agent;
 use App\Models\AgentToken;
+use App\Models\McpServer;
 use App\Support\DockerClient;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -24,9 +25,7 @@ use Symfony\Component\Process\Process;
  */
 class McpBridgeController extends Controller
 {
-    public function __construct(protected DockerClient $docker)
-    {
-    }
+    public function __construct(protected DockerClient $docker) {}
 
     public function __invoke(Request $request, Agent $agent): JsonResponse
     {
@@ -40,7 +39,7 @@ class McpBridgeController extends Controller
 
         $server = $agent->mcpServers()
             ->get()
-            ->first(fn ($s) => $s && $s->name === $serverName && $s->enabled);
+            ->first(fn (McpServer $s) => $s->name === $serverName && $s->enabled);
 
         if (! $server) {
             return $this->rpcError($request->json('id'), -32000, "server MCP no asignado a este agente: {$serverName}");
@@ -61,11 +60,15 @@ class McpBridgeController extends Controller
         } catch (\Throwable $e) {
             Log::warning("MCP bridge {$agent->id}/{$serverName}: {$e->getMessage()}");
 
-            return $this->rpcError($body['id'] ?? null, -32000, 'error en el server MCP: ' . $e->getMessage());
+            return $this->rpcError($body['id'] ?? null, -32000, 'error en el server MCP: '.$e->getMessage());
         }
     }
 
-    protected function forwardUrl($server, array $body): ?array
+    /**
+     * @param  array<string, mixed>  $body
+     * @return array<string, mixed>|null
+     */
+    protected function forwardUrl(McpServer $server, array $body): ?array
     {
         if (! $server->url) {
             return null;
@@ -78,7 +81,7 @@ class McpBridgeController extends Controller
             ->post($server->url, $body);
 
         if (! $response->successful() && $response->status() !== 202) {
-            throw new \RuntimeException('HTTP ' . $response->status());
+            throw new \RuntimeException('HTTP '.$response->status());
         }
 
         $text = trim($response->body());
@@ -95,7 +98,11 @@ class McpBridgeController extends Controller
         return json_decode($text, true);
     }
 
-    protected function forwardStdio(Agent $agent, $server, array $body): ?array
+    /**
+     * @param  array<string, mixed>  $body
+     * @return array<string, mixed>|null
+     */
+    protected function forwardStdio(Agent $agent, McpServer $server, array $body): ?array
     {
         if (! $server->command) {
             return null;
@@ -104,12 +111,12 @@ class McpBridgeController extends Controller
         $args = ['exec', '-i'];
         foreach ((array) $server->env as $key => $value) {
             $args[] = '--env';
-            $args[] = "{$key}=" . $value;
+            $args[] = "{$key}=".$value;
         }
 
         $process = new Process(array_merge($args, [$agent->container_name, $server->command, ...((array) $server->args)]));
         $process->setTimeout(120);
-        $process->setInput(json_encode($body) . "\n");
+        $process->setInput(json_encode($body)."\n");
         $process->run();
 
         $output = trim($process->getOutput());
@@ -123,7 +130,7 @@ class McpBridgeController extends Controller
         }
 
         // El server stdio responde JSON por linea; tomamos la ultima valida
-        foreach (array_reverse(preg_split('/\R/', $output)) as $line) {
+        foreach (array_reverse(preg_split('/\R/', $output) ?: []) as $line) {
             if ($decoded = json_decode(trim($line), true)) {
                 return $decoded;
             }
@@ -132,7 +139,7 @@ class McpBridgeController extends Controller
         return null;
     }
 
-    protected function rpcError($id, int $code, string $message): JsonResponse
+    protected function rpcError(mixed $id, int $code, string $message): JsonResponse
     {
         return new JsonResponse([
             'jsonrpc' => '2.0',

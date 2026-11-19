@@ -2,6 +2,4 @@
 
 namespace App\Support;
 
-class DockerException extends \RuntimeException
-{
-}
+class DockerException extends \RuntimeException {}

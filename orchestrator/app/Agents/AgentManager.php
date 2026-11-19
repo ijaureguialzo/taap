@@ -9,8 +9,8 @@ use App\Models\AgentToken;
 use App\Models\User;
 use App\Support\DockerClient;
 use App\Support\DockerException;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Str;
 
 /**
  * Ciclo de vida de agentes (spec agent-lifecycle). Traduce operaciones de
@@ -28,8 +28,7 @@ class AgentManager
     public function __construct(
         protected DockerClient $docker,
         protected ConfigRenderer $config,
-    ) {
-    }
+    ) {}
 
     /* ================= provision ================= */
 
@@ -65,12 +64,12 @@ class AgentManager
         }
 
         $networks = [[
-            'name' => config('taap.agents.network_internal'),
+            'name' => (string) config('taap.agents.network_internal'),
             'ip' => $agent->ip,
         ]];
         if ($agent->internet_enabled) {
             $networks[] = [
-                'name' => config('taap.agents.network_egress'),
+                'name' => (string) config('taap.agents.network_egress'),
                 'ip' => null,
             ];
         }
@@ -85,6 +84,15 @@ class AgentManager
             'restart' => $agent->auto_restart ? 'unless-stopped' : 'no',
             'openStdin' => true,
             'tty' => false,
+            // Endurecimiento: rootfs en solo lectura donde el runtime lo
+            // permita. Lo que necesite escribir va a binds (config/data/
+            // workspace) o tmpfs (/tmp; /rpc: FIFOs del puente TAAP).
+            // Excepcion: la imagen de Hermes usa s6-linux-init, cuyo stage0
+            // necesita rootfs escribible (no viable en solo lectura).
+            'readonly' => $agent->runtime !== AgentRuntime::Hermes,
+            'tmpfs' => $agent->runtime === AgentRuntime::Hermes
+                ? ['/tmp:size=64m,mode=1777', '/rpc:size=8m,mode=1777']
+                : ['/tmp:size=64m,mode=1777', '/rpc:size=8m,mode=1777'],
             'labels' => [
                 'taap.runtime' => $agent->runtime->value,
                 'taap.owner' => (string) $agent->owner_id,
@@ -115,6 +123,9 @@ class AgentManager
         return $agent;
     }
 
+    /**
+     * @return array<string, string>
+     */
     protected function containerEnv(Agent $agent): array
     {
         $env = [
@@ -125,6 +136,12 @@ class AgentManager
         // La imagen node:24 trae http_proxy=none; undici lo parsea con
         // new URL() y falla ('none' no es URL). Lo sobreescribimos siempre.
         //
+        // El trafico de todos los agentes (con o sin Internet) pasa por el
+        // proxy squid con allowlist (design.md D5): un comando inyectado no
+        // sale de la allowlist aunque el agente tenga Internet. La red NAT
+        // (taap-egress) solo se adjunta si internet_enabled: los agentes sin
+        // Internet no tienen ruta de salida aparte del proxy.
+        //
         // host.docker.internal y taap-orchestrator van SIEMPRE en no_proxy:
         // el Model Proxy y el bridge son servicios internos (no Internet) y
         // llaman directo; solo el resto de trafico pasa por squid.
@@ -132,21 +149,12 @@ class AgentManager
         $env['no_proxy'] = $noProxy;
         $env['NO_PROXY'] = $noProxy;
 
-        if ($agent->internet_enabled) {
-            // Salida directa (NAT): sin proxy
-            $env['http_proxy'] = '';
-            $env['https_proxy'] = '';
-            $env['HTTP_PROXY'] = '';
-            $env['HTTPS_PROXY'] = '';
-        } else {
-            // Todo por el proxy squid (identificado por IP de origen)
-            $proxy = (string) config('taap.agents.egress_proxy');
-            $env['PROXY_URL'] = $proxy;
-            $env['http_proxy'] = $proxy;
-            $env['https_proxy'] = $proxy;
-            $env['HTTP_PROXY'] = $proxy;
-            $env['HTTPS_PROXY'] = $proxy;
-        }
+        $proxy = (string) config('taap.agents.egress_proxy');
+        $env['PROXY_URL'] = $proxy;
+        $env['http_proxy'] = $proxy;
+        $env['https_proxy'] = $proxy;
+        $env['HTTP_PROXY'] = $proxy;
+        $env['HTTPS_PROXY'] = $proxy;
 
         return $env;
     }
@@ -155,7 +163,7 @@ class AgentManager
 
     public function start(Agent $agent): Agent
     {
-        if (!$agent->container_name || $this->docker->status($agent->container_name) === null) {
+        if (! $agent->container_name || $this->docker->status($agent->container_name) === null) {
             // Sin contenedor (o eliminado): (re)provisionar
             return $this->provision($agent);
         }
@@ -221,7 +229,7 @@ class AgentManager
 
         $dir = $this->config->dir($agent);
         if (is_dir($dir)) {
-            \Illuminate\Support\Facades\File::deleteDirectory($dir);
+            File::deleteDirectory($dir);
         }
 
         $agent->token?->delete();
@@ -239,7 +247,7 @@ class AgentManager
     public function reconcile(): void
     {
         $managed = collect($this->docker->managedContainers())
-            ->keyBy(fn (array $c) => $c['agent'] ? (int) $c['agent'] : null);
+            ->keyBy(fn (array $c) => $c['agent'] !== null ? (int) $c['agent'] : -1);
 
         // 1. Agentes de la DB
         foreach (Agent::with('token')->get() as $agent) {
@@ -252,6 +260,7 @@ class AgentManager
                     $this->docker->stop($agent->container_name);
                     $agent->save();
                 }
+
                 continue;
             }
 
@@ -264,12 +273,13 @@ class AgentManager
                         $this->start($agent);
                     }
                 }
+
                 continue;
             }
 
             if ($state === 'exited' || $state === 'dead') {
                 // Fuera de policy: re-arrancar si tiene que estar vivo
-                if ($agent->auto_restart && $agent->status !== AgentStatus::Stopped) {
+                if ($agent->auto_restart) {
                     try {
                         $this->docker->start($agent->container_name);
                         $agent->status = AgentStatus::Starting;
@@ -295,9 +305,12 @@ class AgentManager
         $agentIds = Agent::pluck('id');
         foreach ($managed as $agentId => $container) {
             $local = (string) config('taap.instance', 'default');
-            if (($container['instance'] ?? $local) !== $local
-                || ($agentId === null || ! $agentIds->contains($agentId))) {
-                if (($container['instance'] ?? $local) === $local) {
+            // Sin etiqueta de instancia (contenedores antiguos) -> tratar como
+            // propia para no dejar huérfanos
+            $instance = $container['instance'] !== '' ? $container['instance'] : $local;
+            if ($instance !== $local
+                || ($agentId === -1 || ! $agentIds->contains($agentId))) {
+                if ($instance === $local) {
                     $this->docker->remove($container['name']);
                     Log::info("reconcile: contenedor zombie eliminado {$container['name']}");
                 }
@@ -329,6 +342,6 @@ class AgentManager
     public function containerUrl(Agent $agent, int $port): string
     {
         // Los contenedores se hablan por nombre en las redes de TAAP
-        return 'http://' . $agent->container_name . ':' . $port;
+        return 'http://'.$agent->container_name.':'.$port;
     }
 }

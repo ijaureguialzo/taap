@@ -2,13 +2,14 @@
 
 namespace App\Agents;
 
+use App\Enums\AgentRuntime;
 use App\Enums\AgentStatus;
 use App\Jobs\BridgeResolveApproval;
 use App\Jobs\BridgeSendMessage;
 use App\Models\Agent;
 use App\Models\ChatMessage;
 use App\Models\User;
-use Illuminate\Support\Facades\Broadcast;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Process;
 
 /**
@@ -21,8 +22,7 @@ class ChatService
     public function __construct(
         protected EventSink $sink,
         protected AgentManager $manager,
-    ) {
-    }
+    ) {}
 
     /**
      * @throws \RuntimeException si el agente no puede aceptar mensajes
@@ -51,7 +51,7 @@ class ChatService
         // Nota: NO se dispatcha messageFinal para el mensaje de usuario:
         // la fila ya se persistio arriba y el sink lo guardaria de nuevo
         // como mensaje de agente (eco). La web ya lo tiene optimisticamente.
-        if ($agent->runtime === \App\Enums\AgentRuntime::Hermes) {
+        if ($agent->runtime === AgentRuntime::Hermes) {
             // Coproceso: la corrida HTTP larga no bloquea nada
             $this->spawnHermesTurn($agent, $message);
         } else {
@@ -80,7 +80,7 @@ class ChatService
 
         $this->sink->dispatch($agent, AgentEvent::approvalResolved(null, $approvalId, $approved, $note));
 
-        if ($agent->runtime === \App\Enums\AgentRuntime::Hermes) {
+        if ($agent->runtime === AgentRuntime::Hermes) {
             $this->spawnHermesTurn($agent, null, $approved ? '[aprobado] Continúa.' : '[denegado] Detente.');
         } else {
             BridgeResolveApproval::dispatch($agent->id, $approvalId, $approved, $note)->onQueue('taap-bridge');
@@ -112,10 +112,10 @@ class ChatService
         );
 
         try {
-            \Illuminate\Support\Facades\Process::command($spec)->start();
-            \Illuminate\Support\Facades\Log::info("ChatService: coproceso hermes lanzado (msg {$message->id}, {$agent->id})");
+            Process::command($spec)->start();
+            Log::info("ChatService: coproceso hermes lanzado (msg {$message->id}, {$agent->id})");
         } catch (\Throwable $e) {
-            \Illuminate\Support\Facades\Log::error("ChatService: fallo lanzando coproceso hermes: " . $e->getMessage());
+            Log::error('ChatService: fallo lanzando coproceso hermes: '.$e->getMessage());
         }
     }
 }
