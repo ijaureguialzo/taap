@@ -1,0 +1,23 @@
+#!/bin/sh
+# PID 1 del contenedor del agente Pi: un bucle `pi --mode rpc` de larga vida
+# (una sesion por agente, persistente en el volumen /home/agent/.pi/agent).
+#
+# La configuracion llega en /config/agent.env como variables shell (el
+# orquestador lo escribe con valores ya exportables):
+#   SESSION_ID      id de la sesion (reanudable; por defecto: marca de tiempo)
+#   PROVIDER        provider registrado en models.json (por defecto: taap)
+#   MODEL           id de modelo
+#   API_KEY         token de agente del Model Proxy
+#   SYSTEM_PROMPT   prompt de sistema opcional
+set -e
+[ -f /config/agent.env ] && . /config/agent.env
+
+SESSION_ID="${SESSION_ID:-$(date +%s)}"
+set -- --mode rpc \
+       --session-dir /home/agent/.pi/agent/sessions \
+       --session-id "$SESSION_ID"
+[ -n "${MODEL:-}" ] && set -- "$@" --provider "${PROVIDER:-taap}" --model "$MODEL"
+[ -n "${API_KEY:-}" ] && set -- "$@" --api-key "$API_KEY"
+[ -n "${SYSTEM_PROMPT:-}" ] && set -- "$@" --system-prompt "$SYSTEM_PROMPT"
+
+exec pi "$@"
