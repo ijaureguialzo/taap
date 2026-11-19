@@ -24,3 +24,8 @@
 
 - [x] 5.1 `php artisan test` y `./vendor/bin/pint --test` en el orquestador: suite en verde
 - [x] 5.2 E2E en navegador sobre el stack docker: scroll de viewport con conversación larga; botón por estado; envío con Enter; envío a agente detenido (autolarranque); ciclo de aprobación; respuesta en vivo sin recargar (verificado: viewport, Enter, botón, autolarranque `working`→respuesta→`idle`, respuesta en vivo sin recargar; el ciclo de aprobación queda cubierto por `ChatSendTest` + los estados de deshabilitación, sin agente en espera de aprobación disponible en el entorno de test)
+## 6. Robustez del botón de envío (reportado: "primera vez no, tras recargar sí")
+
+- [x] 6.1 El estado del botón y el envío (Enter/click) pasan a gestionarse por **delegación en `document`** en el script de `chat.blade.php` (los nodos `input`/`botón` pueden ser sustituidos por el morph de Livewire v4 al re-renderizar `@disabled`: un listener unido al nodo original moría en silencio). El botón se activa **inmediatamente** al teclear (0 ms) sin depender del round-trip de `wire:model` (debounce 400ms), y el hook `morph.updated` + `livewire:initialized` re-aplican el estado tras cada update
+- [x] 6.2 `Chat::send(?string $content = null)`: acepta el contenido explícito del cliente para que pulsar Enter justo tras teclear no pierda el mensaje por el debounce; se retiran `wire:click`/`wire:keydown.enter` del template (una sola vía de envío, sin dobles)
+- [x] 6.3 Verificado E2E: visita nueva con el agente `working` (canal emitiendo) → 8/8 pulsaciones activan el botón; Enter envía, limpia y re-deshabilita; `php artisan test` y pint en verde

@@ -66,12 +66,17 @@
     @endif
 
     {{-- Entrada --}}
+    {{-- El estado del boton y el envio (Enter/click) los gestiona el script
+         inline por DELEGACION en `document`: Livewire v4 sustituye estos
+         nodos al re-renderizar `disabled` y un listener unido al nodo
+         original moriria en silencio (el boton dejaba de activarse al
+         teclear). `wire:model` sigue sincronizando `content` para el
+         historial y para el estado del botón renderizado. --}}
     <div class="input-group">
         <input type="text" wire:model.live.400ms="content" class="form-control" id="chat-input"
                placeholder="{{ __('chat.placeholder') }}"
-               @disabled(! $agent->status->acceptsMessages())
-               wire:keydown.enter="send">
-        <button class="btn btn-primary" wire:click="send"
+               @disabled(! $agent->status->acceptsMessages())>
+        <button class="btn btn-primary" type="button" id="chat-send"
                 @disabled(! $agent->status->acceptsMessages() || trim($content) === '')>
             {{ __('chat.send') }}
         </button>
@@ -137,7 +142,8 @@
 
                     // 2) Tras un envío: Livewire no sobreescribe el input
                     //    enfocado (protege el cursor); el componente avisa
-                    //    con `message-sent`: vaciamos y reenfocamos.
+                    //    con `message-sent`: vaciamos, reenfocamos y
+                    //    re-aplicamos el estado del botón.
                     if (window.Livewire) {
                         window.Livewire.on('message-sent', () => {
                             if (!currentRoot().isConnected) return;
@@ -147,6 +153,7 @@
                             input.focus();
                             const box = document.querySelector('#chat-box');
                             if (box) box.scrollTop = box.scrollHeight;
+                            refreshSend();
                         });
                     }
 
@@ -189,6 +196,99 @@
                     };
                     attachAutoScroll();
                     setInterval(attachAutoScroll, 30_000);
+
+                    // 5) Estado del botón y envío (Enter/click) por
+                    //    DELEGACION en `document`: sobrevive a cualquier
+                    //    morph. Livewire v4 sustituye el nodo del botón
+                    //    cuando el atributo `disabled` re-renderizado cambia y el
+                    //    listener unido al nodo original moria en silencio
+                    //    (el botón no se activaba al teclear hasta recargar;
+                    //    tampoco el envío era inmediato: dependia del
+                    //    round-trip de wire:model con debounce 400ms).
+                    let sending = false;
+                    let sendTries = 0;
+
+                    const currentInput = () => document.querySelector('#chat-input');
+                    const currentBtn = () => document.querySelector('#chat-send');
+
+                    // Re-aplica el estado del botón leyendo el DOM ACTUAL.
+                    const refreshSend = () => {
+                        const input = currentInput();
+                        const btn = currentBtn();
+                        if (!input || !btn) return;
+                        const hasContent = input.value.trim().length > 0;
+                        btn.disabled = !(!input.disabled && hasContent && !sending);
+                    };
+
+                    const attemptSend = (content) => {
+                        const wire = currentWire();
+                        if (!wire) {
+                            // Pre-hidratación: reintenta (~2 s máx).
+                            if (++sendTries > 40) { sendTries = 0; return; }
+                            setTimeout(() => attemptSend(content), 50);
+                            return;
+                        }
+                        sendTries = 0;
+                        sending = true;
+                        refreshSend();
+                        try {
+                            // v4: el proxy $wire invoca el método por nombre
+                            // y devuelve una Action (con `.promise`).
+                            const action = wire.send(content);
+                            const p = action && action.promise ? action.promise : Promise.resolve();
+                            p.catch((e) => console.warn('taap: send', e))
+                                    .finally(() => { sending = false; refreshSend(); });
+                        } catch (e) {
+                            sending = false;
+                            console.warn('taap: send', e);
+                            refreshSend();
+                        }
+                    };
+
+                    const doSend = () => {
+                        if (sending) return;
+                        const input = currentInput();
+                        if (!input || input.disabled) return;
+                        const content = input.value.trim();
+                        if (!content) return;
+                        attemptSend(content);
+                    };
+
+                    // Activación inmediata al teclear (0ms, sin esperar el
+                    // round-trip) y envío por Enter / click.
+                    document.addEventListener('input', (e) => {
+                        if (e.target && e.target.id === 'chat-input') refreshSend();
+                    });
+                    document.addEventListener('keydown', (e) => {
+                        if (e.key !== 'Enter' || e.isComposing) return;
+                        const t = e.target;
+                        if (!t || t.id !== 'chat-input') return;
+                        if (t.closest && !t.closest('.agent-chat[data-agent-id="' + agentId + '"]')) return;
+                        e.preventDefault();
+                        doSend();
+                    });
+                    document.addEventListener('click', (e) => {
+                        const t = e.target;
+                        if (!t || t.id !== 'chat-send') return;
+                        if (t.closest && !t.closest('.agent-chat[data-agent-id="' + agentId + '"]')) return;
+                        doSend();
+                    });
+
+                    // Tras cada morph que toque el chat, re-aplica el estado
+                    // (el estado del botón re-renderizado por el servidor puede ir
+                    // desfasado respecto al texto en el input).
+                    if (window.Livewire && typeof window.Livewire.hook === 'function') {
+                        window.Livewire.hook('morph.updated', (arg) => {
+                            const el = arg && arg.el ? arg.el : null;
+                            if (!el || el.nodeType !== 1) return;
+                            if (el.id === 'chat-input' || el.id === 'chat-send' ||
+                                (el.closest && el.closest('.agent-chat[data-agent-id="' + agentId + '"]'))) {
+                                refreshSend();
+                            }
+                        });
+                    }
+                    document.addEventListener('livewire:initialized', () => refreshSend());
+                    refreshSend();
                 } catch (e) {
                     window[FLAG] = false; // permitir retry
                     console.warn('taap: chat setup', e);

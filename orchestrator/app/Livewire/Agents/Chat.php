@@ -45,9 +45,14 @@ class Chat extends Component
         $this->agent = $agent;
     }
 
-    public function send(): void
+    /**
+     * Acepta el contenido explicito del cliente (Enter/click via JS) para
+     * que no dependa del round-trip de `wire:model` (debounce 400ms):
+     * pulsar Enter justo tras teclear no debe perder el mensaje.
+     */
+    public function send(?string $content = null): void
     {
-        $content = trim($this->content);
+        $content = trim($content ?? $this->content);
         if ($content === '') {
             return;
         }

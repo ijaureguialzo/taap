@@ -65,6 +65,15 @@ El script inline de `chat.blade.php` garantiza que el canal `agent.{id}` quede s
 - **Flag a nivel `window`** (`__taapChatSetup_{id}`) y no en el nodo: el morph re-sincrona los atributos del nodo raíz con el HTML del servidor y borra cualquier `data-*` client-only; un flag en el nodo se perdía en el primer update. El setup es idempotente y tolera errores (si lanza, el retry sigue; el flag indica éxito, no intento).
 - **Autoscroll con re-anclaje**: el `MutationObserver` se (re)ancla en el `#chat-box` actual cada 30 s (el nodo puede ser sustituido por el morph del padre).
 
+### D8 — Botón y envío por delegación en `document` (robustez post-morph)
+
+El primer corte dejaba el estado del botón en manos del `@disabled` re-renderizado: el botón solo se activaba tras el round-trip de `wire:model.live.400ms` (debounce + morph). Reportado en uso real: **en la primera visita a la página el botón no se activaba al teclear; tras recargar sí**. El morph de Livewire v4 sustituye el nodo del botón cuando el atributo `disabled` cambia, y cualquier listener unido al nodo original muere en silencio; además un envío con Enter justo tras teclear podía perder el mensaje (debounce 400ms).
+
+- Los listeners (`input`, `keydown` Enter, `click`) viven en `document` (nodo que nunca es morfeado) y resuelven `#chat-input`/`#chat-send` **en cada evento**: activación inmediata (0 ms) y envío único con contenido explícito.
+- `Chat::send(?string $content = null)` recibe el contenido del cliente (`$content ?? $this->content`): el envío ya no depende del debounce; `wire:click`/`wire:keydown.enter` salen del template (una sola vía, sin dobles envíos; un guard `sending` in-flight completa la protección).
+- `window.Livewire.hook('morph.updated', …)` + `livewire:initialized` re-aplican `refreshSend()` tras cualquier morph que toque el chat: el estado del botón siempre refleja el DOM actual.
+- `wire:model.live.400ms="content"` se conserva para sincronizar el modelo (historial, `@disabled` renderizado).
+
 ## Risks / trade-offs
 
 - `:has()` es universal en navegadores actuales (2026); el fallback sin soporte es el layout actual, no un estado roto.
