@@ -88,6 +88,7 @@ class AgentManager
             'labels' => [
                 'taap.runtime' => $agent->runtime->value,
                 'taap.owner' => (string) $agent->owner_id,
+                'taap.instance' => (string) config('taap.instance', 'default'),
             ],
         ];
 
@@ -95,13 +96,16 @@ class AgentManager
             $this->docker->imagePull($agent->image);
         }
 
-        $containerId = $this->docker->createContainer($spec);
-        $this->docker->start($name);
-
-        $agent->container_id = $containerId;
+        // Primero el estado (el reconcile del bridge respeta `starting`)
         $agent->status = AgentStatus::Starting;
         $agent->started_at = now();
         $agent->save();
+
+        $containerId = $this->docker->createContainer($spec);
+        $agent->container_id = $containerId;
+        $agent->container_name = $name;
+        $agent->save();
+        $this->docker->start($name);
 
         // Sincroniza el ACL de egress (el proxy decide por IP)
         app(EgressSync::class)->sync();
@@ -151,15 +155,15 @@ class AgentManager
 
     public function start(Agent $agent): Agent
     {
-        if ($agent->container_name && $this->docker->status($agent->container_name) === null) {
-            // Sin contenedor: reprovisionar
+        if (!$agent->container_name || $this->docker->status($agent->container_name) === null) {
+            // Sin contenedor (o eliminado): (re)provisionar
             return $this->provision($agent);
         }
 
-        $this->docker->start($agent->container_name);
         $agent->status = AgentStatus::Starting;
         $agent->started_at = now();
         $agent->save();
+        $this->docker->start($agent->container_name);
 
         return $agent;
     }
@@ -290,9 +294,13 @@ class AgentManager
         // 2. Contenedores gestionados sin agente en DB -> zombies: borrar
         $agentIds = Agent::pluck('id');
         foreach ($managed as $agentId => $container) {
-            if ($agentId === null || ! $agentIds->contains($agentId)) {
-                $this->docker->remove($container['name']);
-                Log::info("reconcile: contenedor zombie eliminado {$container['name']}");
+            $local = (string) config('taap.instance', 'default');
+            if (($container['instance'] ?? $local) !== $local
+                || ($agentId === null || ! $agentIds->contains($agentId))) {
+                if (($container['instance'] ?? $local) === $local) {
+                    $this->docker->remove($container['name']);
+                    Log::info("reconcile: contenedor zombie eliminado {$container['name']}");
+                }
             }
         }
     }

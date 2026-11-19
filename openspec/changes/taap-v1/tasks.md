@@ -2,9 +2,10 @@
 
 ## 1. Scaffolding y despliegue
 
-- [ ] 1.1 Crear el layout del monorepo (`orchestrator/`, `agents/pi/`, `agents/hermes/`, `mobile/ios/`, `deploy/`, `docs/`) con un README que explique la arquitectura y verifique que `openspec list` y las herramientas de cada subproyecto se ejecutan en sus directorios
-- [ ] 1.2 Escribir `deploy/compose.yaml` (orquestador + Postgres + proxy de egress, redes `taap-internal` sin default route y `taap-egress`, socket de Docker montado solo en el orquestador) y verificar con `docker compose config` y `docker compose up -d` que los contenedores arrancan en las redes correctas (un `curl` desde un agente de prueba no alcanza Internet si solo está en `taap-internal`)
-- [ ] 1.3 Añadir CI mínima (lint + test del orquestador en cada PR) y verificar que el job pasa con el esqueleto del repo
+- [x] 1.1 Crear el layout del monorepo (`orchestrator/`, `agents/pi/`, `agents/hermes/`, `mobile/ios/`, `deploy/`, `docs/`) con un README que explique la arquitectura y verifique que `openspec list` y las herramientas de cada subproyecto se ejecutan en sus directorios
+- [x] 1.2 Escribir `deploy/compose.yaml` (orquestador + Postgres + proxy de egress, redes `taap-internal` sin default route y `taap-egress`, socket de Docker montado solo en el orquestador) y verificar con `docker compose config` y `docker compose up -d` que los contenedores arrancan en las redes correctas (un `curl` desde un agente de prueba no alcanza Internet si solo está en `taap-internal`)
+- [x] 1.3 Añadir CI mínima (lint + test del orquestador en cada PR) y verificar que el job pasa con el esqueleto del repo
+- [x] 1.4 Empaquetar el orquestador en imagen (`deploy/Dockerfile` multi-stage + entrypoint con reverb/scheduler/bridge/servidor) y verificar `docker compose down && up` desde cero: 3 servicios healthy, agente Pi creado/arrancado (idle), chat E2E con modelo local y broadcast Reverb por WSS (notas: bind mounts host en dev vía `TAAP_AGENT_DATA_HOST`, etiqueta `taap.instance` para aislar reconciliaciones que comparten el demonio, `Host` del upstream en el Model Proxy, `options` del conector reverb)
 
 ## 2. Orquestador: fundación (Laravel 13)
 

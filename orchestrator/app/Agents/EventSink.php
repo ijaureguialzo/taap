@@ -2,13 +2,13 @@
 
 namespace App\Agents;
 
+use App\Broadcasts\AgentEventBroadcast;
 use App\Enums\AgentStatus;
 use App\Models\Agent;
 use App\Models\AgentEventRow;
-use App\Jobs\SendMessageToChannel;
 use App\Models\ChatMessage;
+use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Queue;
 
 /**
  * Unico punto de entrada de los eventos normalizados (design.md D2).
@@ -40,17 +40,12 @@ class EventSink
         // v1: los deltas no se difunden por cola (volumen); la Web recibe
         // final/status. La difusion token-a-token llega en v1.1.
         if ($event->type !== 'message.delta') {
-            Queue::push(SendMessageToChannel::class, [
-                'channel' => 'agent.' . $agent->id,
-                'event' => 'agent-event',
-                'data' => [
-                    'id' => $row->id,
-                    'agent_id' => $agent->id,
-                    'type' => $event->type,
-                    'payload' => $event->payload,
-                    'at' => $event->at->format('c'),
-                ],
-            ]);
+            Bus::dispatch(new \Illuminate\Broadcasting\BroadcastEvent(new AgentEventBroadcast(
+                $agent->id,
+                $event->type,
+                $event->payload,
+                $event->at->format('c'),
+            )));
         }
     }
 
@@ -135,6 +130,7 @@ class EventSink
             return;
         }
 
+        Log::info("EventSink: setStatus {$agent->id} " . $agent->status->value . " -> " . $status->value . " de: " . collect(debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 4))->map(fn ($f) => ($f['class'] ?? '?') . '::' . ($f['function'] ?? '?'))->implode(' <- '));
         $agent->status = $status;
         if ($status === AgentStatus::Working || $status === AgentStatus::Idle) {
             $agent->last_active_at = now();

@@ -92,16 +92,19 @@ class DockerClient
 
     public function stop(string $name, int $timeout = 10): void
     {
+        Log::info("DockerClient: stop {$name}");
         $this->run(['stop', '-t', (string) $timeout, $name]);
     }
 
     public function restart(string $name): void
     {
+        Log::info("DockerClient: restart {$name}");
         $this->run(['restart', $name]);
     }
 
     public function remove(string $name, bool $force = true): void
     {
+        Log::info("DockerClient: rm {$name} (force=" . ($force ? 1 : 0) . ") de: " . collect(debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 6))->map(fn ($f) => ($f['class'] ?? '?') . '::' . ($f['function'] ?? '?'))->implode(' <- '));
         $this->run(['rm', $force ? '-f' : null, $name], allowFail: true);
     }
 
@@ -144,7 +147,7 @@ class DockerClient
         try {
             $output = $this->run([
                 'ps', '-a', '--filter', 'label=taap.managed=1',
-                '--format', '{{.ID}}\t{{.Names}}\t{{.Label "taap.agent"}}\t{{.State}}',
+                '--format', '{{.ID}}\t{{.Names}}\t{{.Label "taap.agent"}}\t{{.Label "taap.instance"}}\t{{.State}}',
             ]);
         } catch (DockerException) {
             return [];
@@ -155,11 +158,12 @@ class DockerClient
             if ($line === '') {
                 continue;
             }
-            [$id, $name, $agent, $state] = array_pad(explode("\t", $line), 4, '');
+            [$id, $name, $agent, $instance, $state] = array_pad(explode("\t", $line), 5, '');
             $result[] = [
                 'id' => $id,
                 'name' => ltrim($name, '/'),
                 'agent' => $agent !== '' ? (int) $agent : null,
+                'instance' => $instance,
                 'state' => $state,
             ];
         }
@@ -243,28 +247,53 @@ SH;
     }
 
     /** Mata el coproceso registrado en .pid (si existe). */
+    /**
+     * Mata el coproceso registrado en `{dir}/{which}.pid` (y cualquier
+     * huérfano cuyo cmdline mencione la carpeta).
+     */
     public function killCoprocess(string $dir, string $which): void
     {
         $file = $dir . '/' . $which . '.pid';
-        if (! is_file($file)) {
-            return;
-        }
-        $pid = (int) trim((string) file_get_contents($file));
-        if ($pid > 0 && extension_loaded('posix') && @posix_kill($pid, 0)) {
-            @posix_kill($pid, SIGTERM);
-            // dar un momento a cerrar ficheros
-            for ($i = 0; $i < 10 && @posix_kill($pid, 0); $i++) {
-                usleep(100_000);
+        if (is_file($file)) {
+            $pid = (int) trim((string) file_get_contents($file));
+            if ($pid > 0 && extension_loaded('posix') && @posix_kill($pid, 0)) {
+                @posix_kill($pid, SIGTERM);
+                // dar un momento a cerrar ficheros
+                for ($i = 0; $i < 10 && @posix_kill($pid, 0); $i++) {
+                    usleep(100_000);
+                }
+                if (@posix_kill($pid, 0)) {
+                    @posix_kill($pid, SIGKILL);
+                }
             }
-            if (@posix_kill($pid, 0)) {
-                @posix_kill($pid, SIGKILL);
-            }
+            @unlink($file);
         }
-        @unlink($file);
+        $this->killOrphans($dir);
     }
 
-    /** Coproceso vivo? (archivo .pid + probe de señal 0). */
-    public function coprocessAlive(string $dir, string $which): bool
+    /**
+     * Huérfanos: procesos cuyo cmdline menciona la carpeta rpc del agente
+     * (writers/lectores no registrados en el .pid, por reinicios a mitad de
+     * ciclo, etc.).
+     */
+    protected function killOrphans(string $dir): void
+    {
+        if (! extension_loaded('posix') || ! is_dir('/proc')) {
+            return;
+        }
+        foreach (glob('/proc/[0-9]*') ?: [] as $proc) {
+            $cmd = str_replace("\0", ' ', (string) @file_get_contents($proc . '/cmdline'));
+            if ($cmd !== '' && str_contains($cmd, $dir)) {
+                @posix_kill((int) basename($proc), SIGKILL);
+            }
+        }
+    }
+
+    /**
+     * Coproceso vivo? (archivo .pid + probe de señal 0 + firma en el
+     * cmdline para evitar falsos vivos por reutilización de PID/zombies).
+     */
+    public function coprocessAlive(string $dir, string $which, ?string $signature = null): bool
     {
         $file = $dir . '/' . $which . '.pid';
         if (! is_file($file)) {
@@ -272,7 +301,18 @@ SH;
         }
         $pid = (int) trim((string) file_get_contents($file));
 
-        return $pid > 0 && @posix_kill($pid, 0);
+        if ($pid <= 0 || ! extension_loaded('posix') || ! @posix_kill($pid, 0)) {
+            return false;
+        }
+
+        if ($signature !== null) {
+            $cmd = str_replace("\0", ' ', (string) @file_get_contents("/proc/{$pid}/cmdline"));
+            if (! str_contains($cmd, $signature)) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /** Proceso `docker logs -f` (eventos/logs del contenedor). */

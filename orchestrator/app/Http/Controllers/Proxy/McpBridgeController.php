@@ -39,9 +39,7 @@ class McpBridgeController extends Controller
         $serverName = (string) $request->query('server', '');
 
         $server = $agent->mcpServers()
-            ->with('mcpServer')
             ->get()
-            ->pluck('mcpServer')
             ->first(fn ($s) => $s && $s->name === $serverName && $s->enabled);
 
         if (! $server) {

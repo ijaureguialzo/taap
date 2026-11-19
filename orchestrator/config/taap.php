@@ -35,6 +35,7 @@ return [
 
         /* Raiz de areas persistentes por agente (data/workspace/config). */
         'data_base' => env('TAAP_AGENT_DATA_BASE', '/var/lib/taap/agents'),
+        'data_host_base' => env('TAAP_AGENT_DATA_HOST', env('TAAP_AGENT_DATA_BASE', '/var/lib/taap/agents')),
 
         /* Reintentos de arranque antes de marcar error. */
         'start_retries' => 3,

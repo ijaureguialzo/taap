@@ -2,6 +2,8 @@
 
 namespace App\Console\Commands;
 
+use Illuminate\Support\Facades\Log;
+
 use App\Agents\AgentManager;
 use App\Agents\AgentRuntimeAdapter;
 use App\Agents\EventSink;
@@ -101,6 +103,7 @@ class TaapBridgeCommand extends Command
                         // El contenedor vive: (re)adjuntar el IPC y despertar
                         $adapter->attach($agent);
                         if (! $agent->status->isRunning() && $agent->status !== AgentStatus::Starting) {
+                            Log::info("bridge: forceStart {$agent->id} desde " . $agent->status->value);
                             $agent->forceFill(['status' => AgentStatus::Starting])->save();
                             $sink->dispatch($agent->refresh(), \App\Agents\AgentEvent::statusChange(AgentStatus::Starting->value));
                         }

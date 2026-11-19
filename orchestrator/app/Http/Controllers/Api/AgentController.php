@@ -83,7 +83,7 @@ class AgentController extends Controller
     public function show(Request $request, Agent $agent)
     {
         $this->authorize($request, $agent);
-        $agent->load(['model', 'model.provider', 'token', 'mcpServers.mcpServer']);
+        $agent->load(['model', 'model.provider', 'token', 'mcpServers']);
 
         return response()->json([
             'agent' => $this->payload($agent, full: true),
@@ -230,7 +230,7 @@ class AgentController extends Controller
             'last_active_at' => $agent->last_active_at?->toIso8601String(),
             'created_at' => $agent->created_at?->toIso8601String(),
             'mcp_servers' => $full
-                ? $agent->mcpServers->pluck('mcpServer')->filter()->map(fn ($s) => [
+                ? $agent->mcpServers->filter()->map(fn ($s) => [
                     'id' => $s->id,
                     'name' => $s->name,
                     'type' => $s->type,

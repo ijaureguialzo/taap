@@ -100,8 +100,8 @@ class PiAdapter implements AgentRuntimeAdapter
         }
         $dir = $session['dir'];
 
-        return $this->docker->coprocessAlive($dir, 'reader')
-            && $this->docker->coprocessAlive($dir, 'writer');
+        return $this->docker->coprocessAlive($dir, 'reader', $dir)
+            && $this->docker->coprocessAlive($dir, 'writer', $dir);
     }
 
     /** Sonda el RPC (get_state); el bridge lo llama hasta que el agente esta "ready". */

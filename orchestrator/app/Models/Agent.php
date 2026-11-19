@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -54,9 +55,9 @@ class Agent extends Model
         return $this->hasOne(AgentToken::class);
     }
 
-    public function mcpServers(): HasMany
+    public function mcpServers(): BelongsToMany
     {
-        return $this->hasMany(AgentMcpServer::class)->with('mcpServer');
+        return $this->belongsToMany(McpServer::class, 'agent_mcp_servers');
     }
 
     public function messages(): HasMany

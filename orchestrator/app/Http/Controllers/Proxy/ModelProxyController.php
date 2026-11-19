@@ -38,12 +38,26 @@ class ModelProxyController extends Controller
         }
 
         $upstream = rtrim($provider->base_url, '/') . $this->upstreamPath($request, $agent);
+        // El proxy debe presentar el Host del upstream (algunos servidores,
+        // p. ej. uvicorn con --allowed-hosts, rechazan otro Host).
+        $host = parse_url($upstream, PHP_URL_HOST) ?: '';
+        $port = parse_url($upstream, PHP_URL_PORT);
+        // `host.docker.internal` es solo una forma de llegar al host desde el
+        // contenedor; el servidor upstream se ve a si mismo por 127.0.0.1
+        // (algunos validadores de Host lo exigen asi).
+        $host = $host === 'host.docker.internal' ? '127.0.0.1' : $host;
+        $this->upstreamHost = $host . ($port ? ':' . $port : '');
         $body = $request->all();
         $body['stream'] = false;
 
         Log::info('ModelProxy: req ' . $request->method() . ' ' . $request->getPathInfo() . ' model=' . $request->input('model') . ' stream=' . var_export($request->input('stream'), true));
+        $headers = $this->upstreamHeaders($provider);
+        if ($host !== '') {
+            $headers['Host'] = $this->upstreamHost;
+        }
+
         try {
-            $response = Http::withHeaders($this->upstreamHeaders($provider))
+            $response = Http::withHeaders($headers)
                 ->timeout(1800)
                 ->post($upstream, $body);
         } catch (\Throwable $e) {

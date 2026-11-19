@@ -13,16 +13,33 @@ use Illuminate\Support\Facades\File;
  */
 class ConfigRenderer
 {
+    /** Ruta donde el proceso escribe la config (visible para el orquestador). */
+    protected ?string $writeBase = null;
+
+    /** Ruta visible para el demonio Docker (puede ser distinta: binds). */
+    protected ?string $bindBase = null;
+
     public function __construct(
         protected ?string $base = null,
     ) {
         $this->base ??= (string) config('taap.agents.data_base', '/var/lib/taap/agents');
+        $this->writeBase = $this->base;
+        $this->bindBase = (string) config('taap.agents.data_host_base', $this->base);
     }
 
-    /** Raiz del agente en el host. */
+    /** Raiz del agente donde se escribe (rutas visibles para el proceso). */
     public function dir(Agent $agent): string
     {
-        return $this->base . '/' . $agent->id;
+        return $this->writeBase . '/' . $agent->id;
+    }
+
+    /**
+     * Convierte una ruta escrita en su par de bind `hostDaemon:destino`.
+     */
+    protected function bind(string $hostDir, string $dest): string
+    {
+        $rel = ltrim(str_replace($this->writeBase, '', $hostDir), '/');
+        return $this->bindBase . '/' . $rel . ':' . $dest;
     }
 
     /**
@@ -53,8 +70,14 @@ class ConfigRenderer
     {
         // Id de sesion estable (se crea una vez; la sesion vive en el volumen)
         $config = $agent->config ?? [];
-        if (empty($config['session_id'])) {
+        // El id de sesion es estable PERO: si el modelo/provider cambio, la
+        // sesion reanudada arrastra la config antigua -> nueva sesion.
+        $modelKey = $model
+            ? $model->id . '|' . ($model->provider?->name ?? '')
+            : 'none';
+        if (empty($config['session_id']) || ($config['model_key'] ?? null) !== $modelKey) {
             $config['session_id'] = (string) \Illuminate\Support\Str::uuid();
+            $config['model_key'] = $modelKey;
             $agent->config = $config;
             $agent->saveQuietly();
         }
@@ -96,8 +119,8 @@ class ConfigRenderer
 
         // /data/mcp.json -> servers asignados via la puerta MCP del orquestador
         $mcpServers = [];
-        foreach ($agent->mcpServers()->wherePivot('mcp_server_id', '!=', 0)->with('mcpServer')->get() as $pivot) {
-            $server = $pivot->mcpServer;
+        foreach ($agent->mcpServers()->wherePivot('mcp_server_id', '!=', 0)->get() as $server) {
+            
             if ($server && $server->enabled) {
                 $mcpServers[$server->name] = [
                     'url' => $orchestrator . $agent->mcpBridgeUrl() . '?server=' . urlencode($server->name),
@@ -110,9 +133,9 @@ class ConfigRenderer
         File::put($dir . '/data/mcp.json', json_encode(['mcpServers' => $mcpServers === [] ? new \stdClass() : $mcpServers], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n");
 
         return [
-            $dir . '/config:/config',
-            $dir . '/data:/home/agent/.pi/agent',
-            $dir . '/workspace:/workspace',
+            $this->bind($dir . '/config', '/config'),
+            $this->bind($dir . '/data', '/home/agent/.pi/agent'),
+            $this->bind($dir . '/workspace', '/workspace'),
         ];
     }
 
@@ -138,8 +161,8 @@ class ConfigRenderer
         }
 
         $servers = [];
-        foreach ($agent->mcpServers()->with('mcpServer')->get() as $pivot) {
-            $server = $pivot->mcpServer;
+        foreach ($agent->mcpServers()->get() as $server) {
+            
             if ($server && $server->enabled) {
                 $servers[$server->name] = [
                     'url' => $orchestrator . $agent->mcpBridgeUrl() . '?server=' . rawurlencode($server->name),
@@ -157,7 +180,7 @@ class ConfigRenderer
         File::put($dir . '/data/config.yaml', $yaml);
 
         return [
-            $dir . '/data:/opt/data',
+            $this->bind($dir . '/data', '/opt/data'),
         ];
     }
 

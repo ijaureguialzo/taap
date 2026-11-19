@@ -83,13 +83,13 @@ class EgressSync
         $lines = [];
         foreach (array_unique(array_filter($hosts)) as $host) {
             // URL absoluta (http://host:8010/...) para peticiones normales
-            $lines[] = 'acl model_hosts url_regex ^https?://' . preg_quote($host, '/') . '([:]\\d+)?($|/)';
+            $lines[] = 'acl model_hosts_url url_regex ^https?://' . preg_quote($host, '/') . '([:]\\d+)?($|/)';
             // Taneos CONNECT (https): squid no aplica url_regex a CONNECT;
             // dstdomain cubre el dominio (exacto o subdominios)
-            $lines[] = 'acl model_hosts dstdomain .' . $host;
+            $lines[] = 'acl model_hosts_dns dstdomain .' . $host;
         }
         // centinela: nada mas
-        $lines[] = 'acl model_hosts url_regex ^.!' ;
+        $lines[] = 'acl model_hosts_url url_regex ^.!';
 
         return implode("\n", $lines);
     }

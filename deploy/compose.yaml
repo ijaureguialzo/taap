@@ -85,7 +85,11 @@ services:
       - "${TAAP_WS_PORT:-8080}:8080"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - ${TAAP_SQUID_DIR:-/var/lib/taap/squid}:/etc/squid/taap:ro
+      # Fragmento ACL de squid: el orquestador (dentro) lo escribe y el
+      # egress lo incluye (mismo bind de host en ambos contenedores).
+      - ${TAAP_SQUID_DIR:-/var/lib/taap/squid}:/etc/squid/taap
+      # Areas persistentes de agentes (data/workspace/config por agente).
+      - ${TAAP_AGENT_DATA_DIR:-/var/lib/taap/agents}:/data/agents
     depends_on:
       postgres:
         condition: service_healthy

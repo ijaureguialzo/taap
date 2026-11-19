@@ -44,6 +44,22 @@ class TaapSeeder extends Seeder
             ['name' => 'GPT 5.2 Mini', 'context_window' => 128000, 'max_tokens' => 64000]
         );
 
+        // Provider local de ejemplo (router Qwen en el host; en el
+        // despliegue en contenedor se resuelve via host.docker.internal).
+        $qwenBase = env('TAAP_QWEN_BASE_URL', 'http://127.0.0.1:8000/v1');
+        $qwen = ModelProvider::firstOrCreate(
+            ['name' => 'qwen-local'],
+            [
+                'type' => 'openai',
+                'base_url' => $qwenBase,
+                'created_by' => $admin->id,
+            ]
+        );
+        Model::firstOrCreate(
+            ['provider_id' => $qwen->id, 'model_id' => 'orcarouter/Qwen3.8-27B-Uncensored-MLX'],
+            ['name' => 'Qwen 3.8 27B (local)', 'context_window' => 262144, 'max_tokens' => 32768]
+        );
+
         // Servidor MCP de ejemplo (filesystem via stdio, dentro del contenedor)
         McpServer::firstOrCreate(
             ['name' => 'filesystem'],
