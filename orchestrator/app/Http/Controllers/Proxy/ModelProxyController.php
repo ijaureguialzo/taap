@@ -50,6 +50,21 @@ class ModelProxyController extends Controller
         $body = $request->all();
         $body['stream'] = false;
 
+        // Modelos de razonamiento (Qwen3 etc.) pueden gastar el budget entero
+        // en `reasoning_content` y dejar `content` null si no hay tope. Se
+        // inyecta un max_tokens por defecto solo si el cliente no lo da.
+        if ((! isset($body['max_tokens']) || $body['max_tokens'] === null)
+            && (! isset($body['max_completion_tokens']) || $body['max_completion_tokens'] === null)) {
+            $body['max_tokens'] = (int) config('taap.proxy.default_max_tokens', 2048);
+        }
+
+        // Modelos de razonamiento (Qwen3 etc.): algunos routers exponen el
+        // interruptor de pensamiento; lo bajamos para que el turno termine
+        // con respuesta y no se quede solo en `reasoning_content`.
+        if (! array_key_exists('reasoning_effort', $body)) {
+            $body['reasoning_effort'] = config('taap.proxy.default_reasoning_effort', 'low');
+        }
+
         Log::info('ModelProxy: req ' . $request->method() . ' ' . $request->getPathInfo() . ' model=' . $request->input('model') . ' stream=' . var_export($request->input('stream'), true));
         $headers = $this->upstreamHeaders($provider);
         if ($host !== '') {
@@ -73,6 +88,8 @@ class ModelProxyController extends Controller
         $data = $response->json();
 
         if ($response->successful()) {
+            $data = $this->mergeReasoning($data);
+
             if ($request->input('stream')) {
                 return $this->asSse($data);
             }
@@ -89,6 +106,30 @@ class ModelProxyController extends Controller
         $header = (string) $request->header('Authorization', '');
 
         return str_starts_with($header, 'Bearer ') ? substr($header, 7) : '';
+    }
+
+    /**
+     * Modelos de razonamiento (Qwen3 etc.): si el upstream gasta el budget
+     * entero en reasoning, `content` llega null. Clientes que no leen
+     * `reasoning_content` (Hermes, Pi) verian respuesta vacía: fusionamos
+     * el razonamiento en `content` cuando esta es vacía.
+     */
+    protected function mergeReasoning(?array $data): ?array
+    {
+        $choice = $data['choices'][0] ?? null;
+        $message = $choice['message'] ?? null;
+        if (! is_array($message)) {
+            return $data;
+        }
+
+        $content = trim((string) ($message['content'] ?? ''));
+        $reasoning = trim((string) ($message['reasoning_content'] ?? ''));
+
+        if ($content === '' && $reasoning !== '') {
+            $data['choices'][0]['message']['content'] = $reasoning;
+        }
+
+        return $data;
     }
 
     /**

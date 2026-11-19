@@ -7,20 +7,29 @@ use App\Models\Agent;
 use App\Support\DockerClient;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 
 /**
- * Adaptador Hermes (superficie nativa: servidor API OpenAI-compatible del
- * gateway en :8642, dentro del contenedor).
+ * Adaptador Hermes (superficie nativa: API server OpenAI-compatible del
+ * gateway, :8642, dentro del contenedor).
  *
- * Sin conexion persistente: cada mensaje de usuario = una peticion
- * `POST /v1/chat/completions` (streaming SSE) que el bridge consume y
- * traduce a eventos normalizados. La sesion la mantiene Hermes en su
- * volumen (/opt/data) mediante X-Hermes-Session-Key.
+ * Verificado contra la imagen oficial (nousresearch/hermes-agent):
+ *   - `/v1/chat/completions` (OpenAI wire) con `Authorization: Bearer
+ *     API_SERVER_KEY`; `GET /v1/models` devuelve `hermes-agent`.
+ *   - Streaming SSE `data: {...}` con `choices[0].delta.content`.
+ *   - La conversación se mantiene por `X-Hermes-Session-Key` (Hermes la
+ *     persiste en su volumen /opt/data; sobrevive reinicios).
+ *   - El modelo real lo define config.yaml (model.default + base_url del
+ *     Model Proxy); el campo `model` de la petición es siempre
+ *     `hermes-agent`.
+ *
+ * No hay conexion persistente: cada turno = una peticion HTTP que el
+ * bridge consume en streaming y traduce a eventos normalizados.
  */
 class HermesAdapter implements AgentRuntimeAdapter
 {
-    protected ?string $sessionKey = null;
+    /** Contenido acumulado del turno en curso, por agente. */
+    protected array $buffers = [];
 
     public function __construct(
         protected DockerClient $docker,
@@ -30,7 +39,11 @@ class HermesAdapter implements AgentRuntimeAdapter
 
     public function attach(Agent $agent): void
     {
-        // Sin estado; solo verificamos que el contenedor este vivo
+        // Sin estado persistente; solo verificamos que el contenedor este vivo
+        if (! $agent->container_name) {
+            return;
+        }
+
         if ($this->docker->status($agent->container_name) !== 'running') {
             $agent->forceFill(['status' => AgentStatus::Offline])->save();
         }
@@ -38,15 +51,19 @@ class HermesAdapter implements AgentRuntimeAdapter
 
     public function detach(Agent $agent): void
     {
-        // sin conexion persistente que soltar
+        unset($this->buffers[$agent->id]);
     }
 
     public function isAttached(Agent $agent): bool
     {
+        if (! $agent->container_name) {
+            return false;
+        }
+
         return $this->docker->status($agent->container_name) === 'running';
     }
 
-    /** Hermes no emite eventos persistentes: su flujo llega por HTTP. */
+    /** Hermes no emite eventos por un stream persistente: su flujo llega por HTTP. */
     public function drain(Agent $agent): array
     {
         return [];
@@ -54,8 +71,8 @@ class HermesAdapter implements AgentRuntimeAdapter
 
     protected function baseUrl(Agent $agent): string
     {
-        $port = $agent->registry()['api_port'] ?? 8642;
-        $base = $agent->registry()['api_base'] ?? '/v1';
+        $port = $agent->runtime->registry()['api_port'] ?? 8642;
+        $base = $agent->runtime->registry()['api_base'] ?? '/v1';
 
         return 'http://' . $agent->container_name . ":{$port}" . $base;
     }
@@ -67,67 +84,102 @@ class HermesAdapter implements AgentRuntimeAdapter
             $headers['Authorization'] = 'Bearer ' . $token;
         }
 
-        return $headers;
-    }
-
-    protected function sessionHeader(Agent $agent): array
-    {
+        // La conversacion la mantiene Hermes en su volumen; una clave de
+        // sesion estable por agente (el orquestador solo ve un mensaje por
+        // vez gracias a la cola FIFO).
         $config = $agent->config ?? [];
         if (empty($config['session_key'])) {
-            $config['session_key'] = 'taap-' . $agent->id . '-' . \Illuminate\Support\Str::uuid();
+            $config['session_key'] = 'taap-agent-' . $agent->id . '-' . Str::ulid();
             $agent->config = $config;
             $agent->saveQuietly();
         }
+        $headers['X-Hermes-Session-Key'] = $config['session_key'];
 
-        return ['X-Hermes-Session-Key' => $config['session_key']];
+        return $headers;
     }
 
     public function sendUserMessage(Agent $agent, string $content, ?int $userId = null): void
     {
+        $this->buffers[$agent->id] = '';
+        $runId = (string) Str::uuid();
+
+        $this->sink->dispatch($agent, AgentEvent::runStart($runId));
         $this->sink->dispatch($agent, AgentEvent::statusChange('working'));
 
         try {
-            $response = Http::withHeaders($this->authHeaders($agent) + $this->sessionHeader($agent))
-                ->withOptions(['stream' => fn ($data) => $this->consumeChunk($agent, $data)])
-                ->timeout(3600)
+            $response = Http::withHeaders($this->authHeaders($agent))
+                ->withOptions([
+                    'stream' => true,
+                    'connect_timeout' => 15,
+                    'timeout' => 3600,
+                ])
                 ->post($this->baseUrl($agent) . '/chat/completions', [
-                    'model' => $agent->model?->model_id ?? 'hermes-agent',
+                    'model' => 'hermes-agent',
                     'messages' => [
                         ['role' => 'user', 'content' => $content],
                     ],
                     'stream' => true,
                 ]);
 
-            if ($response->failed()) {
-                $this->sink->dispatch($agent, AgentEvent::error(
-                    'HTTP ' . $response->status() . ' del gateway Hermes'
-                ));
+            // Guzzle 8: `stream` solo acepta bool; el cuerpo SSE se lee
+            // a mano por trozos hasta el EOF.
+            if ($response->successful()) {
+                $body = $response->toPsrResponse()->getBody();
+                while (! $body->eof()) {
+                    $chunk = $body->read(8192);
+                    if ($chunk === '' || $chunk === false) {
+                        break;
+                    }
+                    $this->consumeChunk($agent, $runId, (string) $chunk);
+                }
             }
 
-            $this->sink->dispatch($agent, AgentEvent::runEnd((string) \Illuminate\Support\Str::uuid(), $response->successful()));
-            $this->sink->dispatch($agent, AgentEvent::statusChange($response->successful() ? 'idle' : 'error'));
+            $final = trim((string) ($this->buffers[$agent->id] ?? ''));
+
+            if ($response->failed()) {
+                $this->sink->dispatch($agent, AgentEvent::error(
+                    'Gateway Hermes devolvió HTTP ' . $response->status()
+                ));
+                $this->sink->dispatch($agent, AgentEvent::runEnd($runId, false));
+                $this->sink->dispatch($agent, AgentEvent::statusChange('error'));
+
+                return;
+            }
+
+            if ($final !== '') {
+                $this->sink->dispatch($agent, AgentEvent::messageFinal($runId, $final));
+            }
+
+            $this->sink->dispatch($agent, AgentEvent::runEnd($runId, true));
+            $this->sink->dispatch($agent, AgentEvent::statusChange('idle'));
         } catch (ConnectionException $e) {
             $this->sink->dispatch($agent, AgentEvent::error('Gateway Hermes inaccesible: ' . $e->getMessage()));
+            $this->sink->dispatch($agent, AgentEvent::runEnd((string) Str::uuid(), false));
             $this->sink->dispatch($agent, AgentEvent::statusChange('error'));
         }
     }
 
-    /**
-     * Callback del stream SSE: acumula deltas de contenido.
-     *
-     * @param  string  $chunk  fragmento de cuerpo (SSE: "data: {...}\n\n")
-     */
-    /** Sin adjuntar: en Hermes (HTTP) es equivalente a sendUserMessage. */
+    /** Sin stream persistente en Hermes: equivale a sendUserMessage. */
     public function writeMessage(Agent $agent, string $content, ?int $userId = null): void
     {
         $this->sendUserMessage($agent, $content, $userId);
     }
 
-    protected function consumeChunk(Agent $agent, string $chunk): void
+    /**
+     * Callback del stream SSE.
+     *
+     * Acumula los deltas de contenido; el final completo se emite como
+     * message.final al cerrar la respuesta (el EventSink lo deduplica).
+     *
+     * @param  string  $chunk  fragmento de cuerpo (SSE: "data: {...}\n\n")
+     */
+    protected function consumeChunk(Agent $agent, string $runId, string $chunk): void
     {
-        foreach (preg_split('/\R\R/', $chunk) as $frame) {
+        $frames = preg_split('/\R\R/', $chunk) ?: [];
+
+        foreach ($frames as $frame) {
             $frame = trim($frame);
-            if (! str_starts_with($frame, 'data:')) {
+            if ($frame === '' || ! str_starts_with($frame, 'data:')) {
                 continue;
             }
 
@@ -141,19 +193,34 @@ class HermesAdapter implements AgentRuntimeAdapter
                 continue;
             }
 
-            $delta = $json['choices'][0]['delta']['content'] ?? null;
+            $choice = $json['choices'][0] ?? null;
+            if (! is_array($choice)) {
+                continue;
+            }
+
+            $delta = $choice['delta']['content'] ?? null;
             if ($delta !== null && $delta !== '') {
-                $this->sink->dispatch($agent, AgentEvent::messageDelta(null, (string) $delta));
+                $this->buffers[$agent->id] = ($this->buffers[$agent->id] ?? '') . $delta;
+                $this->sink->dispatch($agent, AgentEvent::messageDelta($runId, (string) $delta));
+            }
+
+            // Modelos de razonamiento: el gateway emite reasoning_content
+            // aparte; lo acumulamos como ultima linea de defensa para que
+            // un turno que solo piense (content vacio) deje rastro.
+            $reasoning = $choice['delta']['reasoning_content'] ?? null;
+            if ($reasoning !== null && $reasoning !== ''
+                && ($this->buffers[$agent->id] ?? '') === '') {
+                $this->buffers[$agent->id] .= $reasoning;
             }
         }
     }
 
     public function resolveApproval(Agent $agent, string $approvalId, bool $approved, ?string $note = null): void
     {
-        // v1: el gateway hermes no expone aprobaciones por la API de chat;
-        // se resuelve enviando la decision como mensaje de seguimiento.
-        $texto = $approved ? 'Continúa.' : 'Detente y pregunta algo diferente.';
-        $texto = ($note ? '[decision ' . ($approved ? 'aprobada' : 'denegada') . ': ' . $note . '] ' : ($approved ? '[aprobado] ' : '[denegado] ')) . $texto;
+        // El API de chat no expone aprobaciones: se resuelve como turno de
+        // seguimiento (la sesion la mantiene Hermes).
+        $prefijo = $approved ? '[aprobado]' : '[denegado]';
+        $texto = $note ? $prefijo . ' ' . $note : $prefijo . ' Continúa.';
 
         $this->sendUserMessage($agent, $texto);
         $this->sink->dispatch($agent, AgentEvent::approvalResolved(null, $approvalId, $approved, $note));
@@ -161,8 +228,8 @@ class HermesAdapter implements AgentRuntimeAdapter
 
     public function applyConfig(Agent $agent): void
     {
-        // La config (config.yaml/.env en el volumen) se reescribe por el
-        // renderer; el gateway la relee al reiniciar.
+        // Hermes lee config.yaml/.env al arrancar: el cambio requiere reinicio
+        // (la sesion sobrevive en el volumen /opt/data).
         app(AgentManager::class)->restart($agent);
     }
 
@@ -173,15 +240,21 @@ class HermesAdapter implements AgentRuntimeAdapter
             return AgentStatus::Offline;
         }
 
-        // Sonda el API server: 401/200 = vivo
+        // Sonda el API server: 200 = vivo, 401 = vivo sin clave.
         try {
             $response = Http::withHeaders($this->authHeaders($agent))
                 ->timeout(5)
                 ->get($this->baseUrl($agent) . '/models');
 
-            return $response->successful() || $response->status() === 401
-                ? ($agent->status->isRunning() ? $agent->status : AgentStatus::Idle)
-                : AgentStatus::Error;
+            if ($response->successful() || $response->status() === 401) {
+                // Gateway vivo: si no esta en una corrida, esta inactivo
+                return $agent->status->isRunning()
+                    && in_array($agent->status, [AgentStatus::Working, AgentStatus::WaitingApproval])
+                    ? $agent->status
+                    : AgentStatus::Idle;
+            }
+
+            return AgentStatus::Error;
         } catch (ConnectionException) {
             return AgentStatus::Error;
         }
@@ -189,6 +262,6 @@ class HermesAdapter implements AgentRuntimeAdapter
 
     public function destroy(Agent $agent): void
     {
-        // sin estado que destruir
+        unset($this->buffers[$agent->id]);
     }
 }

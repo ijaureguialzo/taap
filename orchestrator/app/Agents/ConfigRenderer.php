@@ -141,38 +141,65 @@ class ConfigRenderer
 
     protected function renderHermes(Agent $agent, string $dir, ?string $token, ?\App\Models\Model $model, string $orchestrator): array
     {
-        // /data/.env -> claves y switches del proceso hermes
+        $token = $token ?? '';
+
+        // /data/.env -> switches y claves. EL .ENV DEL VOLUMEN TIENE
+        // PRECEDENCIA (override=True) sobre el env del contenedor, asi
+        // declaramos aqui todo lo que el gateway debe ver.
         $env = [
-            'API_SERVER_KEY=' . ($token ?? ''),
+            'API_SERVER_ENABLED=true',
+            'API_SERVER_HOST=0.0.0.0',
+            'API_SERVER_KEY=' . $token,
+            'TAAP_MODEL_TOKEN=' . $token,
         ];
         File::put($dir . '/data/.env', implode("\n", $env) . "\n");
 
         // /data/config.yaml -> modelo (Model Proxy) + MCP (puerta MCP)
-        $yaml = "model:\n";
+        $yaml = "# Generado por TAAP - no editar a mano (se regenera en cada
+"
+            . "# cambio de config y reinicio del gateway).
+"
+            . "_config_version: 53
+";
+
+        // WAL no es fiable sobre virtiofs (Docker Desktop macOS).
+        $yaml .= "database:\n  journal_mode: \"delete\"\n";
+
+        $yaml .= "model:\n  provider: \"custom\"\n";
         if ($model) {
-            $yaml .= "  provider: custom\n";
-            $yaml .= '  base_url: ' . $orchestrator . $agent->modelProxyUrl() . "/v1\n";
-            $yaml .= '  api_key: ' . $token . "\n";
-            $yaml .= '  model: ' . $model->id . "\n";
-        } else {
-            $yaml .= "  provider: custom\n";
-            $yaml .= '  base_url: ' . $orchestrator . $agent->modelProxyUrl() . "/v1\n";
-            $yaml .= '  api_key: ' . $token . "\n";
+            $yaml .= '  base_url: ' . $this->yamlScalar($orchestrator . $agent->modelProxyUrl() . '/v1') . "\n";
+            $yaml .= "  key_env: \"TAAP_MODEL_TOKEN\"\n";
+            $yaml .= '  default: ' . $this->yamlScalar($model->model_id) . "\n";
         }
 
         $servers = [];
         foreach ($agent->mcpServers()->get() as $server) {
-            
-            if ($server && $server->enabled) {
+            if (! $server || ! $server->enabled) {
+                continue;
+            }
+
+            if ($server->type === 'http' && $server->url) {
                 $servers[$server->name] = [
                     'url' => $orchestrator . $agent->mcpBridgeUrl() . '?server=' . rawurlencode($server->name),
                     'headers' => [
-                        'Authorization' => 'Bearer ' . ($token ?? ''),
+                        'Authorization' => 'Bearer ' . $token,
                     ],
                 ];
+            } else {
+                $srv = [
+                    'command' => (string) $server->command,
+                    'args' => (array) $server->args,
+                ];
+                if (! empty($server->env)) {
+                    $srv['env'] = (array) $server->env;
+                }
+                $servers[$server->name] = $srv;
             }
         }
-        $yaml .= "\nmcp_servers:\n" . $this->yamlBlock($servers, 2) . "\n";
+
+        if ($servers) {
+            $yaml .= "\nmcp_servers:\n" . $this->yamlBlock($servers, 2) . "\n";
+        }
 
         // El terminal hereda el propio contenedor (la aislacion la da Docker)
         $yaml .= "terminal:\n  backend: local\n";

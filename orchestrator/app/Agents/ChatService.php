@@ -48,8 +48,9 @@ class ChatService
             'content' => $content,
         ]);
 
-        $this->sink->dispatch($agent, AgentEvent::messageFinal(null, $content));
-
+        // Nota: NO se dispatcha messageFinal para el mensaje de usuario:
+        // la fila ya se persistio arriba y el sink lo guardaria de nuevo
+        // como mensaje de agente (eco). La web ya lo tiene optimisticamente.
         if ($agent->runtime === \App\Enums\AgentRuntime::Hermes) {
             // Coproceso: la corrida HTTP larga no bloquea nada
             $this->spawnHermesTurn($agent, $message);
@@ -99,12 +100,22 @@ class ChatService
 
         // Coproceso desatendido: al morir el padre (worker HTTP) queda
         // re-padrido bajo init y sigue hasta terminar la corrida.
+        //
+        // El worker HTTP arranca con cwd=public/ (php -S), asi que se usa
+        // la ruta absoluta de artisan y el binario PHP real.
         $spec = sprintf(
-            'php artisan taap:hermes-turn %d %d >/dev/null 2>&1',
+            '%s %s taap:hermes-turn %d %d >/dev/null 2>&1',
+            PHP_BINARY,
+            escapeshellarg(base_path('artisan')),
             $agent->id,
             (int) ($message->id ?? 0)
         );
 
-        \Illuminate\Support\Facades\Process::fromShellCommandline($spec)->start();
+        try {
+            \Illuminate\Support\Facades\Process::command($spec)->start();
+            \Illuminate\Support\Facades\Log::info("ChatService: coproceso hermes lanzado (msg {$message->id}, {$agent->id})");
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error("ChatService: fallo lanzando coproceso hermes: " . $e->getMessage());
+        }
     }
 }

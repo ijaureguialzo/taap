@@ -85,6 +85,8 @@ return [
     /* Model Proxy: los agentes llaman al orquestador con su token de agente;
        las claves reales de proveedor solo viven en el orquestador. */
     'proxy' => [
+        // Tope de salida por defecto (ver ModelProxyController::mergeReasoning)
+        'default_max_tokens' => (int) env('TAAP_PROXY_DEFAULT_MAX_TOKENS', 2048),
         'token_length' => 48,
         /* Como se alcanza el orquestador desde los contenedores de agente. */
         'internal_url' => env('TAAP_PROXY_INTERNAL_URL', 'http://taap-orchestrator:8000'),

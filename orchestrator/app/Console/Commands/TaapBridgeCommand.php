@@ -132,6 +132,24 @@ class TaapBridgeCommand extends Command
                     $session['lastProbe'] = $now;
                     $adapter->probe($agent);
                 }
+
+                // Hermes: sin stream persistente; sondea el API server para
+                // cerrar el arrancado (200/401 = gateway vivo -> idle)
+                if ($agent->runtime === AgentRuntime::Hermes
+                    && $agent->status === AgentStatus::Starting
+                    && $now - ($session['lastProbe'] ?? 0) > 8) {
+                    $session['lastProbe'] = $now;
+                    try {
+                        $probe = $adapter->status($agent);
+                        if ($probe === AgentStatus::Idle
+                            && $agent->status !== AgentStatus::Idle) {
+                            $agent->forceFill(['status' => AgentStatus::Idle, 'last_activity_at' => now()])->save();
+                            $sink->dispatch($agent->refresh(), \App\Agents\AgentEvent::statusChange(AgentStatus::Idle->value));
+                        }
+                    } catch (\Throwable $e) {
+                        Log::debug("bridge: sonda Hermes {$agent->id}: " . $e->getMessage());
+                    }
+                }
             }
             unset($session);
 
