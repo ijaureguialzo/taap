@@ -37,8 +37,13 @@ class ChatService
         if ($agent->status === AgentStatus::WaitingApproval) {
             throw new QuotaExceededException('El agente espera una aprobación pendiente');
         }
+
+        // (fix-chat-viewport-send) Si no esta en ejecucion, arrancarlo:
+        // el mensaje se encola y se procesa al arrancar el agente. Pi: el
+        // prompt espera en el fichero IPC (sobrevive al arranque). Hermes:
+        // el coproceso del turno espera a que el gateway este arriba.
         if (! $agent->status->isRunning()) {
-            throw new \RuntimeException('El agente no está en ejecución');
+            $agent = $this->manager->start($agent);
         }
 
         $message = ChatMessage::create([

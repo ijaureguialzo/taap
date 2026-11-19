@@ -8,3 +8,86 @@
 body {
     background-color: var(--taap-bg);
 }
+
+/* ------------------------------------------------------------------
+ * Página de detalle del agente: el chat ocupa el viewport (design
+ * fix-chat-viewport-send D1). La página NO hace scroll: el historial
+ * scrollea dentro de #chat-box y la columna lateral dentro de su
+ * propia columna. Acotado a ≥992px (columnas lado a lado); en
+ * pantallas estrechas se conserva el scroll de página actual.
+ * Fallback: en navegadores sin :has() la regla no aplica y el
+ * layout queda como antes.
+ * ------------------------------------------------------------------ */
+@media (min-width: 992px) {
+    body:has(.agent-detail) {
+        height: 100vh;
+        height: 100dvh;
+        overflow: hidden;
+    }
+
+    body:has(.agent-detail) main {
+        overflow: hidden;
+        min-height: 0;
+    }
+
+    /* El contenedor del layout (container-fluid) tiene altura auto;
+     * sin cerrar la cadena aquí, `.agent-detail { height: 100% }` se
+     * resolvería contra auto y el chat desbordaría el main oculto. */
+    body:has(.agent-detail) main > .container-fluid {
+        height: 100%;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .agent-detail {
+        display: flex;
+        flex-direction: column;
+        flex: 1 1 auto;
+        min-height: 0;
+    }
+
+    .agent-detail > .row {
+        flex: 1 1 auto;
+        min-height: 0;
+        /* g-4 aporta margenes verticales (fila -gutter, hijos +gutter):
+           con margen en el eje transversal, la altura del hijo ya no es
+           "auto" y el stretch de flex deja de aplicar -> el chat desborda.
+           Se neutraliza el eje vertical; el horizontal se conserva. */
+        margin-top: 0;
+        margin-bottom: 0;
+    }
+
+    .agent-detail > .row > * {
+        margin-top: 0;
+        margin-bottom: 0;
+    }
+
+    /* Las columnas toman la altura de la fila (100%: la fila tiene altura
+     * definida por flex, asi que el porcentaje se resuelve). El stretch
+     * nativo de flex no aplica aqui: el margen/contenido deja la altura
+     * "no auto" para el navegador. min-height: 0 permite el shrink. */
+    .agent-detail .col-lg-8,
+    .agent-detail .col-lg-4 {
+        height: 100%;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+    }
+
+    /* La línea de tiempo puede ser larga: scroll interno propio. */
+    .agent-detail .col-lg-4 {
+        overflow-y: auto;
+    }
+
+    .agent-chat {
+        display: flex;
+        flex-direction: column;
+        flex: 1 1 auto;
+        min-height: 0;
+    }
+
+    #chat-box {
+        min-height: 0;
+    }
+}

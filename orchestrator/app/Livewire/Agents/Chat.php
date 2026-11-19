@@ -68,6 +68,11 @@ class Chat extends Component
 
         $this->content = '';
         $this->streaming = '';
+
+        // JS lo usa para vaciar el input enfocado (Livewire no pisa el
+        // DOM de un input enfocado: sin esto el texto viejo seguiria
+        // visible tras el envio).
+        $this->dispatch('message-sent');
     }
 
     public function approve(bool $approved, ?string $note = null): void

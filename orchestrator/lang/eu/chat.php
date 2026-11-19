@@ -10,6 +10,8 @@ return [
     'streaming' => 'idazten…',
     'thinking' => 'pentsatzen…',
     'offline' => 'Agentea deskonekatuta dago. Abiarazi kontsultatzeko.',
+    'will_start' => 'Agentea geldituta dago: mezu bat bidalita abiaraziko da.',
+    'waiting_approval' => 'Agenteak zure baimena zain dago mezu berriak onartzeari aurreko.',
     'tool' => 'Tresna',
     'approval' => 'Baimena',
     'approve' => 'Onartu',

@@ -23,7 +23,7 @@
         'host' => config('taap.public.host'),
         'port' => (int) config('taap.public.port'),
         'scheme' => config('taap.public.scheme'),
-        'authEndpoint' => url('/broadcasting/auth'),
+        'authEndpoint' => url('/api/v1/broadcasting/auth'),
     ], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP);
 @endphp
 <body class="bg-light min-vh-100 d-flex flex-column"

@@ -26,7 +26,7 @@
 
     <div class="row g-4">
         <div class="col-lg-8">
-            <livewire:agents.chat :agent="$agent" class="h-100" style="min-height: 480px" />
+            <livewire:agents.chat :agent="$agent" />
         </div>
 
         <div class="col-lg-4 d-flex flex-column gap-4">
@@ -134,6 +134,9 @@
         (() => {
             const root = document.querySelector('.agent-detail');
             if (!root) return;
+            // El script se re-ejecuta en cada update: flag anti-duplicados.
+            if (root.dataset.detailReady) return;
+            root.dataset.detailReady = '1';
             const wire = Livewire.find(root.id);
             if (!wire || !window.TaapEcho || !window.TaapPusher) return;
 
@@ -143,7 +146,7 @@
                 labels[n.dataset.statusValue] = n.textContent;
             });
 
-            const channel = window.TaapEcho.private(`agent.${id}`);
+            const channel = window.TaapEcho.channel(`agent.${id}`);
             channel.listen('agent-event', (payload) => {
                 wire.agentEvent(payload);
                 if (payload.type === 'status.change') {

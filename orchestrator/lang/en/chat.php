@@ -10,6 +10,8 @@ return [
     'streaming' => 'writing…',
     'thinking' => 'thinking…',
     'offline' => 'The agent is offline. Start it to chat.',
+    'will_start' => 'The agent is stopped: sending a message will start it.',
+    'waiting_approval' => 'The agent is waiting for your approval before accepting new messages.',
     'tool' => 'Tool',
     'approval' => 'Approval',
     'approve' => 'Approve',

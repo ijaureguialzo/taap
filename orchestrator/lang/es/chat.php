@@ -10,6 +10,8 @@ return [
     'streaming' => 'escribiendo…',
     'thinking' => 'pensando…',
     'offline' => 'El agente está desconectado. Arráncalo para conversar.',
+    'will_start' => 'El agente está detenido: al enviar un mensaje se arrancará.',
+    'waiting_approval' => 'El agente espera tu aprobación antes de aceptar nuevos mensajes.',
     'tool' => 'Herramienta',
     'approval' => 'Aprobación',
     'approve' => 'Aprobar',

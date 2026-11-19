@@ -18,32 +18,31 @@ function initEcho() {
     if (!cfg.key) {
         return; // reverb no configurado: la UI funciona sin streaming
     }
-    window.TaapEcho = new Echo({
-        broadcaster: 'reverb',
-        host: cfg.host,
-        forceTLS: cfg.scheme === 'https',
-        port: Number(cfg.port || (cfg.scheme === 'https' ? 443 : 80)),
-        scheme: cfg.scheme,
-        enabled: true,
-        ...cfg,
-        // pusher-js lee `key` para autenticarse
-    });
-    // pusher-js necesita la key explícitamente en las opciones
-    const pusherOpts = {
+    // pusher-js exige `cluster` en la validacion aunque wsHost la sobreescribe.
+    window.TaapPusher = new Pusher(cfg.key, {
         wsHost: cfg.host,
         wsPort: Number(cfg.port || 80),
         wssPort: Number(cfg.port || 443),
         forceTLS: cfg.scheme === 'https',
-        enableStats: true,
-        cluster: 'mt1',
         useTLS: cfg.scheme === 'https',
+        cluster: 'mt1',
         authEndpoint: cfg.authEndpoint,
         auth: { headers: {} },
-    };
-    window.TaapPusher = new Pusher(cfg.key, pusherOpts);
-    window.TaapEcho.connector = {
-        pusher: () => window.TaapPusher,
-    };
+    });
+    // Echo reutiliza esa MISMA instancia (opción `client`): el connector
+    // interno queda intacto y .channel() funciona. (El stub
+    // `connector = {pusher: () => ...}` rompia TaapEcho.channel():
+    // "connector.channel is not a function").
+    window.TaapEcho = new Echo({
+        broadcaster: 'reverb',
+        client: window.TaapPusher,
+        // Sin namespace: el emisor difunde como `agent-event` (crudo). El
+        // default de laravel-echo (`App.Events`) haria que .listen()
+        // registrara el callback como `App\\Events\\agent-event` y nunca
+        // coincidiera con el nombre del evento en el cable.
+        namespace: '',
+        ...cfg,
+    });
 }
 
 window.addEventListener('livewire:navigated', initEcho);

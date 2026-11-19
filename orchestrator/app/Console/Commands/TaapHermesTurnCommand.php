@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Agents\HermesAdapter;
+use App\Enums\AgentStatus;
 use App\Models\Agent;
 use Illuminate\Console\Command;
 
@@ -27,6 +28,17 @@ class TaapHermesTurnCommand extends Command
         $message = $agent->messages()->find($this->argument('messageId'));
         if (! $message) {
             return self::SUCCESS;
+        }
+
+        // Si el turno vino de un autolarranque (envío desde el chat a un
+        // agente detenido), el gateway aún está arrancando: el bridge pasa
+        // el estado a listo en cuanto responde; lo esperamos hasta 60 s
+        // para no perder el mensaje en una conexión que nadie atiende.
+        $waited = 0;
+        while ($agent->status === AgentStatus::Starting && $waited < 60) {
+            sleep(5);
+            $waited += 5;
+            $agent->refresh();
         }
 
         $adapter->sendUserMessage($agent, $message->content, $message->user_id);
