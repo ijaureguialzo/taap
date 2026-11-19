@@ -1,0 +1,135 @@
+<?php
+
+namespace App\Http\Controllers\Api;
+
+use App\Http\Controllers\Controller;
+use App\Models\Model;
+use App\Models\ModelProvider;
+use Illuminate\Http\Request;
+
+class ModelController extends Controller
+{
+    /* ---------- providers ---------- */
+
+    public function providers(Request $request)
+    {
+        return response()->json([
+            'providers' => ModelProvider::withCount('models')->orderBy('name')->get()->map(fn ($p) => [
+                'id' => $p->id,
+                'name' => $p->name,
+                'type' => $p->type,
+                'base_url' => $p->base_url,
+                'has_key' => (bool) $p->api_key,
+                'model_count' => $p->models_count,
+            ]),
+        ]);
+    }
+
+    public function storeProvider(Request $request)
+    {
+        $this->requireAdmin($request);
+
+        $data = $request->validate([
+            'name' => ['required', 'string', 'max:64', 'unique:model_providers,name'],
+            'type' => ['required', 'in:openai,anthropic,other'],
+            'base_url' => ['required', 'url'],
+            'api_key' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $provider = ModelProvider::create($data + ['created_by' => $request->user()->id]);
+
+        return response()->json(['provider' => $this->providerPayload($provider)], 201);
+    }
+
+    public function updateProvider(Request $request, ModelProvider $provider)
+    {
+        $this->requireAdmin($request);
+
+        $data = $request->validate([
+            'name' => ['required', 'string', 'max:64', 'unique:model_providers,name,' . $provider->id],
+            'type' => ['required', 'in:openai,anthropic,other'],
+            'base_url' => ['required', 'url'],
+            'api_key' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $provider->update($data);
+
+        return response()->json(['provider' => $this->providerPayload($provider->refresh())]);
+    }
+
+    public function deleteProvider(Request $request, ModelProvider $provider)
+    {
+        $this->requireAdmin($request);
+        $provider->delete();
+
+        return response()->json(['ok' => true]);
+    }
+
+    /* ---------- modelos ---------- */
+
+    public function index(Request $request)
+    {
+        $models = Model::with('provider:id,name')->orderBy('provider_id')->orderBy('name')->get();
+
+        return response()->json([
+            'models' => $models->map(fn (Model $m) => [
+                'id' => $m->id,
+                'provider_id' => $m->provider_id,
+                'provider' => $m->provider?->name,
+                'model_id' => $m->model_id,
+                'name' => $m->name,
+                'context_window' => $m->context_window,
+                'max_tokens' => $m->max_tokens,
+                'capabilities' => $m->capabilities,
+            ]),
+        ]);
+    }
+
+    public function store(Request $request)
+    {
+        $this->requireAdmin($request);
+
+        $data = $request->validate([
+            'provider_id' => ['required', 'integer', 'exists:model_providers,id'],
+            'model_id' => ['required', 'string', 'max:128'],
+            'name' => ['required', 'string', 'max:128'],
+            'context_window' => ['nullable', 'integer', 'min:1', 'max:10000000'],
+            'max_tokens' => ['nullable', 'integer', 'min:1', 'max:1000000'],
+            'capabilities' => ['array'],
+            'capabilities.*' => ['string'],
+        ]);
+
+        Model::firstOrCreate(
+            ['provider_id' => $data['provider_id'], 'model_id' => $data['model_id']],
+            $data
+        );
+
+        return response()->json(['ok' => true], 201);
+    }
+
+    public function delete(Request $request, Model $model)
+    {
+        $this->requireAdmin($request);
+        $model->delete();
+
+        return response()->json(['ok' => true]);
+    }
+
+    protected function requireAdmin(Request $request): void
+    {
+        if (! $request->user()->isAdmin()) {
+            abort(403);
+        }
+    }
+
+    protected function providerPayload(ModelProvider $p): array
+    {
+        return [
+            'id' => $p->id,
+            'name' => $p->name,
+            'type' => $p->type,
+            'base_url' => $p->base_url,
+            'has_key' => (bool) $p->api_key,
+        ];
+    }
+}

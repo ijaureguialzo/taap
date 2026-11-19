@@ -38,6 +38,9 @@ return [
             'database' => env('DB_DATABASE', database_path('database.sqlite')),
             'prefix' => '',
             'foreign_key_constraints' => env('DB_FOREIGN_KEYS', true),
+            /* Multiples procesos locales escriben: WAL + reintentos de lock. */
+            'busy_timeout' => 5000,
+            'journal_mode' => 'wal',
             'busy_timeout' => null,
             'journal_mode' => null,
             'synchronous' => null,

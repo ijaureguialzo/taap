@@ -5,19 +5,21 @@ networks:
   # (orquestador, postgres, squid) a menos que tengan Internet activado.
   taap-internal:
     name: taap-internal
+    external: true
     internal: true
   # NAT: salida a Internet vía proxy squid con allowlist.
   taap-egress:
     name: taap-egress
+    external: true
     driver: bridge
 
 volumes:
   taap_pgdata:
-  taap_squid:
 
 services:
   postgres:
-    image: postgres:16-alpine
+    image: postgres:16
+    container_name: taap-postgres
     restart: unless-stopped
     environment:
       POSTGRES_DB: ${DB_NAME:-taap}
@@ -34,13 +36,15 @@ services:
       retries: 12
 
   egress:
+    container_name: taap-egress
     build:
       context: ..
       dockerfile: deploy/Dockerfile.egress
     image: taap/egress:local
     restart: unless-stopped
     volumes:
-      - taap_squid:/etc/squid/taap
+      # Bind directo: el orquestador (PHP en el host) escribe el fragmento ACL
+      - ${TAAP_SQUID_DIR:-/var/lib/taap/squid}:/etc/squid/taap
     # Dual-homed: los agentes (solo en taap-internal) lo alcanzan como
     # proxy; la salida NAT va por taap-egress.
     networks:
@@ -53,6 +57,7 @@ services:
       retries: 6
 
   orchestrator:
+    container_name: taap-orchestrator
     build:
       context: ..
       dockerfile: deploy/Dockerfile
@@ -80,7 +85,7 @@ services:
       - "${TAAP_WS_PORT:-8080}:8080"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - taap_squid:/etc/squid/taap:ro
+      - ${TAAP_SQUID_DIR:-/var/lib/taap/squid}:/etc/squid/taap:ro
     depends_on:
       postgres:
         condition: service_healthy

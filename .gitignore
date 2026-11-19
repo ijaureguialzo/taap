@@ -117,3 +117,4 @@ mobile/ios/build/
 mobile/ios/.DS_Store
 deploy/.env
 xcuserdata/
+data/

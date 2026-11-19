@@ -15,7 +15,12 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        $this->app->singleton(\App\Agents\AgentManager::class);
+        $this->app->singleton(\App\Agents\ConfigRenderer::class);
+        $this->app->singleton(\App\Agents\EgressSync::class);
+        $this->app->singleton(\App\Agents\EventSink::class);
+        $this->app->singleton(\App\Agents\RuntimeAdapters::class);
+        $this->app->singleton(\App\Support\DockerClient::class);
     }
 
     /**

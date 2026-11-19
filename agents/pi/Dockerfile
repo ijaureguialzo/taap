@@ -28,8 +28,9 @@ RUN useradd -m -u 1001 -d /home/agent -s /bin/sh agent \
 ENV HOME=/home/agent
 WORKDIR /workspace
 
-COPY agents/pi/entrypoint.sh /usr/local/bin/agent-entrypoint
+COPY entrypoint.sh /usr/local/bin/agent-entrypoint
 RUN chmod +x /usr/local/bin/agent-entrypoint && chown agent:agent /usr/local/bin/agent-entrypoint
 
+RUN mkdir -p /rpc && chown agent:agent /rpc
 USER agent
 ENTRYPOINT ["/usr/local/bin/agent-entrypoint"]

@@ -20,4 +20,13 @@ set -- --mode rpc \
 [ -n "${API_KEY:-}" ] && set -- "$@" --api-key "$API_KEY"
 [ -n "${SYSTEM_PROMPT:-}" ] && set -- "$@" --system-prompt "$SYSTEM_PROMPT"
 
-exec pi "$@"
+# Entrada RPC por FIFO: pi lee de /rpc/in en vez de del stdin del
+# contenedor. Un proceso residente mantiene abierto el lado escritura para
+# que NUNCA llegue un EOF (un EOF cerraria pi). El orquestador escribe
+# con:  docker exec -i <contenedor> sh -c 'printf ... > /rpc/in'
+mkdir -p /rpc
+rm -f /rpc/in
+mkfifo /rpc/in
+( exec 3>/rpc/in; tail -f /dev/null >&3 ) &
+
+exec pi "$@" < /rpc/in
