@@ -1,0 +1,78 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  orchestrator:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: taap
+          POSTGRES_USER: taap
+          POSTGRES_PASSWORD: taap
+        options: >-
+          --health-cmd "pg_isready -U taap"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+        ports:
+          - 5432:5432
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v3
+        with:
+          php-version: '8.4'
+          extensions: pdo_pgsql,pcntl
+          coverage: none
+      - name: Install PHP dependencies
+        working-directory: orchestrator
+        run: composer install --prefer-dist --no-interaction --no-progress
+      - name: Install JS dependencies
+        working-directory: orchestrator
+        run: npm install --no-audit --no-fund
+      - name: Build assets
+        working-directory: orchestrator
+        run: npm run build
+      - name: Pint
+        working-directory: orchestrator
+        run: ./vendor/bin/pint --test
+      - name: Prepare environment
+        working-directory: orchestrator
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+      - name: Run tests
+        working-directory: orchestrator
+        env:
+          DB_CONNECTION: pgsql
+          DB_HOST: 127.0.0.1
+          DB_PORT: 5432
+          DB_DATABASE: taap
+          DB_USERNAME: taap
+          DB_PASSWORD: taap
+        run: php artisan test
+
+  images:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build egress image
+        run: docker build -f deploy/Dockerfile.egress -t taap/egress:ci .
+      - name: Build orchestrator image
+        run: docker build -f deploy/Dockerfile -t taap/orchestrator:ci .
+      - name: Build agent images
+        run: |
+          docker build -t taap/agent-pi:ci agents/pi
+          docker build -t taap/agent-hermes:ci agents/hermes
+
+  compose-config:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate compose file
+        run: docker compose -f deploy/compose.yaml config --quiet

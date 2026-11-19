@@ -106,3 +106,14 @@ MobileBackups.trash
 tmbootpicker.efi
 .idea/
 .env
+
+# TAAP
+vendor/
+node_modules/
+orchestrator/node_modules/
+*.log
+.DS_Store
+mobile/ios/build/
+mobile/ios/.DS_Store
+deploy/.env
+xcuserdata/

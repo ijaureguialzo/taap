@@ -1,0 +1,98 @@
+name: taap
+
+networks:
+  # Sin gateway por defecto: los agentes solo alcanzan servicios internos
+  # (orquestador, postgres, squid) a menos que tengan Internet activado.
+  taap-internal:
+    name: taap-internal
+    internal: true
+  # NAT: salida a Internet vía proxy squid con allowlist.
+  taap-egress:
+    name: taap-egress
+    driver: bridge
+
+volumes:
+  taap_pgdata:
+  taap_squid:
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME:-taap}
+      POSTGRES_USER: ${DB_USER:-taap}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-taap}
+    volumes:
+      - taap_pgdata:/var/lib/postgresql/data
+    networks:
+      - taap-internal
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-taap} -d ${DB_NAME:-taap}"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  egress:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.egress
+    image: taap/egress:local
+    restart: unless-stopped
+    volumes:
+      - taap_squid:/etc/squid/taap
+    # Dual-homed: los agentes (solo en taap-internal) lo alcanzan como
+    # proxy; la salida NAT va por taap-egress.
+    networks:
+      - taap-egress
+      - taap-internal
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z 127.0.0.1 3128 || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+
+  orchestrator:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    image: taap/orchestrator:${TAAP_VERSION:-local}
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      APP_ENV: production
+      APP_DEBUG: "false"
+      APP_URL: ${APP_URL:-http://127.0.0.1:8000}
+      DB_CONNECTION: pgsql
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_DATABASE: ${DB_NAME:-taap}
+      DB_USERNAME: ${DB_USER:-taap}
+      DB_PASSWORD: ${DB_PASSWORD:-taap}
+      BROADCAST_CONNECTION: reverb
+      REVERB_APP_ID: ${REVERB_APP_ID:-taap-local}
+      REVERB_APP_KEY: ${REVERB_APP_KEY:-taap-local}
+      REVERB_APP_SECRET: ${REVERB_APP_SECRET:-taap-local}
+      DOCKER_HOST: unix:///var/run/docker.sock
+      SQUID_HOST: egress
+    ports:
+      - "${TAAP_PORT:-8000}:8000"
+      - "${TAAP_WS_PORT:-8080}:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - taap_squid:/etc/squid/taap:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      egress:
+        condition: service_healthy
+    networks:
+      # Orden importa: la primera red aporta la ruta por defecto.
+      - taap-egress
+      - taap-internal
+    healthcheck:
+      test: ["CMD-SHELL", "php -r \"exit(@file_get_contents('http://127.0.0.1:8000/up') ? 0 : 1);\""]
+      interval: 15s
+      timeout: 5s
+      retries: 8
+      start_period: 30s
