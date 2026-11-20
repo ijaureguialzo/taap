@@ -24,10 +24,11 @@ v1.2. Ver proposal.md para el porqué.
 
 - OpenCode (cambio independiente; modo HTTP + stream de eventos).
 - Modo TUI interactivo de Codex (irrelevante en contenedor headless).
-- Wire `responses` del API OpenAI como formato de proveedor: el Model Proxy hace
-  passthrough de cualquier ruta, pero la integración se fija a `wire_api =
-  "chat"` (lo que el proxy v1.0 soporta de verdad); el soporte `responses` se
-  revisa cuando un proveedor lo exija.
+- ~~Wire `responses` del API OpenAI como formato de proveedor~~ **REVISIONADO
+  por el spike**: en codex `>= 0.128` el valor `wire_api = "chat"` ya no existe
+  (deprecado en 0.128, eliminado en feb 2026) — el binario falla al arrancar el
+  proveedor. La integración se fija a `wire_api = "responses"` y el Model Proxy
+  agrega passthrough de `/v1/responses` (ver specs/model-management).
 - Perfiles múltiples de Codex (`[profiles]`): un agente = un perfil implícito.
 
 ## Decisions
@@ -56,21 +57,27 @@ y el modo rpc-stdio con base compartida ya paga toda la mecánica.
 
 El app-server modela la conversación como **thread**: `thread/start` (con
 `cwd`) en el arranque y `thread/resume {threadId}` tras un reinicio. El id del
-hilo activo se guarda en el `config` del agente (patrón del `session_id` de Pi)
-y los transcripts viven en `~/.codex/sessions/` (rollouts) bajo
-`CODEX_HOME=/data` (volumen de datos; layout tipo Hermes: un solo bind).
+hilo activo se guarda en el `config` del agente (clave `thread_id`, patrón del
+`session_id` de Pi) y el estado completo del app-server vive en `CODEX_HOME=/data`
+(`state_*.sqlite`, `sessions/<a>/<m>/<d>/rollout-*.jsonl`, `rules/`,...; ~2 MB
+por sesión corta tras el spike). Es el layout tipo Hermes: un solo bind.
 
-En `attach` (post-reinicio o re-provisionado): si hay thread id persistido →
-`thread/resume`, si no → `thread/start`; se guarda el id devuelto. La respuesta
-del handshake `init` (o el request equivalente de info de app según spike)
-cierra el `starting` → `ready` como el `get_state` de Pi.
+**Handshake y attach (spike):** `initialize {clientInfo}` → resultado
+`{userAgent, codexHome, ...}` (el probe de coproceso: cierra `starting` →
+`ready`), luego notificación `initialized`. En `attach` (post-reinicio):
+`initialize` + si hay `thread_id` persistido → `thread/resume {threadId}`, si no
+→ `thread/start {cwd: /workspace}`; el id devuelto se persiste (notificación
+`thread/started` lo confirma). **Verificado en el spike**: tras matar y relanzar
+el proceso con el mismo `CODEX_HOME`, el `thread/resume` devolvió el thread y el
+siguiente `turn/start` envió al proxy el historial completo (19 items, incluidos
+los comandos aprobados con su prefijo persistido).
 
-**Cambio de modelo**: si el spike confirma que el hilo fija el modelo (como el
-`--session-id` de Pi arrastra config), el renderer rota el thread id al cambiar
-el modelo (misma regla `model_key` de Pi): nueva sesión, historial en chat
-intacto. Si el app-server permite sobreescribir el modelo por `turn/start`, no
-se rota y el cambio aplica en el siguiente turno (la spec solo exige no perder
-la sesión: ambas rutas la cumplen; decide el spike).
+**Cambio de modelo (decidido por el spike):** el hilo **fija** el modelo —
+`turn/start` acepta un parámetro `model` pero el request al proxy sigue usando
+el modelo del thread. **Por tanto el renderer rota el thread** al cambiar el
+modelo (misma regla `model_key` de Pi): el adapter borra `thread_id` del config
+y el próximo `attach` hace `thread/start` con el nuevo modelo; el historial en
+el chat del orquestador se conserva (spec: «sin perder la sesión»).
 
 ### D3. Aprobaciones y sandbox
 
@@ -83,19 +90,25 @@ da) y resuelve enviando la respuesta correlacionada con el id. Sin aprobación
 pendiente, el agente está `idle`; con ella, `waiting-approval` (los eventos de
 turno ya lo indican).
 
-### D4. Plano de configuración: `config.toml` en el volumen
+### D4. Plano de configuración: `-c` overrides + `codex.env` en el volumen
 
-`renderCodex` escribe en el área de datos (bind `/data` = `CODEX_HOME`):
+El app-server acepta overrides de config por línea de comandos (`-c key=value`,
+formato TOML plano), lo que evita escribir `config.toml` a mano y deja la
+semántica de aplicación idéntica a la de Pi (el entrypoint los pasa siempre;
+no hay `config.toml` renderizado — lo que sí se renderiza en el bind de datos:
 
-- `config.toml`: `model = <model_id>`, `model_provider = "taap"`,
-  `[model_providers.taap]` (`base_url` = ruta del Model Proxy del agente,
-  `env_key = "TAAP_API_KEY"`, `wire_api = "chat"`, `name`),
-  `[mcp_servers.*]` (stdio: `command/args/env`; http: la puerta MCP del
-  orquestador con `bearer_token_env_var`), `sandbox_mode`, `approval_policy`.
 - `codex.env` (sourced por el entrypoint, patrón `agents/pi`): `TAAP_API_KEY`
   (token del agente), `CODEX_HOME=/data`.
 
-Aplicación: re-render + `docker restart` (Codex lee `config.toml` al arrancar;
+Los `-c` renderizados por `ConfigRenderer::renderCodex()` (D4bis, se generan en
+el bind de datos como `codex-args.env`, sourced por el entrypoint):
+`model=<model_id>`, `model_provider=taap`,
+`model_providers.taap.name/base_url/env_key=TAAP_API_KEY`,
+**`model_providers.taap.wire_api=responses`** (obligatorio: `chat` fue
+eliminado en 0.128), `approval_policy=on-request`, `sandbox_mode=workspace-write`
+(dial configurable desde el form), más las llaves MCP (`mcp_servers.*`).
+
+Aplicación: re-render + `docker restart` (el app-server lee `-c` al arrancar;
 `config_apply: restart`), el hilo se reanuda (D2). Misma semántica que Hermes.
 
 ### D5. Imagen
@@ -108,9 +121,11 @@ usuario no root + entrypoint FIFO (patrón Pi) + `readonly` rootfs compatible
 
 ## Risks / Trade-offs
 
-- [Protocolo app-server inestable/joven] → versión fijada por `ARG`; el spike
-  del grupo 1 mapea el protocolo ANTES de escribir el adapter; contrato de test
-  contra la versión fijada (transcripciones JSON-RPC como fixture).
+- [Protocolo app-server inestable/joven] → versión fijada por `ARG`
+  (**0.171.0**); el spike (grupo 1, `notes/spike-codex.md` + fixture
+  `fixtures/spike-0.171.0-full-turn.jsonl`) mapeó el protocolo ANTES de escribir
+  el adapter; los tests de contrato usan transcripciones JSON-RPC de esa
+  versión como fixture.
 - [El mapping vive en PHP (a diferencia de Claude)] → un cambio de shapes del
   app-server obliga a release del orquestador; aceptado: el binario Rust es
   mucho más estable que el SDK de Claude, y no hay pieza en contenedor que
@@ -131,14 +146,26 @@ resto: imágenes → orquestador → bridge. Rollback: revertir orquestador y
 ocultar la entrada del registro; agentes Codex ya creados pasan a «error»
 (aceptable en v1.1 local; release notes).
 
-## Open Questions
+## Open Questions (resueltas por el spike, grupo 1)
 
-- Nombres exactos y semántica del protocolo app-server en la versión que se
-  fije (handshake `init`, `thread/start|resume`, `turn/start`, items de
-  `commandExecution`/`fileChange`/`mcpToolCall`, forma de las peticiones de
-  aprobación y de «permitir siempre», `usage`) → **spike** (grupo 1); lo que
-  no exista se deja fuera del mapping y se muestra como actividad genérica
-  (criterio de v1.0 para Hermes).
-- ¿El hilo fija el modelo? (D2) → spike; decide si hay rotación de thread.
-- Paquete binario vs wrapper npm para el build: se elige en el Dockerfile
-  (release GitHub estática es el candidato); sin impacto en specs.
+- Nombres del protocolo: `initialize`/`initialized`, `thread/start|resume`,
+  `turn/start {threadId, input:[{type:"text",text}]}`, items
+  `userMessage`/`agentMessage`/`commandExecution` (con `aggregatedOutput`,
+  `exitCode`, `durationMs`), deltas `item/agentMessage/delta`, `usage` en
+  `thread/tokenUsage/updated`, `turn/completed`. **Aprobaciones**: request
+  `item/commandExecution/requestApproval {kind, itemId, command, cwd,
+  commandActions, proposedExecpolicyAmendment, availableDecisions}` → respuesta
+  `{decision: "accept" | {acceptWithExecpolicyAmendment:{...}} | "cancel"}` —
+  los tres se mapean a `allowed` / `allowed_always` / `denied`. Lo que no exista
+  (p.ej. `fileChange` no apareció en el spike; el tool de escritura de archivos
+  de 0.171 lo hace vía `exec_command`/patch interno) se muestra como actividad
+  genérica (criterio v1.0). Detalles en `notes/spike-codex.md`.
+- ¿El hilo fija el modelo? **SÍ** (el override `model` de `turn/start` se
+  acepta pero el request al proxy usa el modelo del thread) → rotación de
+  thread al cambiar modelo (D2).
+- Paquete binario: el asset estático **`codex-app-server-<plat>`** de la release
+  GitHub `rust-v0.171.0` (el binario `codex` de npm es la TUI; el app-server es
+  un binario separado). En el Dockerfile: `ARG CODEX_VERSION=0.171.0`,
+  descarga del asset `x86_64-unknown-linux-musl` (build linux/amd64).
+- **Wire**: `responses` (D4bis) — el Model Proxy agrega `/v1/responses`
+  passthrough (delta en specs/model-management).

@@ -1,0 +1,3 @@
+{"n": 903, "auth": "Bearer taap-spike", "ut": "Ejecuta en bash: echo ping. Cuando termine, dame un resumen ", "tool": false, "toolOut": null, "stream": true, "model": "gpt-spike"}
+{"n": 904, "auth": "Bearer taap-spike", "ut": "Ejecuta en bash: echo ping. Cuando termine, dame un resumen ", "tool": true, "toolOut": "ping\n", "stream": true, "model": "gpt-spike"}
+{"n": 905, "auth": "Bearer taap-spike", "ut": "Dame un recordatorio breve de lo hablado.", "tool": true, "toolOut": "Tool execution aborted", "stream": true, "model": "gpt-spike"}

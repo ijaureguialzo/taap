@@ -121,6 +121,40 @@ spike) + `python3` para MCP stdio (paridad Pi) + usuario no root;
 rootfs readonly compatible. Sondeo de salud: `GET` a la API (200 = vivo),
 patrón del `status()` de Hermes.
 
+### D6. Transporte de pruebas del modo `api-events` (emergente en 4.1/4.2)
+
+Dos restricciones del entorno de pruebas forjaron el diseño final:
+
+1. **El adapter corre en el host** (phpunit fuera de la VM) y el contenedor
+   vive solo en `taap-internal` (red de la VM): la IP fija no es ruteable
+   desde el host. Solución: `taap.agents.test_api_publish` (solo tests; por
+   defecto ausente en producción) hace que `AgentManager::provision` publique
+   el puerto API en `127.0.0.1:0` (localhost del host, sin exposición
+   externa) y guarde el puerto asignado en `config['api_test_port']`;
+   `OpenCodeAdapter::baseUrl()` lo usa cuando el flag está activo.
+   Requisito Docker: el `-p` solo se aplica con **dos** redes adjuntas (con
+   una única red user-defined se ignora en silencio), así que en modo test
+   se adjunta también la red de egress como red de anclaje del publish (sin
+   efecto en conducta: el squid no concede ACL al agente sin Internet).
+2. **El forward de `127.0.0.1` de Docker Desktop se queda obsoleto tras un
+   `docker restart`** (verificado empíricamente: el puerto deja de aceptar
+   conexiones minutos después aunque el servidor interno siga vivo; ni
+   `stop`+`start` lo repone). Solución: en modo test el transporte HTTP del
+   adapter (`httpViaExec`) enruta por `docker exec <contenedor> curl
+   <loopback:4096>`: inmune al forward de host y a cualquier nombre/IP. La
+   fase post-restart de la suite espera el `status.change ready` nuevo y el
+   `curl` interno a `/api/health` antes de enviar el siguiente prompt. En
+   producción no hay forward que envejecer: el bridge (dentro de la red)
+   llama por la IP fija con Guzzle.
+
+Corolario v1.0 (Model Proxy, `asSse()`): el chunk final SSE sintetizado
+usaba `delta: []` (array). Los clientes estrictos basados en Zod
+(`@ai-sdk/openai-compatible` dentro de opencode) lo rechazan; la forma
+canónica de OpenAI es `delta: {}` (objeto). Corregido a `delta: {}` +
+`usage` passthrough (los clientes v1.0 la aceptan sin cambio observable;
+`ModelProxyTest` 11/11 en verde). Documentado aquí por ser un cambio de
+comportamiento (aunque seguro) del proxy v1.0.
+
 ## Risks / Trade-offs
 
 - [Volatilidad de opencode (el design v1 ya lo señalaba: «V2 latest»)] →

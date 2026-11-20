@@ -1,0 +1,170 @@
+data: {"id":"evt_1f84a2e06001J0m0NB2m29Czvl","type":"server.connected","properties":{}}
+
+data: {"id":"evt_1f84a320e0018C7rJ5kNikUkMy","type":"message.updated","properties":{"sessionID":"ses_e07b7f8a5ffeIbjTqeDVD1PX5l","info":{"id":"msg_1f84a320b001zusLo2maVDI6lW","role":"user","sessionID":"ses_e07b7f8a5ffeIbjTqeDVD1PX5l","time":{"created":1795166974475},"agent":"build","model":{"providerID":"taap","modelID":"gpt-spike"}}}}
+
+data: {"id":"evt_1f84a3211001tlRcGp4CAbPuL2","type":"message.part.updated","properties":{"sessionID":"ses_e07b7f8a5ffeIbjTqeDVD1PX5l","part":{"type":"text","text":"Dame un recordatorio breve de lo hablado.","messageID":"msg_1f84a320b001zusLo2maVDI6lW","sessionID":"ses_e07b7f8a5ffeIbjTqeDVD1PX5l","id":"prt_1f84a320d001YgwGUWsf8LBb3D"},"time":1795166974481}}
+
+data: {"id":"evt_1f84a3214001OEZiIFQJkjfSer","type":"session.updated","properties":{"sessionID":"ses_e07b7f8a5ffeIbjTqeDVD1PX5l","info":{"id":"ses_e07b7f8a5ffeIbjTqeDVD1PX5l","slug":"brave-panda","projectID":"global","directory":"/private/tmp/spike-opencode","path":"private/tmp/spike-opencode","title":"spike4","agent":"build","model":{"id":"gpt-spike","providerID":"taap","variant":"default"},"version":"1.19.6","summary":{"additions":0,"deletions":0,"files":0},"cost":0,"tokens":{"input":0,"output":0,"reasoning":0,"cache":{"read":0,"write":0}},"time":{"created":1795166832474,"updated":1795166974483}}}}
+
+data: {"id":"evt_1f84a32180012z4DWNHopmkLc9","type":"session.status","properties":{"sessionID":"ses_e07b7f8a5ffeIbjTqeDVD1PX5l","status":{"type":"busy"}}}
+
+data: {"id":"evt_1f84a32bd001HB88CMgbCKqCGD","type":"message.updated","properties":{"sessionID":"ses_e07b7f8a5ffeIbjTqeDVD1PX5l","info":{"id":"msg_1f84a32bc001EJnSRb19OxXTdt","parentID":"msg_1f84a320b001zusLo2maVDI6lW","role":"assistant","mode":"build","agent":"build","path":{"cwd":"/private/tmp/spike-opencode","root":"/"},"cost":0,"tokens":{"input":0,"output":0,"reasoning":0,"cache":{"read":0,"write":0}},"modelID":"gpt-spike","providerID":"taap","time":{"created":1795166974652},"sessionID":"ses_e07b7f8a5ffeIbjTqeDVD1PX5l"}}}
+
+data: {"id":"evt_1f84a32c3001RLN8iyurqgoEz2","type":"session.updated","properties":{"sessionID":"ses_e07b7f8a5ffeIbjTqeDVD1PX5l","info":{"id":"ses_e07b7f8a5ffeIbjTqeDVD1PX5l","slug":"brave-panda","projectID":"global","directory":"/private/tmp/spike-opencode","path":"private/tmp/spike-opencode","title":"spike4","agent":"build","model":{"id":"gpt-spike","providerID":"taap","variant":"default"},"version":"1.19.6","summary":{"additions":0,"deletions":0,"files":0},"cost":0,"tokens":{"input":0,"output":0,"reasoning":0,"cache":{"read":0,"write":0}},"time":{"created":1795166832474,"updated":1795166974659}}}}
+
+data: {"id":"evt_1f84a32c4001wd9vDUaBkWj3hD","type":"session.diff","properties":{"sessionID":"ses_e07b7f8a5ffeIbjTqeDVD1PX5l","diff":[]}}
+
+data: {"id":"evt_1f84a32c5001Dy3uBNjjGigu6L","type":"message.updated","properties":{"sessionID":"ses_e07b7f8a5ffeIbjTqeDVD1PX5l","info":{"role":"user","time":{"created":1795166974475},"agent":"build","model":{"providerID":"taap","modelID":"gpt-spike"},"id":"msg_1f84a320b001zusLo2maVDI6lW","sessionID":"ses_e07b7f8a5ffeIbjTqeDVD1PX5l","summary":{"diffs":[]}}}}
+
+data: {"id":"evt_1f84a32d7001yOl0RB73r4HB2q","type":"plugin.added","properties":{"id":"core/config-reference"}}
+
+data: {"id":"evt_1f84a32d7002kcpGlkJgq2vBz5","type":"plugin.added","properties":{"id":"agent"}}
+
+data: {"id":"evt_1f84a32d7003HIMuCg9lDBCApa","type":"plugin.added","properties":{"id":"command"}}
+
+data: {"id":"evt_1f84a32d7004uc4P3Kp0Hx5gz5","type":"plugin.added","properties":{"id":"skill"}}
+
+data: {"id":"evt_1f84a32d8001GtSvzsBbhboDwv","type":"plugin.added","properties":{"id":"models-dev"}}
+
+data: {"id":"evt_1f84a32d8002bu5jpRUzWcZ3gd","type":"plugin.added","properties":{"id":"config-agent"}}
+
+data: {"id":"evt_1f84a32d8003JRylZ6Tg4h3EcY","type":"plugin.added","properties":{"id":"config-command"}}
+
+data: {"id":"evt_1f84a32d8004BMaz5OMrKNIfmU","type":"plugin.added","properties":{"id":"config-skill"}}
+
+data: {"id":"evt_1f84a32d8005bubg3WHE5RK4MB","type":"plugin.added","properties":{"id":"alibaba"}}
+
+data: {"id":"evt_1f84a32d80060FrKeAqeuHAsfh","type":"plugin.added","properties":{"id":"amazon-bedrock"}}
+
+data: {"id":"evt_1f84a32d8007aY07ilGyvzSzff","type":"plugin.added","properties":{"id":"anthropic"}}
+
+data: {"id":"evt_1f84a32d9001B5zqDT0z7GsDIi","type":"plugin.added","properties":{"id":"azure-cognitive-services"}}
+
+data: {"id":"evt_1f84a32dd0018aYdVs65jDguf2","type":"plugin.added","properties":{"id":"azure"}}
+
+data: {"id":"evt_1f84a32dd002kk6agIYgtVV2pP","type":"plugin.added","properties":{"id":"cerebras"}}
+
+data: {"id":"evt_1f84a32dd003doJQz6vdCxVUQr","type":"plugin.added","properties":{"id":"cloudflare-ai-gateway"}}
+
+data: {"id":"evt_1f84a32dd004jYpp5paS4R4LiR","type":"plugin.added","properties":{"id":"cloudflare-workers-ai"}}
+
+data: {"id":"evt_1f84a32dd005MgPawHfEcVicFR","type":"plugin.added","properties":{"id":"cohere"}}
+
+data: {"id":"evt_1f84a32dd006wNj2y2tPCDGlUc","type":"plugin.added","properties":{"id":"deepinfra"}}
+
+data: {"id":"evt_1f84a32de001nuveGDzGafISos","type":"plugin.added","properties":{"id":"gateway"}}
+
+data: {"id":"evt_1f84a32de002ojkxIRWyL0Js5f","type":"plugin.added","properties":{"id":"github-copilot"}}
+
+data: {"id":"evt_1f84a32de0031aYAcUMi8441VG","type":"plugin.added","properties":{"id":"gitlab"}}
+
+data: {"id":"evt_1f84a32de004IRcX7tSjRktvX3","type":"plugin.added","properties":{"id":"google"}}
+
+data: {"id":"evt_1f84a32de0055eCL4Nl74l1C3u","type":"plugin.added","properties":{"id":"google-vertex-anthropic"}}
+
+data: {"id":"evt_1f84a32de0063kpqtYNN906SoB","type":"plugin.added","properties":{"id":"google-vertex"}}
+
+data: {"id":"evt_1f84a32de0077ARFlaInDAVS0U","type":"plugin.added","properties":{"id":"groq"}}
+
+data: {"id":"evt_1f84a32e30016VU1XevEgJCZ5p","type":"plugin.added","properties":{"id":"kilo"}}
+
+data: {"id":"evt_1f84a32e3002qdtkJ090Dh51Nh","type":"plugin.added","properties":{"id":"llmgateway"}}
+
+data: {"id":"evt_1f84a32e3003GuKHC20S8FFv5N","type":"plugin.added","properties":{"id":"mistral"}}
+
+data: {"id":"evt_1f84a32e3004lqYj4geg40c7qm","type":"plugin.added","properties":{"id":"nvidia"}}
+
+data: {"id":"evt_1f84a32e40016vp37bkNDtn9oT","type":"plugin.added","properties":{"id":"opencode"}}
+
+data: {"id":"evt_1f84a32e4002tdg2NefdsAOADS","type":"plugin.added","properties":{"id":"snowflake-cortex"}}
+
+data: {"id":"evt_1f84a32e4003mxPWXFmM9uW9iK","type":"plugin.added","properties":{"id":"openai-compatible"}}
+
+data: {"id":"evt_1f84a32e4004iCHFkeY04iYmBW","type":"plugin.added","properties":{"id":"openai"}}
+
+data: {"id":"evt_1f84a32e4005eK6hFsKCTEumJE","type":"plugin.added","properties":{"id":"openrouter"}}
+
+data: {"id":"evt_1f84a32e40062bGIx2ieOAwg6E","type":"plugin.added","properties":{"id":"perplexity"}}
+
+data: {"id":"evt_1f84a32e50011LxCzI2H52Eb5B","type":"plugin.added","properties":{"id":"sap-ai-core"}}
+
+data: {"id":"evt_1f84a32e50025Tu8uvJ9XPDlzi","type":"plugin.added","properties":{"id":"togetherai"}}
+
+data: {"id":"evt_1f84a32e5003NkaY8WR6Gbcx0K","type":"plugin.added","properties":{"id":"vercel"}}
+
+data: {"id":"evt_1f84a33180010jtbkZU780GiVE","type":"catalog.updated","properties":{}}
+
+data: {"id":"evt_1f84a331800247JKGdBJJrcAG4","type":"plugin.added","properties":{"id":"venice"}}
+
+data: {"id":"evt_1f84a3318003BxNaIIGuyNvr0D","type":"plugin.added","properties":{"id":"xai"}}
+
+data: {"id":"evt_1f84a3318004RC0Bqknu2p0IvM","type":"plugin.added","properties":{"id":"zenmux"}}
+
+data: {"id":"evt_1f84a3318005ACaU31CFTo9Mzo","type":"plugin.added","properties":{"id":"dynamic-provider"}}
+
+data: {"id":"evt_1f84a3319001wysmwenxID73F6","type":"plugin.added","properties":{"id":"config-plugin"}}
+
+data: {"id":"evt_1f84a3319002f6AUw0GZnqM7DR","type":"plugin.added","properties":{"id":"config-provider"}}
+
+data: {"id":"evt_1f84a3319003lGAU7atd9C63v7","type":"plugin.added","properties":{"id":"variant"}}
+
+data: {"id":"evt_1f84a331a0013NjpPC9AnM0esV","type":"reference.updated","properties":{}}
+
+data: {"id":"evt_1f84a331d0018O6pZvW6RSF7nb","type":"integration.updated","properties":{}}
+
+data: {"id":"evt_1f84a334c001L68ctRpVpn54Zb","type":"catalog.updated","properties":{}}
+
+data: {"id":"evt_1f84a3351001mIGrWoAG5gJQnG","type":"session.status","properties":{"sessionID":"ses_e07b7f8a5ffeIbjTqeDVD1PX5l","status":{"type":"busy"}}}
+
+data: {"id":"evt_1f84a335e0018ZTjkwo58hMBTA","type":"message.part.updated","properties":{"sessionID":"ses_e07b7f8a5ffeIbjTqeDVD1PX5l","part":{"id":"prt_1f84a335e001PntMc6cH5JJCnO","messageID":"msg_1f84a32bc001EJnSRb19OxXTdt","sessionID":"ses_e07b7f8a5ffeIbjTqeDVD1PX5l","type":"step-start"},"time":1795166974814}}
+
+data: {"id":"evt_1f84a3360001Qfss8Ars4er12Q","type":"message.part.updated","properties":{"sessionID":"ses_e07b7f8a5ffeIbjTqeDVD1PX5l","part":{"id":"prt_1f84a3360001nab4z3KwpH0CCC","messageID":"msg_1f84a32bc001EJnSRb19OxXTdt","sessionID":"ses_e07b7f8a5ffeIbjTqeDVD1PX5l","type":"text","text":"","time":{"start":1795166974816}},"time":1795166974816}}
+
+data: {"id":"evt_1f84a3361001JnbT0iiWa3IunG","type":"message.part.delta","properties":{"sessionID":"ses_e07b7f8a5ffeIbjTqeDVD1PX5l","messageID":"msg_1f84a32bc001EJnSRb19OxXTdt","partID":"prt_1f84a3360001nab4z3KwpH0CCC","field":"text","delta":"Hecho."}}
+
+data: {"id":"evt_1f84a3361002q2IIP7qmzuB5Sd","type":"message.part.updated","properties":{"sessionID":"ses_e07b7f8a5ffeIbjTqeDVD1PX5l","part":{"id":"prt_1f84a3360001nab4z3KwpH0CCC","messageID":"msg_1f84a32bc001EJnSRb19OxXTdt","sessionID":"ses_e07b7f8a5ffeIbjTqeDVD1PX5l","type":"text","text":"Hecho.","time":{"start":1795166974816,"end":1795166974817}},"time":1795166974817}}
+
+data: {"id":"evt_1f84a33630016nM2wbkO5Wsfx7","type":"message.part.updated","properties":{"sessionID":"ses_e07b7f8a5ffeIbjTqeDVD1PX5l","part":{"id":"prt_1f84a3363001HdjllrRbTtHHxJ","reason":"stop","messageID":"msg_1f84a32bc001EJnSRb19OxXTdt","sessionID":"ses_e07b7f8a5ffeIbjTqeDVD1PX5l","type":"step-finish","tokens":{"input":0,"output":0,"reasoning":0,"cache":{"write":0,"read":0}},"cost":0},"time":1795166974819}}
+
+data: {"id":"evt_1f84a3364001WoIOrKLcMNSSZQ","type":"message.updated","properties":{"sessionID":"ses_e07b7f8a5ffeIbjTqeDVD1PX5l","info":{"id":"msg_1f84a32bc001EJnSRb19OxXTdt","parentID":"msg_1f84a320b001zusLo2maVDI6lW","role":"assistant","mode":"build","agent":"build","path":{"cwd":"/private/tmp/spike-opencode","root":"/"},"cost":0,"tokens":{"input":0,"output":0,"reasoning":0,"cache":{"write":0,"read":0}},"modelID":"gpt-spike","providerID":"taap","time":{"created":1795166974652,"completed":1795166974822},"sessionID":"ses_e07b7f8a5ffeIbjTqeDVD1PX5l","finish":"stop"}}}
+
+data: {"id":"evt_1f84a3366001trfa9pumdsGQro","type":"message.updated","properties":{"sessionID":"ses_e07b7f8a5ffeIbjTqeDVD1PX5l","info":{"id":"msg_1f84a32bc001EJnSRb19OxXTdt","parentID":"msg_1f84a320b001zusLo2maVDI6lW","role":"assistant","mode":"build","agent":"build","path":{"cwd":"/private/tmp/spike-opencode","root":"/"},"cost":0,"tokens":{"input":0,"output":0,"reasoning":0,"cache":{"write":0,"read":0}},"modelID":"gpt-spike","providerID":"taap","time":{"created":1795166974652,"completed":1795166974822},"sessionID":"ses_e07b7f8a5ffeIbjTqeDVD1PX5l","finish":"stop"}}}
+
+data: {"id":"evt_1f84a3366002RDBYj7gopDw5qS","type":"session.status","properties":{"sessionID":"ses_e07b7f8a5ffeIbjTqeDVD1PX5l","status":{"type":"busy"}}}
+
+data: {"id":"evt_1f84a3367001BK0B552Gb60vqe","type":"session.status","properties":{"sessionID":"ses_e07b7f8a5ffeIbjTqeDVD1PX5l","status":{"type":"idle"}}}
+
+data: {"id":"evt_1f84a3368001EO1cfzK1UCX3sQ","type":"session.idle","properties":{"sessionID":"ses_e07b7f8a5ffeIbjTqeDVD1PX5l"}}
+
+data: {"id":"evt_1f84a3368002eAQYVdLbGQcXAr","type":"session.updated","properties":{"sessionID":"ses_e07b7f8a5ffeIbjTqeDVD1PX5l","info":{"id":"ses_e07b7f8a5ffeIbjTqeDVD1PX5l","slug":"brave-panda","projectID":"global","directory":"/private/tmp/spike-opencode","path":"private/tmp/spike-opencode","title":"spike4","agent":"build","model":{"id":"gpt-spike","providerID":"taap","variant":"default"},"version":"1.19.6","summary":{"additions":0,"deletions":0,"files":0},"cost":0,"tokens":{"input":0,"output":0,"reasoning":0,"cache":{"read":0,"write":0}},"time":{"created":1795166832474,"updated":1795166974824}}}}
+
+data: {"id":"evt_1f84a33690018xRa7MRCTmGWHF","type":"session.diff","properties":{"sessionID":"ses_e07b7f8a5ffeIbjTqeDVD1PX5l","diff":[]}}
+
+data: {"id":"evt_1f84a3369002Y2hC5ki0cvEoYc","type":"message.updated","properties":{"sessionID":"ses_e07b7f8a5ffeIbjTqeDVD1PX5l","info":{"role":"user","time":{"created":1795166974475},"agent":"build","model":{"providerID":"taap","modelID":"gpt-spike"},"summary":{"diffs":[]},"id":"msg_1f84a320b001zusLo2maVDI6lW","sessionID":"ses_e07b7f8a5ffeIbjTqeDVD1PX5l"}}}
+
+data: {"id":"evt_1f84a5518001dQunbzazZmKuNP","type":"server.heartbeat","properties":{}}
+
+data: {"id":"evt_1f84a77c0001TqT9JzGUvfe2RJ","type":"session.updated","properties":{"sessionID":"ses_e07b7f8a5ffeIbjTqeDVD1PX5l","info":{"id":"ses_e07b7f8a5ffeIbjTqeDVD1PX5l","slug":"brave-panda","projectID":"global","directory":"/private/tmp/spike-opencode","path":"private/tmp/spike-opencode","title":"spike4","agent":"build","model":{"id":"gpt-override","providerID":"taap","variant":"default"},"version":"1.19.6","summary":{"additions":0,"deletions":0,"files":0},"cost":0,"tokens":{"input":0,"output":0,"reasoning":0,"cache":{"read":0,"write":0}},"time":{"created":1795166832474,"updated":1795166992320}}}}
+
+data: {"id":"evt_1f84a77c1001VFZpvj6wLi8Tu5","type":"message.updated","properties":{"sessionID":"ses_e07b7f8a5ffeIbjTqeDVD1PX5l","info":{"id":"msg_1f84a77c0001ZSGsH9mHYXVpfE","role":"user","sessionID":"ses_e07b7f8a5ffeIbjTqeDVD1PX5l","time":{"created":1795166992320},"agent":"build","model":{"providerID":"taap","modelID":"gpt-override"}}}}
+
+data: {"id":"evt_1f84a77c2001UxHHOodEneO5Bx","type":"message.part.updated","properties":{"sessionID":"ses_e07b7f8a5ffeIbjTqeDVD1PX5l","part":{"type":"text","text":"override-test","messageID":"msg_1f84a77c0001ZSGsH9mHYXVpfE","sessionID":"ses_e07b7f8a5ffeIbjTqeDVD1PX5l","id":"prt_1f84a77c1001iBARRwt7yheRFv"},"time":1795166992322}}
+
+data: {"id":"evt_1f84a77c3001mdjoDYgVAyfoKQ","type":"session.updated","properties":{"sessionID":"ses_e07b7f8a5ffeIbjTqeDVD1PX5l","info":{"id":"ses_e07b7f8a5ffeIbjTqeDVD1PX5l","slug":"brave-panda","projectID":"global","directory":"/private/tmp/spike-opencode","path":"private/tmp/spike-opencode","title":"spike4","agent":"build","model":{"id":"gpt-override","providerID":"taap","variant":"default"},"version":"1.19.6","summary":{"additions":0,"deletions":0,"files":0},"cost":0,"tokens":{"input":0,"output":0,"reasoning":0,"cache":{"read":0,"write":0}},"time":{"created":1795166832474,"updated":1795166992323}}}}
+
+data: {"id":"evt_1f84a77c500177Hy9bcM5aCXs8","type":"session.status","properties":{"sessionID":"ses_e07b7f8a5ffeIbjTqeDVD1PX5l","status":{"type":"busy"}}}
+
+data: {"id":"evt_1f84a77c6001HCfWZwB4pxt37y","type":"session.error","properties":{"sessionID":"ses_e07b7f8a5ffeIbjTqeDVD1PX5l","error":{"name":"UnknownError","data":{"message":"Model not found: taap/gpt-override. Did you mean: gpt-spike?"}}}}
+
+data: {"id":"evt_1f84a77c60025fMaW9TdOjaDex","type":"session.status","properties":{"sessionID":"ses_e07b7f8a5ffeIbjTqeDVD1PX5l","status":{"type":"idle"}}}
+
+data: {"id":"evt_1f84a77c6003iDWptorqYItJIS","type":"session.idle","properties":{"sessionID":"ses_e07b7f8a5ffeIbjTqeDVD1PX5l"}}
+
+data: {"id":"evt_1f84a77c8001BxKIlypXGRia56","type":"session.error","properties":{"sessionID":"ses_e07b7f8a5ffeIbjTqeDVD1PX5l","error":{"name":"UnknownError","data":{"message":"ProviderModelNotFoundError: Model not found: taap/gpt-override. Did you mean: gpt-spike?\n    at <anonymous> (/$bunfs/root/chunk-ndrpxmtv.js:2:64699)\n    at SessionPrompt.getModel (/$bunfs/root/chunk-m4fg2766.js:50:11031)\n    at SessionPrompt.getModel (definition) (/$bunfs/root/chunk-m4fg2766.js:50:831)\n    at SessionPrompt.run (/$bunfs/root/chunk-m4fg2766.js:50:14576)\n    at SessionPrompt.run (definition) (/$bunfs/root/chunk-m4fg2766.js:50:10099)\n    at SessionRunState.ensureRunning (/$bunfs/root/chunk-m4fg2766.js:50:14545)\n    at SessionRunState.ensureRunning (definition) (/$bunfs/root/chunk-m4fg2766.js:2:6839)\n    at SessionPrompt.loop (/$bunfs/root/chunk-m4fg2766.js:50:9849)\n    at SessionPrompt.loop (definition) (/$bunfs/root/chunk-m4fg2766.js:50:14481)\n    at SessionPrompt.prompt (/$bunfs/root/chunk-45gcmm42.js:6:11963)\n    at SessionPrompt.prompt (definition) (/$bunfs/root/chunk-m4fg2766.js:50:9462)"}}}}
+
+data: {"id":"evt_1f84a7c2a001qEumg0thJ7rtLJ","type":"server.heartbeat","properties":{}}
+
+data: {"id":"evt_1f84a8f80001euuT8gATwNsob1","type":"session.status","properties":{"sessionID":"ses_e07b7f8a5ffeIbjTqeDVD1PX5l","status":{"type":"idle"}}}
+
+data: {"id":"evt_1f84a8f800027zp1cMVVMXe4sQ","type":"session.idle","properties":{"sessionID":"ses_e07b7f8a5ffeIbjTqeDVD1PX5l"}}
+

@@ -223,11 +223,20 @@ aceptable, se documenta en release notes).
 
 ## Open Questions
 
-- Nombres/versión exactos del Agent SDK y del paquete `claude-code`, el env de
-  directorio de sesión (`CLAUDE_CONFIG_DIR` o equivalente) y la forma exacta de
-  retorno de «permitir siempre» de `canUseTool` → **spike** (primera tarea)
-  contra la versión que se fije; si algo cambia, cambia el sidecar, no la spec.
-- Semántica del proveedor tipo `other` en el filtro (decisión provisional:
-  tratarlo como OpenAI) → validar contra el comportamiento real del proxy v1.0.
-- Listas por defecto de permisos (D3): confirmar que auto-permitir lectura no
-  genera ruido; ajuste de UX posterior, sin impacto en spec.
+Todos cerrados por el spike (`notes/spike-claude.md`):
+
+- Nombres/versión del Agent SDK y del paquete `claude-code`, env de
+  directorio de sesión y forma de retorno de «permitir siempre» de
+  `canUseTool` → **cerrado**: `@anthropic-ai/claude-agent-sdk@0.3.329` +
+  `@anthropic-ai/claude-code@2.1.329`; `CLAUDE_CONFIG_DIR`; retorno
+  `behavior: allow|deny` — `updatedPermissions` no desbanca una regla `ask`
+  gestionada en el mismo proceso, de ahí el set `always_allowed` persistente
+  del sidecar. Si algo cambia con un bump del SDK, cambia el sidecar, no la
+  spec.
+- Semántica del proveedor tipo `other` en el filtro → **cerrado**: se trata
+  como OpenAI (no se adivina por URL; un endpoint Anthropic-compat se
+  declara `anthropic` en el proveedor).
+- Listas por defecto de permisos (D3) → **cerrado**: `ask: Bash, Edit,
+  Write, WebFetch, mcp__*`; `allow: Read, Grep, Glob, Skill, TodoWrite,
+  Task` (válido por el spike: sin ruido para lectura; ajustable por la
+  config renderizada).
