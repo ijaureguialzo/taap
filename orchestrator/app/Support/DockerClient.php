@@ -64,6 +64,11 @@ class DockerClient
             $args[] = $spec['restart'];
         }
 
+        foreach ($spec['ports'] ?? [] as $mapping) {
+            $args[] = '--publish';
+            $args[] = $mapping;
+        }
+
         // Endurecimiento: rootfs solo lectura (los areas escribibles son
         // binds de datos o tmpfs); el contenedor no debe poder plantar nada
         // fuera de ellos (design.md: contenedores endurecidos).
@@ -95,6 +100,32 @@ class DockerClient
         return $this->run($args, json: false);
     }
 
+    /**
+     * Puerto del host publicado para un puerto de contenedor
+     * (`docker port`): `null` si no hay.
+     */
+    public function publishedPort(string $name, int|string $containerPort): ?string
+    {
+        try {
+            $process = new Process([
+                $this->bin, 'port', $name, (string) $containerPort,
+            ]);
+            $process->run();
+            $output = trim($process->getOutput());
+            if ($output === '') {
+                return null;
+            }
+
+            // "127.0.0.1:54321" (el ultimo si hay varios)
+            $line = trim(explode('
+', $output)[0]);
+
+            return substr($line, strrpos($line, ':') + 1);
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
     public function start(string $name): void
     {
         $this->run(['start', $name]);
@@ -124,6 +155,29 @@ class DockerClient
         try {
             $process = new Process([
                 $this->bin, 'inspect', '-f', '{{.State.Status}}', $name,
+            ]);
+            $process->run();
+            if (! $process->isSuccessful()) {
+                return null;
+            }
+
+            return trim($process->getOutput()) ?: null;
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
+    /**
+     * `State.StartedAt` del contenedor: cambia en CADA arranque (manual
+     * `docker restart` NO incrementa `RestartCount` — verificado), asi que es
+     * la senal fiable de "el proceso interno ha renacido" (re-attach
+     * obligatorio: el reader viejo sigue el inode log anterior).
+     */
+    public function startedAt(string $name): ?string
+    {
+        try {
+            $process = new Process([
+                $this->bin, 'inspect', '-f', '{{.State.StartedAt}}', $name,
             ]);
             $process->run();
             if (! $process->isSuccessful()) {
@@ -215,11 +269,22 @@ class DockerClient
      * volcada a un archivo; PHP lo sondea. logs -f no toca el stdin del
      * contenedor: si el lector muere, el agente no se cae.
      */
-    public function attachReader(string $name, string $dir): ProcessStreams
+    /**
+     * Lector persistente del stdout del contenedor. El comando interno
+     * ($inner) es configurable: por defecto `docker logs -f --tail 0` (los
+     * runtimes rpc-stdio); el modo `api-events` (OpenCode) pasa el bucle
+     * `curl -N` del stream SSE. En ambos casos lo que entre por el stdin de
+     * `sh -c` va a `$dir/out` (el adapter lo drena) y stderr a `$dir/err`.
+     */
+    public function attachReader(string $name, string $dir, ?string $inner = null): ProcessStreams
     {
+        $inner ??= 'docker logs -f --tail 0 '.escapeshellarg($name);
+
+        // $dir va INLINEADO (no como variable de entorno: el coproceso no la
+        // hereda y la redirección `>> $dir/out` moria al spawn).
         $process = new ProcessStreams([
             'sh', '-c',
-            'trap "kill $(jobs -p)" TERM INT; docker logs -f --tail 0 '.escapeshellarg($name)." >> $dir/out 2>> $dir/err & wait",
+            'trap "kill $(jobs -p)" TERM INT; '.$inner.' >> '.escapeshellarg($dir.'/out').' 2>> '.escapeshellarg($dir.'/err').' & wait',
         ]);
         file_put_contents($dir.'/reader.pid', (string) $process->pid);
 
@@ -329,9 +394,15 @@ SH;
         }
 
         if ($signature !== null) {
-            $cmd = str_replace("\0", ' ', (string) @file_get_contents("/proc/{$pid}/cmdline"));
-            if (! str_contains($cmd, $signature)) {
-                return false;
+            $cmdPath = "/proc/{$pid}/cmdline";
+            // Sin /proc (macOS local) la firma no se puede verificar: se
+            // acepta la vida del PID. En Linux/CI la firma sigue filtrando
+            // reutilizaciones de PID y zombies.
+            if (is_file($cmdPath)) {
+                $cmd = str_replace("\0", ' ', (string) @file_get_contents($cmdPath));
+                if ($cmd !== '' && ! str_contains($cmd, $signature)) {
+                    return false;
+                }
             }
         }
 

@@ -8,7 +8,7 @@ Guía de instalación y operación de la pila completa en un host con Docker.
 |---|---|
 | `deploy/compose.yaml` | La pila: orquestador, cola, Postgres 16, egress (squid) |
 | `deploy/entrypoint.sh` | Arranca en el orquestador: Reverb (WSS), scheduler, `taap:bridge`, servidor HTTP |
-| `agents/pi`, `agents/hermes` | Imágenes de los runtimes de agente |
+| `agents/pi`, `agents/hermes`, `agents/claude`, `agents/codex`, `agents/opencode` | Imágenes de los runtimes de agente |
 | `deploy/squid` | Configuración + entrada del proxy de egress |
 | `orchestrator` | Laravel 13 (web Livewire + API + Model Proxy + puente MCP) |
 | `mobile/ios` | App iOS (XcodeGen; `make` en su directorio) |
@@ -44,11 +44,11 @@ Edita `deploy/.env`:
 | `DB_PASSWORD` | cualquier string seguro |
 | `REVERB_APP_KEY` / `REVERB_APP_SECRET` | 20 caracteres aleatorios (base64 si quieres) |
 | `TAAP_PORT` / `TAAP_WS_PORT` | puertos públicos (defecto 8011/8081) |
-| `TAAP_PI_IMAGE` / `TAAP_HERMES_IMAGE` | nombres de las imágenes de agente (defecto `taap/*:local`) |
+| `TAAP_PI_IMAGE` / `TAAP_HERMES_IMAGE` / `TAAP_CLAUDE_IMAGE` / `TAAP_CODEX_IMAGE` / `TAAP_OPENCODE_IMAGE` | nombres de las imágenes de agente (defecto `taap/*:local`) |
 
 ```sh
 make build        # orquestador + egress
-make images       # agentes Pi y Hermes (taap/pi:local, taap/agent-hermes:local)
+make images       # agentes Pi, Hermes, Claude, Codex y OpenCode (taap/agent-{pi,hermes,claude,codex,opencode}:local)
 make up
 make seed         # (solo la primera vez) admin + proveedor/modelo de ejemplo
 ```
@@ -87,7 +87,7 @@ Si el endpoint corre en el host (router local), usa como URL base
 
 ## Primer agente
 
-1. **Agentes** → Nuevo: nombre, runtime (`pi` o `hermes`), modelo y, si
+1. **Agentes** → Nuevo: nombre, runtime (`pi`, `hermes`, `claude`, `codex` o `opencode`), modelo y, si
    quieres, prompt de sistema.
 2. El orquestador crea su contenedor (red `taap-internal`, sin salida
    directa a Internet; todo el tráfico sale por el proxy squid), le monta

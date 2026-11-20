@@ -39,9 +39,12 @@ lint: ## Pint (PHP) + build de assets
 	cd orchestrator && ./vendor/bin/pint --test
 	cd orchestrator && npm run build >/dev/null
 
-images: ## Construye las imágenes de agentes (Pi, Hermes)
+images: ## Construye las imágenes de agentes (Pi, Hermes, Claude, Codex, OpenCode)
 	docker build -t taap/agent-pi:local agents/pi
 	docker build -t taap/agent-hermes:local agents/hermes
+	docker build -t taap/agent-claude:local agents/claude
+	docker build -t taap/agent-codex:local agents/codex
+	docker build -t taap/agent-opencode:local agents/opencode
 
 shell: ## Shell en el orquestador
 	$(COMPOSE) exec orchestrator sh

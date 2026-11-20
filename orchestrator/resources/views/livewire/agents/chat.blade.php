@@ -45,13 +45,26 @@
         @if ($pendingApproval)
             <div class="card border-warning mb-3" wire:key="approval-{{ $pendingApproval }}">
                 <div class="card-body py-2">
-                    <div class="d-flex justify-content-between align-items-center">
+                    <div class="d-flex justify-content-between align-items-start gap-2">
                         <span class="fw-semibold">{{ __('chat.approval') }}</span>
-                        <div>
-                            <button class="btn btn-sm btn-success me-2" wire:click="approve(true)">{{ __('chat.approve') }}</button>
-                            <button class="btn btn-sm btn-outline-danger" wire:click="approve(false)">{{ __('chat.deny') }}</button>
+                        <div class="d-flex gap-1 flex-wrap">
+                            @if (!empty($pendingApprovalInfo['options']))
+                                @foreach ($pendingApprovalInfo['options'] as $opt)
+                                    @if ($opt['value'] === 'deny')
+                                        <button class="btn btn-sm btn-outline-danger" wire:click="approve(false, '{{ $opt['value'] }}')">{{ $opt['label'] }}</button>
+                                    @else
+                                        <button class="btn btn-sm {{ $opt['value'] === 'once' ? 'btn-success' : 'btn-outline-success' }}" wire:click="approve(true, '{{ $opt['value'] }}')">{{ $opt['label'] }}</button>
+                                    @endif
+                                @endforeach
+                            @else
+                                <button class="btn btn-sm btn-success me-2" wire:click="approve(true)">{{ __('chat.approve') }}</button>
+                                <button class="btn btn-sm btn-outline-danger" wire:click="approve(false)">{{ __('chat.deny') }}</button>
+                            @endif
                         </div>
                     </div>
+                    @if (!empty($pendingApprovalInfo['prompt']))
+                        <div class="small text-muted mt-1" style="white-space: pre-line">{{ $pendingApprovalInfo['prompt'] }}</div>
+                    @endif
                 </div>
             </div>
         @endif

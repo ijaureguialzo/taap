@@ -34,7 +34,26 @@
             <div class="card">
                 <div class="card-body small">
                     <table class="table table-sm mb-0">
-                        <tr><td class="text-muted" style="width: 110px">{{ __('agents.runtime') }}</td><td>{{ $agent->runtime->value }}</td></tr>
+                        <tr>
+                            <td class="text-muted" style="width: 110px">{{ __('agents.runtime') }}</td>
+                            <td>
+                                {{ $agent->runtime->label() }}
+                                <div class="d-flex flex-wrap gap-1 mt-1">
+                                    @foreach (['format' => 'cap.format', 'session' => 'cap.session', 'apply' => 'cap.apply'] as $group => $labelKey)
+                                        @if (!empty($capabilities[$group]))
+                                            <span class="badge text-bg-light border" title="{{ __("agents.{$labelKey}") }}">
+                                                {{ __("agents.{$labelKey}") }}:
+                                                @if (is_array($capabilities[$group]))
+                                                    {{ collect($capabilities[$group])->map(fn ($c) => __("agents.cap.{$c}"))->implode(' / ') }}
+                                                @else
+                                                    {{ __("agents.cap.{$capabilities[$group]}") }}
+                                                @endif
+                                            </span>
+                                        @endif
+                                    @endforeach
+                                </div>
+                            </td>
+                        </tr>
                         <tr><td class="text-muted">{{ __('agents.model') }}</td><td>{{ $agent->model?->name ?? '—' }}@if($agent->model?->provider) <span class="text-muted">({{ $agent->model->provider->name }})</span>@endif</td></tr>
                         <tr><td class="text-muted">{{ __('agents.container') }}</td><td class="text-truncate" style="max-width: 220px">{{ $agent->container_name ?? '—' }}</td></tr>
                         <tr><td class="text-muted">{{ __('agents.ip') }}</td><td>{{ $agent->ip ?? '—' }}</td></tr>

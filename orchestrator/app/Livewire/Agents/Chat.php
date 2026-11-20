@@ -34,6 +34,14 @@ class Chat extends Component
     public ?string $pendingApproval = null;
 
     /**
+     * Detalle de la aprobacion pendiente para la tarjeta: prompt legible y
+     * opciones (Claude: aprobar / «permitir siempre» / denegar).
+     *
+     * @var array{prompt: ?string, options: list<array{value: string, label: string}>}|null
+     */
+    public ?array $pendingApprovalInfo = null;
+
+    /**
      * Eventos de proceso recientes (tool.start/end, run.*) para la UI.
      *
      * @var list<array{type: string, label: string, at: string}>
@@ -82,19 +90,21 @@ class Chat extends Component
 
     public function approve(bool $approved, ?string $note = null): void
     {
-        if (! $this->pendingApproval) {
+        $approvalId = $this->pendingApproval;
+        if (! $approvalId) {
             return;
         }
+
+        $this->pendingApproval = null;
+        $this->pendingApprovalInfo = null;
 
         app(ChatService::class)->resolveApproval(
             $this->agent,
             Auth::user(),
-            $this->pendingApproval,
+            $approvalId,
             $approved,
             $note,
         );
-
-        $this->pendingApproval = null;
     }
 
     /**
@@ -119,6 +129,10 @@ class Chat extends Component
             case 'message.final':
                 // El mensaje ya esta persistido; recargamos el historial.
                 $this->streaming = null;
+                // Si el agente ha seguido (p. ej. tras el timeout de una
+                // aprobacion), la tarjeta pendiente deja de serlo.
+                $this->pendingApproval = null;
+                $this->pendingApprovalInfo = null;
                 $this->refreshHistory();
                 break;
 
@@ -134,7 +148,7 @@ class Chat extends Component
                 break;
 
             case 'tool.start':
-                $this->activity = ['kind' => 'tool', 'label' => $data['name'] ?? 'tool', 'detail' => $data['detail'] ?? null];
+                $this->activity = ['kind' => 'tool', 'label' => $data['tool'] ?? $data['name'] ?? 'tool', 'detail' => $data['detail'] ?? null];
                 $this->pushEvent($type, $data);
                 break;
 
@@ -145,6 +159,27 @@ class Chat extends Component
 
             case 'approval.request':
                 $this->pendingApproval = $data['id'] ?? ($data['approval_id'] ?? null);
+                $options = [];
+                foreach ((array) ($data['options'] ?? []) as $opt) {
+                    if (is_array($opt) && isset($opt['value'])) {
+                        $options[] = [
+                            'value' => (string) $opt['value'],
+                            'label' => (string) ($opt['label'] ?? $opt['value']),
+                        ];
+                    }
+                }
+                $this->pendingApprovalInfo = [
+                    'prompt' => isset($data['prompt']) ? (string) $data['prompt'] : null,
+                    'options' => $options,
+                ];
+                $this->pushEvent($type, $data);
+                break;
+
+            case 'approval.resolved':
+                if (($data['id'] ?? null) === $this->pendingApproval) {
+                    $this->pendingApproval = null;
+                    $this->pendingApprovalInfo = null;
+                }
                 $this->pushEvent($type, $data);
                 break;
 

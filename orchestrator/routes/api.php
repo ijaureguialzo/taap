@@ -117,6 +117,11 @@ Route::prefix('v1')->group(function () {
 Route::prefix('proxy/agents/{agent}')->group(function () {
     Route::post('v1/chat/completions', [ModelProxyController::class, '__invoke']);
     Route::post('v1/messages', [ModelProxyController::class, '__invoke']);
+    Route::post('v1/responses', [ModelProxyController::class, 'responses']);
+    // Servicio del CLI Claude (spike add-claude-code-runtime 1.2): el CLI
+    // los consulta al arrancar cada query.
+    Route::get('v1/models', [ModelProxyController::class, 'models']);
+    Route::match(['head', 'get'], 'api/hello', [ModelProxyController::class, 'hello']);
 });
 
 Route::post('mcp/agents/{agent}/bridge', [McpBridgeController::class, '__invoke']);

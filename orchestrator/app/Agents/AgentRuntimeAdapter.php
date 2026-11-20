@@ -58,6 +58,12 @@ interface AgentRuntimeAdapter
      */
     public function probe(Agent $agent): void;
 
+    /**
+     * Throttle del sondeo: segundos minimos entre llamadas a probe()
+     * (lo aplica el bridge; cada runtime lo fija a su ritmo natural).
+     */
+    public function probeInterval(): int;
+
     /** Detenidamente: mata la sesion/runtime (el contenedor sigue si auto_restart). */
     public function destroy(Agent $agent): void;
 }

@@ -11,6 +11,9 @@ class RuntimeAdapters
     public function __construct(
         protected PiAdapter $pi,
         protected HermesAdapter $hermes,
+        protected ClaudeAdapter $claude,
+        protected CodexAdapter $codex,
+        protected OpenCodeAdapter $opencode,
     ) {}
 
     public function for(Agent $agent): AgentRuntimeAdapter
@@ -18,6 +21,9 @@ class RuntimeAdapters
         return match ($agent->runtime) {
             AgentRuntime::Pi => $this->pi,
             AgentRuntime::Hermes => $this->hermes,
+            AgentRuntime::Claude => $this->claude,
+            AgentRuntime::Codex => $this->codex,
+            AgentRuntime::OpenCode => $this->opencode,
         };
     }
 }

@@ -272,6 +272,12 @@ class HermesAdapter implements AgentRuntimeAdapter
         // intencionadamente vacio
     }
 
+    /** Ritmo del sondeo HTTP del bridge (gateway vivo -> idle). */
+    public function probeInterval(): int
+    {
+        return 8;
+    }
+
     public function destroy(Agent $agent): void
     {
         unset($this->buffers[$agent->id]);

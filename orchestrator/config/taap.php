@@ -68,17 +68,27 @@ return [
     | su adaptador (ver openspec: design.md D2/D12).
     |
     | mode:
-    |   rpc-stdio  -> el orquestador se conecta al stdio del proceso
-    |                 principal del contenedor (docker attach) y habla el
-    |                 protocolo nativo (JSONL para Pi).
-    |   api-server -> el orquestador habla HTTP/SSE con el servidor API del
-    |                 runtime dentro del contenedor (Hermes :8642).
+    |   rpc-stdio   -> el orquestador se conecta al stdio del proceso
+    |                  principal del contenedor (docker attach) y habla el
+    |                  protocolo nativo (JSONL para Pi).
+    |   api-server  -> el orquestador habla HTTP/SSE con el servidor API del
+    |                  runtime dentro del contenedor (Hermes :8642); los
+    |                  eventos viajan dentro de la respuesta (drain sin-op).
+    |   api-events  -> como api-server PERO los eventos llegan por un stream
+    |                  SSE persistente (`/event`) que un coproceso cola en el
+    |                  IPC de ficheros; el drain drena ese stream (OpenCode).
+    |
+    | capabilities (design.md D12): que consume/permite el runtime:
+    |   openai|anthropic : formato de API de modelo que consume (Model Proxy)
+    |   native|turn      : sesion mantenida por el runtime | por turno HTTP
+    |   restart|next-turn: como se aplica un cambio de config
     */
     'runtimes' => [
         'pi' => [
             'label' => 'Pi',
             'image' => env('TAAP_PI_IMAGE', 'taap/pi:local'),
             'mode' => 'rpc-stdio',
+            'capabilities' => ['openai', 'native', 'restart'],
             'command' => ['gateway', 'run'], // placeholder; Pi usa el entrypoint de la imagen
             'volumes' => [
                 'data' => '/home/agent/.pi/agent',
@@ -91,6 +101,7 @@ return [
             'label' => 'Hermes',
             'image' => env('TAAP_HERMES_IMAGE', 'taap/hermes:local'),
             'mode' => 'api-server',
+            'capabilities' => ['openai', 'turn', 'restart'],
             'api_port' => 8642,
             'api_base' => '/v1',
             'command' => ['gateway', 'run'],
@@ -98,6 +109,75 @@ return [
                 'data' => '/opt/data',
             ],
             'config_files' => ['.env', 'config.yaml'],
+        ],
+        /* Claude Code (add-claude-code-runtime v1.1): el sidecar Node (Claude
+           Agent SDK) vive en la imagen agents/claude; habla el protocolo TAAP
+           v1 por stdio (como Pi). `next-turn`: los cambios de configuracion
+           (modelo, MCP, permisos, max_retries, approval_timeout_seconds) se
+           aplican en el SIGUIENTE query sin reiniciar el contenedor (el
+           sidecar re-lee /config/claude.json por turno); la sesion Claude
+           persiste en /data y se reanuda con `resume` tras cualquier
+           reinicio. El plano claude.json apunta al Model Proxy (base sin
+           /v1: el CLI llama a /v1/messages y /v1/models). */
+        'claude' => [
+            'label' => 'Claude Code',
+            'image' => env('TAAP_CLAUDE_IMAGE', 'taap/agent-claude:local'),
+            'mode' => 'rpc-stdio',
+            'capabilities' => ['anthropic', 'native', 'next-turn'],
+            'command' => ['sidecar'], // placeholder; Claude usa el entrypoint de la imagen
+            'volumes' => [
+                'config' => '/config',
+                'data' => '/data',
+                'workspace' => '/workspace',
+            ],
+            'config_files' => ['claude.json'],
+        ],
+        /* Codex (add-codex-runtime v1.1): el binario `codex app-server`
+           (Rust, release rust-v0.171.0) corre como PID 1 y habla JSON-RPC
+           por stdio (el entrypoint de la imagen monta el FIFO; no hay
+           sidecar: la normalizacion vive en el adapter PHP). `native`: la
+           sesion es el "thread" del app-server, persistido en
+           CODEX_HOME=/data y reanudado con thread/resume. `restart`: la
+           config (-c) se lee al arrancar; el modelo se re-sync in situ
+           (thread/settings/update) tras cada reanudar. Wire `responses`
+           del Model Proxy (el provider custom de codex lo exige: en >=
+           0.128 el wire `chat` no existe). */
+        'codex' => [
+            'label' => 'Codex',
+            'image' => env('TAAP_CODEX_IMAGE', 'taap/agent-codex:local'),
+            'mode' => 'rpc-stdio',
+            'capabilities' => ['openai', 'native', 'restart'],
+            'command' => ['app-server'], // placeholder; Codex usa el entrypoint de la imagen
+            'volumes' => [
+                'config' => '/config',
+                'data' => '/data',
+                'workspace' => '/workspace',
+            ],
+            'config_files' => ['codex.env', 'codex-args.env'],
+        ],
+        /* OpenCode (add-opencode-runtime v1.1): `opencode serve` (1.19.6,
+           npm `opencode-ai`) como PID 1. Modos de formato DUAL (openai+
+           anthropic): el provider custom `taap` elige el paquete npm según
+           el tipo del proveedor y el agente puede usar CUALQUIERA (el filtro
+           del selector lo refleja). `api-events`: comandos por HTTP desde el
+           orquestador; eventos por el stream SSE `/event` que un coproceso
+           cola en el IPC de ficheros. `native`: 1 agente = 1 sesión
+           `ses_*` persistida en XDG_DATA_HOME=/data (sobrevive reinicios).
+           `restart`: la config (opencode.json) se aplica con re-render +
+           reinicio; el modelo se re-sync por API. */
+        'opencode' => [
+            'label' => 'OpenCode',
+            'image' => env('TAAP_OPENCODE_IMAGE', 'taap/agent-opencode:local'),
+            'mode' => 'api-events',
+            'capabilities' => ['openai', 'anthropic', 'native', 'restart'],
+            'api_port' => 4096,
+            'command' => ['serve'], // placeholder; OpenCode usa el entrypoint de la imagen
+            'volumes' => [
+                'config' => '/config',
+                'data' => '/data',
+                'workspace' => '/workspace',
+            ],
+            'config_files' => ['opencode.json'],
         ],
     ],
 

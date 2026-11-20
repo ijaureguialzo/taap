@@ -32,6 +32,16 @@ class AgentManager
 
     /* ================= provision ================= */
 
+    /** Puerto API a publicar (solo modo test; null en produccion). */
+    protected function testApiPort(Agent $agent): ?int
+    {
+        if (! config('taap.agents.test_api_publish', false)) {
+            return null;
+        }
+
+        return $agent->runtime?->registry()['api_port'] ?? null;
+    }
+
     /**
      * Crea TODO lo que el agente necesita: directorios, token, config
      * renderizada, contenedor y arranque. Idempotente (re-provisiona lo que
@@ -73,6 +83,15 @@ class AgentManager
                 'ip' => null,
             ];
         }
+        // Modo test: Docker ignora `-p` con una sola red user-defined, asi
+        // que se adjunta la red de egress como segunda (el -p se une a ella;
+        // el squid no da ACL al agente sin Internet: sin cambio de conducta).
+        if ($this->testApiPort($agent) !== null && ! $agent->internet_enabled) {
+            $networks[] = [
+                'name' => (string) config('taap.agents.network_egress'),
+                'ip' => null,
+            ];
+        }
 
         $spec = [
             'agent_id' => $agent->id,
@@ -82,6 +101,13 @@ class AgentManager
             'volumes' => $mounts,
             'env' => $this->containerEnv($agent),
             'restart' => $agent->auto_restart ? 'unless-stopped' : 'no',
+            // Solo en tests de integracion: el adapter llama a la API del
+            // agente por HTTP y phpunit corre en el HOST (fuera de la red
+            // taap-internal de la VM): se publica 4096 en 127.0.0.1:0
+            // (localhost del host; sin exposicion externa).
+            'ports' => $this->testApiPort($agent) !== null
+                ? ['127.0.0.1:0:'.$this->testApiPort($agent)]
+                : [],
             'openStdin' => true,
             'tty' => false,
             // Endurecimiento: rootfs en solo lectura donde el runtime lo
@@ -114,6 +140,17 @@ class AgentManager
         $agent->container_name = $name;
         $agent->save();
         $this->docker->start($name);
+
+        // Puerto publicado en modo test (el adapter lo usa como base URL).
+        if ($port = $this->testApiPort($agent)) {
+            $published = $this->docker->publishedPort($name, $port);
+            if ($published !== null) {
+                $config = $agent->config ?? [];
+                $config['api_test_port'] = $published;
+                $agent->config = $config;
+                $agent->save();
+            }
+        }
 
         // Sincroniza el ACL de egress (el proxy decide por IP)
         app(EgressSync::class)->sync();

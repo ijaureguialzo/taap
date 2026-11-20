@@ -31,7 +31,7 @@
                         <label class="form-label">{{ __('agents.runtime') }} *</label>
                         <select wire:model="runtime" class="form-select">
                             @foreach ($runtimes as $rt)
-                                <option value="{{ $rt->value }}">{{ $rt->value }}</option>
+                                <option value="{{ $rt }}">{{ \App\Enums\AgentRuntime::fromString($rt)->label() }}</option>
                             @endforeach
                         </select>
                     </div>

@@ -7,7 +7,6 @@ use App\Agents\AgentManager;
 use App\Agents\AgentRuntimeAdapter;
 use App\Agents\EventSink;
 use App\Agents\RuntimeAdapters;
-use App\Enums\AgentRuntime;
 use App\Enums\AgentStatus;
 use App\Models\Agent;
 use App\Support\DockerClient;
@@ -101,7 +100,9 @@ class TaapBridgeCommand extends Command
                 $agent = $session['agent'];
                 $adapter = $session['adapter'];
 
-                if ($agent->runtime === AgentRuntime::Pi && ! $adapter->isAttached($agent)) {
+                // `rpc-stdio` y `api-events` comparten la vida del coproceso
+                // lector (el segundo no tiene writer, pero el reader SSE si).
+                if (in_array($agent->runtime->mode(), ['rpc-stdio', 'api-events'], true) && ! $adapter->isAttached($agent)) {
                     $state = $this->dockerState($agent);
                     if ($state === 'running') {
                         // El contenedor vive: (re)adjuntar el IPC y despertar
@@ -120,7 +121,7 @@ class TaapBridgeCommand extends Command
                             $sink->dispatch($agent->refresh(), AgentEvent::statusChange(AgentStatus::Offline->value));
                         }
                     }
-                } elseif ($agent->runtime === AgentRuntime::Pi) {
+                } elseif (in_array($agent->runtime->mode(), ['rpc-stdio', 'api-events'], true)) {
                     $session['deadSince'] = null;
                 }
 
@@ -130,18 +131,18 @@ class TaapBridgeCommand extends Command
 
                 // Arrancando: re-sondear (la respuesta de get_state puede
                 // haber llegado antes de que el lector se pusiera al dia)
-                if ($agent->runtime === AgentRuntime::Pi
+                if (in_array($agent->runtime->mode(), ['rpc-stdio', 'api-events'], true)
                     && $agent->status === AgentStatus::Starting
-                    && $now - ($session['lastProbe'] ?? 0) > 5) {
+                    && $now - ($session['lastProbe'] ?? 0) > $adapter->probeInterval()) {
                     $session['lastProbe'] = $now;
                     $adapter->probe($agent);
                 }
 
-                // Hermes: sin stream persistente; sondea el API server para
-                // cerrar el arrancado (200/401 = gateway vivo -> idle)
-                if ($agent->runtime === AgentRuntime::Hermes
+                // Sin stream persistente (api-server): sondea el servidor
+                // para cerrar el arrancado (200/401 = vivo -> idle)
+                if ($agent->runtime->mode() === 'api-server'
                     && $agent->status === AgentStatus::Starting
-                    && $now - ($session['lastProbe'] ?? 0) > 8) {
+                    && $now - ($session['lastProbe'] ?? 0) > $adapter->probeInterval()) {
                     $session['lastProbe'] = $now;
                     try {
                         $probe = $adapter->status($agent);
@@ -183,7 +184,7 @@ class TaapBridgeCommand extends Command
                     }
                 }
                 foreach ($this->liveAgents() as $agent) {
-                    if ($agent->runtime === AgentRuntime::Hermes) {
+                    if (in_array($agent->runtime->mode(), ['api-server', 'api-events'], true)) {
                         $status = $adapters->for($agent)->status($agent);
                         if ($status !== $agent->status) {
                             $agent->forceFill(['status' => $status])->save();
