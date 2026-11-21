@@ -21,7 +21,7 @@
 
 ## 5. Borrado seguro
 
-- [ ] 5.1 Impacto calculado en `render()`: `withCount('agents')` por modelo y, por proveedor, n.º de modelos y n.º de agentes que usan sus modelos; texto de `data-confirm` dinámico («…¿N agentes quedarán sin modelo?») con `json_encode`/`e()` en el atributo (D6), en ambos componentes. Verificar: Livewire tests — borrar un modelo usado por 2 agentes → el confirm incluye «2»; borrar un proveedor con 2 modelos usados por 3 agentes → el aviso incluye 2 y 3.
+- [x] 5.1 Impacto calculado en `render()`: `withCount('agents')` por modelo y, por proveedor, n.º de modelos y n.º de agentes que usan sus modelos; texto de `data-confirm` dinámico («…¿N agentes quedarán sin modelo?») con `json_encode`/`e()` en el atributo (D6), en ambos componentes. Verificar: Livewire tests — borrar un modelo usado por 2 agentes → el confirm incluye «2»; borrar un proveedor con 2 modelos usados por 3 agentes → el aviso incluye 2 y 3.
 
 ## 6. Marcado de no sanos en la creación de agentes
 

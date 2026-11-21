@@ -21,6 +21,7 @@ return [
     'status_unchecked' => 'Egiaztatu gabe',
     'last_checked' => 'Azken egiaztapena: :when',
     'delete' => 'Ezabatu',
+    'delete_impact' => '«:name» ezabatuko duzu? :models modelo ezabatuko dira eta :agents agente geratuko dira modelo gabe.',
     'empty' => 'Ez dago eskaintzailerik. Gehitu lehenengoa (adib. zure gateway lokala).',
     'admin_only' => 'Bakarrik administratzaiek kudea dezakete eskaintzaileen katalogua.',
 ];

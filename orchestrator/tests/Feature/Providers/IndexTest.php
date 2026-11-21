@@ -3,6 +3,7 @@
 namespace Tests\Feature\Providers;
 
 use App\Livewire\Providers\Index;
+use App\Models\Agent;
 use App\Models\Model;
 use App\Models\ModelProvider;
 use App\Models\User;
@@ -166,6 +167,32 @@ class IndexTest extends TestCase
         $this->assertStringContainsString('startEdit(', $html);
         $this->assertStringContainsString('check(', $html);
         $this->assertStringContainsString('delete(', $html);
+    }
+
+    public function test_delete_confirm_shows_model_and_agent_impact(): void
+    {
+        $p = $this->provider(['name' => 'gw']);
+        $m1 = Model::factory()->create(['provider_id' => $p->id, 'model_id' => 'a']);
+        $m2 = Model::factory()->create(['provider_id' => $p->id, 'model_id' => 'b']);
+        Agent::factory()->create(['model_id' => $m1->id]);
+        Agent::factory()->create(['model_id' => $m2->id]);
+        Agent::factory()->create(['model_id' => $m1->id]);
+
+        $html = Livewire::test(Index::class)->html();
+
+        // El confirm incluye el numero de modelos (2) y de agentes (3)
+        $this->assertStringContainsString('Se borrarán 2 modelos', $html);
+        $this->assertStringContainsString('3 agentes quedarán sin modelo', $html);
+    }
+
+    public function test_delete_confirm_plain_when_nothing_depends_on_it(): void
+    {
+        $this->provider(['name' => 'gw-solo']);
+
+        $html = Livewire::test(Index::class)->html();
+
+        $this->assertStringContainsString('Eliminar?', $html);
+        $this->assertStringNotContainsString('Se borrarán', $html);
     }
 
     public function test_non_admin_save_create_is_rejected_without_mutation(): void

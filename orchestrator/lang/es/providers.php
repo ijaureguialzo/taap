@@ -21,6 +21,7 @@ return [
     'status_unchecked' => 'Sin comprobar',
     'last_checked' => 'Últ. comprobación: :when',
     'delete' => 'Eliminar',
+    'delete_impact' => '¿Eliminar «:name»? Se borrarán :models modelos y :agents agentes quedarán sin modelo.',
     'empty' => 'No hay proveedores. Añade el primero (p. ej. tu gateway local).',
     'admin_only' => 'Solo los administradores pueden gestionar el catálogo de proveedores.',
 ];

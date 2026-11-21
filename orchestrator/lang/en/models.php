@@ -15,6 +15,7 @@ return [
     'max_tokens' => 'Max tokens',
     'cost' => 'Cost',
     'delete' => 'Delete',
+    'delete_impact' => 'Delete “:name”? :agents agents will be left without a model.',
     'empty' => 'No models. Add one to a provider.',
     'admin_only' => 'Only administrators can manage the model catalog.',
 ];

@@ -15,6 +15,7 @@ return [
     'max_tokens' => 'Máx. tokens',
     'cost' => 'Coste',
     'delete' => 'Eliminar',
+    'delete_impact' => '¿Eliminar «:name»? :agents agentes quedarán sin modelo.',
     'empty' => 'No hay modelos. Añade uno a un proveedor.',
     'admin_only' => 'Solo los administradores pueden gestionar el catálogo de modelos.',
 ];

@@ -168,6 +168,18 @@ class IndexTest extends TestCase
         $this->assertSame('Renombrado', $m->refresh()->name);
     }
 
+    public function test_delete_confirm_shows_agents_impact(): void
+    {
+        $prov = ModelProvider::factory()->create(['created_by' => $this->admin->id]);
+        $m = Model::factory()->create(['provider_id' => $prov->id, 'model_id' => 'm1', 'name' => 'Modelo Uno']);
+        Agent::factory()->create(['model_id' => $m->id]);
+        Agent::factory()->create(['model_id' => $m->id]);
+
+        $html = Livewire::test(Index::class)->html();
+
+        $this->assertStringContainsString('2 agentes quedarán sin modelo', $html);
+    }
+
     public function test_admin_can_manage_models_of_providers_created_by_others(): void
     {
         $other = User::factory()->create();

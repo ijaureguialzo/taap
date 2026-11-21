@@ -21,6 +21,7 @@ return [
     'status_unchecked' => 'Not checked',
     'last_checked' => 'Last checked: :when',
     'delete' => 'Delete',
+    'delete_impact' => 'Delete “:name”? :models models will be removed and :agents agents will be left without a model.',
     'empty' => 'No providers. Add the first one (e.g. your local gateway).',
     'admin_only' => 'Only administrators can manage the provider catalog.',
 ];

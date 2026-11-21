@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Providers;
 
+use App\Models\Agent;
 use App\Models\Model;
 use App\Models\ModelProvider;
 use Illuminate\Contracts\View\View;
@@ -256,9 +257,67 @@ class Index extends Component
             ->latest('id')
             ->get();
 
+        // Impacto del borrado (D6): n.º de modelos y de agentes que usan
+        // los modelos de cada proveedor, para el texto de confirmacion.
+        $agentCounts = $this->agentCountsByProvider(
+            $providers->pluck('id')->map(fn ($id): int => (int) $id)->all(),
+        );
+
+        $confirms = $providers->mapWithKeys(
+            fn (ModelProvider $p): array => [
+                $p->id => $this->providerConfirmText($p, (int) ($agentCounts[(int) $p->id] ?? 0)),
+            ],
+        );
+
         return view('livewire.providers.index', [
             'providers' => $providers,
+            'confirms' => $confirms,
             'isAdmin' => Auth::user()->isAdmin(),
+        ]);
+    }
+
+    /**
+     * Agentes que usan los modelos de cada proveedor (D6: el borrado de un
+     * proveedor deja a esos agentes sin modelo — la FK nullOnDelete ya los
+     * huérfana y el proxy lo hace visible con un 422).
+     *
+     * @param  array<int>  $providerIds
+     * @return array<int, int> providerId => n.º de agentes que usan sus modelos
+     */
+    protected function agentCountsByProvider(array $providerIds): array
+    {
+        $counts = [];
+        foreach ($providerIds as $pid) {
+            $counts[$pid] = 0;
+        }
+
+        Agent::query()
+            ->whereNotNull('model_id')
+            ->whereHas('model', fn ($q) => $q->whereIn('provider_id', $providerIds))
+            // select explicit: el shortcut `model:provider_id` deja model=null
+            // en esta version de Laravel (la clave no se anade sola).
+            ->with(['model' => fn ($q) => $q->select('id', 'provider_id')])
+            ->get()
+            ->each(function (Agent $a) use (&$counts): void {
+                $pid = $a->model?->provider_id;
+                if ($pid !== null) {
+                    $counts[(int) $pid] = ($counts[(int) $pid] ?? 0) + 1;
+                }
+            });
+
+        return $counts;
+    }
+
+    protected function providerConfirmText(ModelProvider $p, int $agentCount): string
+    {
+        if ($p->models_count === 0 && $agentCount === 0) {
+            return __('providers.delete').'?';
+        }
+
+        return __('providers.delete_impact', [
+            'name' => $p->name,
+            'models' => $p->models_count,
+            'agents' => $agentCount,
         ]);
     }
 }

@@ -144,14 +144,26 @@ class Index extends Component
             ->latest('id')
             ->get();
 
-        $models = Model::with('provider')
+        $models = Model::with('provider')->withCount('agents')
             ->latest('id')
-            ->get()
-            ->groupBy('provider_id');
+            ->get();
+
+        // Impacto del borrado (D6): n.º de agentes que usan cada modelo.
+        $confirms = $models->mapWithKeys(
+            fn (Model $m): array => [
+                $m->id => $m->agents_count > 0
+                    ? __('models.delete_impact', [
+                        'name' => $m->name,
+                        'agents' => $m->agents_count,
+                    ])
+                    : __('models.delete').'?',
+            ],
+        );
 
         return view('livewire.models.index', [
             'providers' => $providers,
-            'models' => $models,
+            'models' => $models->groupBy('provider_id'),
+            'confirms' => $confirms,
             'isAdmin' => Auth::user()->isAdmin(),
         ]);
     }
