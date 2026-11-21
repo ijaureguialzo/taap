@@ -15,6 +15,11 @@ return [
     'saved' => 'Saved.',
     'saved_unhealthy' => 'Saved, but the endpoint did not respond (marked unhealthy).',
     'discovered' => 'Saved. :count new models discovered.',
+    'health' => 'Health',
+    'status_ok' => 'Healthy',
+    'status_error' => 'Unhealthy',
+    'status_unchecked' => 'Not checked',
+    'last_checked' => 'Last checked: :when',
     'delete' => 'Delete',
     'empty' => 'No providers. Add the first one (e.g. your local gateway).',
 ];

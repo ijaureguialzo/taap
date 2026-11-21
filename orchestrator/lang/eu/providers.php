@@ -15,6 +15,11 @@ return [
     'saved' => 'Gordeta.',
     'saved_unhealthy' => 'Gordeta, baina ezin da konektatu (ez da osasuntsua).',
     'discovered' => 'Gordeta. :count modelo berri aurkitu dira.',
+    'health' => 'Osasuna',
+    'status_ok' => 'Osasuntsua',
+    'status_error' => 'Ez osasuntsua',
+    'status_unchecked' => 'Egiaztatu gabe',
+    'last_checked' => 'Azken egiaztapena: :when',
     'delete' => 'Ezabatu',
     'empty' => 'Ez dago eskaintzailerik. Gehitu lehenengoa (adib. zure gateway lokala).',
 ];

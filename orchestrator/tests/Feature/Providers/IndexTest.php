@@ -131,6 +131,21 @@ class IndexTest extends TestCase
         $this->assertSame(ModelProvider::STATUS_OK, $p->status);
     }
 
+    public function test_health_badges_render_three_states(): void
+    {
+        $checked = now()->subDay();
+        $this->provider(['status' => ModelProvider::STATUS_OK, 'last_checked_at' => $checked]);
+        $this->provider(['status' => ModelProvider::STATUS_ERROR, 'last_checked_at' => $checked]);
+        $this->provider(['status' => null, 'last_checked_at' => null]);
+
+        $html = Livewire::test(Index::class)->html();
+
+        $this->assertStringContainsString('Sano', $html);
+        $this->assertStringContainsString('No sano', $html);
+        $this->assertStringContainsString('Sin comprobar', $html);
+        $this->assertStringContainsString('Últ. comprobación: '.$checked->format('Y-m-d H:i'), $html);
+    }
+
     public function test_update_with_dead_endpoint_keeps_provider_and_marks_unhealthy(): void
     {
         Http::fake(['*' => Http::response('boom', 500)]);

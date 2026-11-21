@@ -76,6 +76,7 @@
                             <th>{{ __('providers.name') }}</th>
                             <th>{{ __('providers.type') }}</th>
                             <th>{{ __('providers.base_url') }}</th>
+                            <th>{{ __('providers.health') }}</th>
                             <th>{{ __('models.title') }}</th>
                             <th class="text-end"></th>
                         </tr>
@@ -86,6 +87,20 @@
                                 <td class="fw-semibold">{{ $p->name }}</td>
                                 <td><span class="badge bg-secondary">{{ $p->type }}</span></td>
                                 <td class="small text-truncate" style="max-width: 320px">{{ $p->base_url }}</td>
+                                <td>
+                                    @if ($p->isUnhealthy())
+                                        <span class="badge bg-danger">{{ __('providers.status_error') }}</span>
+                                    @elseif ($p->isHealthy())
+                                        <span class="badge bg-success">{{ __('providers.status_ok') }}</span>
+                                    @else
+                                        <span class="badge bg-secondary">{{ __('providers.status_unchecked') }}</span>
+                                    @endif
+                                    @if ($p->last_checked_at)
+                                        <div class="text-muted small">{{
+                                            __('providers.last_checked', ['when' => $p->last_checked_at->format('Y-m-d H:i')])
+                                        }}</div>
+                                    @endif
+                                </td>
                                 <td class="text-center">{{ $p->models_count }}</td>
                                 <td class="text-end">
                                     <button class="btn btn-outline-secondary btn-sm" wire:click="check({{ $p->id }})"

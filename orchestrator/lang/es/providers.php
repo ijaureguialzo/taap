@@ -15,6 +15,11 @@ return [
     'saved' => 'Guardado.',
     'saved_unhealthy' => 'Guardado, pero el endpoint no respondió (marcado no sano).',
     'discovered' => 'Guardado. :count modelos nuevos descubiertos.',
+    'health' => 'Salud',
+    'status_ok' => 'Sano',
+    'status_error' => 'No sano',
+    'status_unchecked' => 'Sin comprobar',
+    'last_checked' => 'Últ. comprobación: :when',
     'delete' => 'Eliminar',
     'empty' => 'No hay proveedores. Añade el primero (p. ej. tu gateway local).',
 ];
