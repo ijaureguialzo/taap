@@ -132,6 +132,42 @@ class IndexTest extends TestCase
         $this->assertSame(ModelProvider::STATUS_OK, $p->status);
     }
 
+    public function test_non_admin_sees_all_providers_read_only(): void
+    {
+        $other = User::factory()->create();
+        $pAdmin = $this->provider(['name' => 'prov-admin']);
+        $pOther = $this->provider(['name' => 'prov-other', 'created_by' => $other->id]);
+
+        $this->actingAs($other);
+        $html = Livewire::test(Index::class)->html();
+
+        // Catálogo compartido: ve los creados por otros
+        $this->assertStringContainsString('prov-admin', $html);
+        $this->assertStringContainsString('prov-other', $html);
+        // Solo lectura: sin botones de accion
+        $this->assertStringNotContainsString('Nuevo proveedor', $html);
+        $this->assertStringNotContainsString('startEdit(', $html);
+        $this->assertStringNotContainsString('check(', $html);
+        $this->assertStringNotContainsString('delete(', $html);
+        $this->assertStringNotContainsString('Comprobar conectividad', $html);
+    }
+
+    public function test_admin_sees_all_providers_with_actions(): void
+    {
+        $other = User::factory()->create();
+        $this->provider(['name' => 'prov-admin']);
+        $this->provider(['name' => 'prov-other', 'created_by' => $other->id]);
+
+        $html = Livewire::test(Index::class)->html();
+
+        $this->assertStringContainsString('prov-admin', $html);
+        $this->assertStringContainsString('prov-other', $html);
+        $this->assertStringContainsString('Nuevo proveedor', $html);
+        $this->assertStringContainsString('startEdit(', $html);
+        $this->assertStringContainsString('check(', $html);
+        $this->assertStringContainsString('delete(', $html);
+    }
+
     public function test_health_badges_render_three_states(): void
     {
         $checked = now()->subDay();

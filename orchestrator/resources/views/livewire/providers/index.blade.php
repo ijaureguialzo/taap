@@ -19,7 +19,9 @@
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h1 class="h3 mb-0">{{ __('providers.title') }}</h1>
         @unless ($creating)
-            <button class="btn btn-primary btn-sm" wire:click="startCreate">+ {{ __('providers.new') }}</button>
+            @if ($isAdmin)
+                <button class="btn btn-primary btn-sm" wire:click="startCreate">+ {{ __('providers.new') }}</button>
+            @endif
         @endunless
     </div>
 
@@ -103,11 +105,13 @@
                                 </td>
                                 <td class="text-center">{{ $p->models_count }}</td>
                                 <td class="text-end">
-                                    <button class="btn btn-outline-secondary btn-sm" wire:click="check({{ $p->id }})"
-                                            title="{{ __('providers.check') }}">⇄</button>
-                                    <button class="btn btn-outline-secondary btn-sm" wire:click="startEdit({{ $p->id }})">✎</button>
-                                    <button class="btn btn-outline-danger btn-sm" wire:click="delete({{ $p->id }})"
-                                            data-confirm="{{ __('providers.delete') }}?">🗑</button>
+                                    @if ($isAdmin)
+                                        <button class="btn btn-outline-secondary btn-sm" wire:click="check({{ $p->id }})"
+                                                title="{{ __('providers.check') }}">⇄</button>
+                                        <button class="btn btn-outline-secondary btn-sm" wire:click="startEdit({{ $p->id }})">✎</button>
+                                        <button class="btn btn-outline-danger btn-sm" wire:click="delete({{ $p->id }})"
+                                                data-confirm="{{ e($confirms[$p->id] ?? __('providers.delete').'?') }}">🗑</button>
+                                    @endif
                                 </td>
                             </tr>
                         @endforeach

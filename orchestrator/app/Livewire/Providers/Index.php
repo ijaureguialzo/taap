@@ -94,7 +94,9 @@ class Index extends Component
             if ($key !== null || $this->delete_key) {
                 $data['api_key'] = $key;
             }
-            ModelProvider::whereKey($this->edit_id)->where('created_by', Auth::user()->id)->update($data);
+            // Catalogo compartido (D1): un admin puede editar CUALQUIER
+            // provider; la barrera de acceso es la guarda de rol, no el creador.
+            ModelProvider::whereKey($this->edit_id)->update($data);
             $id = $this->edit_id;
         } else {
             $data['api_key'] = $key;
@@ -153,7 +155,8 @@ class Index extends Component
 
     public function delete(int $id): void
     {
-        ModelProvider::whereKey($id)->where('created_by', Auth::user()->id)->delete();
+        // Barrera: guarda de rol (D1); created_by queda como auditoria.
+        ModelProvider::whereKey($id)->delete();
     }
 
     /**
@@ -218,13 +221,15 @@ class Index extends Component
 
     public function render(): View
     {
+        // Catalogo compartido (D1): todo usuario autenticado ve TODOS los
+        // proveedores; el scope por created_by se retira.
         $providers = ModelProvider::withCount('models')
-            ->where('created_by', Auth::user()->id)
             ->latest('id')
             ->get();
 
         return view('livewire.providers.index', [
             'providers' => $providers,
+            'isAdmin' => Auth::user()->isAdmin(),
         ]);
     }
 }

@@ -63,15 +63,13 @@ class Index extends Component
 
     public function render(): View
     {
-        $user = Auth::user();
-
+        // Catalogo compartido (D1): todo usuario autenticado ve todos los
+        // proveedores y modelos; el scope por created_by se retira.
         $providers = ModelProvider::withCount('models')
-            ->when(! $user->isAdmin(), fn ($q) => $q->where('created_by', $user->id))
             ->latest('id')
             ->get();
 
         $models = Model::with('provider')
-            ->when(! $user->isAdmin(), fn ($q) => $q->whereHas('provider', fn ($q2) => $q2->where('created_by', $user->id)))
             ->latest('id')
             ->get()
             ->groupBy('provider_id');
@@ -79,6 +77,7 @@ class Index extends Component
         return view('livewire.models.index', [
             'providers' => $providers,
             'models' => $models,
+            'isAdmin' => Auth::user()->isAdmin(),
         ]);
     }
 }

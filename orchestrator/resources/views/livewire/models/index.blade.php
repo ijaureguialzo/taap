@@ -2,7 +2,9 @@
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h1 class="h3 mb-0">{{ __('models.title') }}</h1>
         @unless ($creating)
-            <button class="btn btn-primary btn-sm" wire:click="startCreate">+ {{ __('models.new') }}</button>
+            @if ($isAdmin)
+                <button class="btn btn-primary btn-sm" wire:click="startCreate">+ {{ __('models.new') }}</button>
+            @endif
         @endunless
     </div>
 
@@ -58,8 +60,10 @@
                         @foreach ($models->get($provider->id) as $m)
                             <span class="badge bg-light text-dark border">
                                 {{ $m->name }} <span class="text-muted">({{ $m->model_id }})</span>
-                                <button class="btn btn-sm btn-link text-danger p-0 ms-1" style="line-height:1"
-                                        wire:click="delete({{ $m->id }})" data-confirm="{{ __('models.delete') }}?">✕</button>
+                                @if ($isAdmin)
+                                    <button class="btn btn-sm btn-link text-danger p-0 ms-1" style="line-height:1"
+                                            wire:click="delete({{ $m->id }})" data-confirm="{{ e($confirms[$m->id] ?? __('models.delete').'?') }}">✕</button>
+                                @endif
                             </span>
                         @endforeach
                     </div>
