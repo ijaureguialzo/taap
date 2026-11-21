@@ -4,8 +4,19 @@ import Alpine from 'alpinejs';
 import Echo from 'laravel-echo';
 import Pusher from 'pusher-js';
 
-window.Alpine = Alpine;
-Alpine.start();
+// livewire.js (classic <script> en el body; se ejecuta ANTES de este modulo)
+// instala su propio Alpine (con plugins navigate/history) en window.Alpine.
+// Su codigo de features referenciar el GLOBAL `Alpine` en el momento de la
+// llamada: si lo pisamos con una segunda instancia normal, `Alpine.navigate`
+// (plugin navigate) desaparece de bajo Livewire y todo `redirect(…, navigate:
+// true)` (p. ej. tras crear un agente) muere en silencio (sin navegacion, sin
+// fallback). Reutilizamos la instancia bundled (o la nuestra si no hay).
+const TaapAlpine = window.Alpine ?? Alpine;
+window.Alpine = TaapAlpine;
+if (!TaapAlpine.__fromLivewire) {
+    // Alpine standalone (sin livewire.js en la pagina): lo arrancamos nosotros.
+    TaapAlpine.start();
+}
 
 // Cliente de broadcast (Reverb). La key/host llegan desde el layout via
 // data-attrs (el backend inyecta config("broadcasting...")).
@@ -47,7 +58,7 @@ function initEcho() {
 
 window.addEventListener('livewire:navigated', initEcho);
 document.addEventListener('alpine:init', () => {
-    Alpine.data('taap', {
+    TaapAlpine.data('taap', {
         reverbReady: false,
         init() {
             initEcho();
