@@ -3,6 +3,7 @@
 namespace Tests\Feature\Providers;
 
 use App\Livewire\Providers\Index;
+use App\Models\Model;
 use App\Models\ModelProvider;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -144,6 +145,65 @@ class IndexTest extends TestCase
         $this->assertStringContainsString('No sano', $html);
         $this->assertStringContainsString('Sin comprobar', $html);
         $this->assertStringContainsString('Últ. comprobación: '.$checked->format('Y-m-d H:i'), $html);
+    }
+
+    public function test_save_discovers_unregistered_models_and_keeps_curated_ones(): void
+    {
+        $p = $this->provider();
+        $existing = Model::factory()->create([
+            'provider_id' => $p->id,
+            'model_id' => 'gpt-4o',
+            'name' => 'Mi GPT curado',
+        ]);
+
+        Http::fake(['*' => Http::response(['data' => [
+            ['id' => 'gpt-4o'],
+            ['id' => 'gpt-4o-mini'],
+            ['id' => 'o1'],
+        ]], 200)]);
+
+        Livewire::test(Index::class, [
+            'edit_id' => $p->id,
+            'name' => $p->name,
+            'type' => $p->type,
+            'base_url' => $p->base_url,
+        ])->call('save')->assertSee('Guardado. 2 modelos nuevos descubiertos.');
+
+        $modelIds = Model::where('provider_id', $p->id)->pluck('model_id')->all();
+        sort($modelIds);
+        $this->assertSame(['gpt-4o', 'gpt-4o-mini', 'o1'], $modelIds);
+        // Merge no destructivo (D4): la fila curada no se toca (nombre propio intacto)
+        $this->assertSame('Mi GPT curado', $existing->refresh()->name);
+    }
+
+    public function test_save_does_not_discover_for_anthropic_provider(): void
+    {
+        Http::fake(['*' => Http::response(['data' => [['id' => 'claude-sonnet-4-5']]], 200)]);
+
+        Livewire::test(Index::class, [
+            'name' => 'ant',
+            'type' => 'anthropic',
+            'base_url' => 'http://gw.local:8901',
+            'api_key' => 'k',
+        ])->call('save');
+
+        $this->assertSame(0, Model::count(), 'para anthropic no hay descubrimiento automatico (D4)');
+    }
+
+    public function test_discovery_failure_does_not_create_models_and_keeps_provider(): void
+    {
+        Http::fake(['*' => Http::response('boom', 500)]);
+
+        Livewire::test(Index::class, [
+            'name' => 'gw',
+            'type' => 'other',
+            'base_url' => 'http://gw.local:9000/v1',
+            'api_key' => 'k',
+        ])->call('save');
+
+        $p = ModelProvider::where('name', 'gw')->first();
+        $this->assertNotNull($p);
+        $this->assertSame(0, Model::where('provider_id', $p->id)->count());
     }
 
     public function test_update_with_dead_endpoint_keeps_provider_and_marks_unhealthy(): void

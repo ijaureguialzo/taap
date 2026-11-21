@@ -8,7 +8,7 @@
 
 ## 2. Descubrimiento de modelos al guardar proveedor
 
-- [ ] 2.1 En `Providers\Index::save()` para tipo `openai`/`other`: tras el guardado, `GET` del endpoint de modelos con la clave, parsear `data[].id` y `firstOrCreate(['provider_id','model_id'], ['name' => id])` por cada id; no borrar filas existentes; en fallo de la consulta, flash de aviso sin deshacer el guardado (D4). Verificar: feature test con `Http::fake()` — respuesta con 3 ids (1 ya registrado) → se crean 2 y el existente no se toca; respuesta 500 → provider guardado y sin modelos nuevos.
+- [x] 2.1 En `Providers\Index::save()` para tipo `openai`/`other`: tras el guardado, `GET` del endpoint de modelos con la clave, parsear `data[].id` y `firstOrCreate(['provider_id','model_id'], ['name' => id])` por cada id; no borrar filas existentes; en fallo de la consulta, flash de aviso sin deshacer el guardado (D4). Verificar: feature test con `Http::fake()` — respuesta con 3 ids (1 ya registrado) → se crean 2 y el existente no se toca; respuesta 500 → provider guardado y sin modelos nuevos.
 
 ## 3. Catálogo compartido (solo-lectura para no-admins)
 
