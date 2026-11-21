@@ -9,6 +9,8 @@ final class LocaleStringsTests: XCTestCase {
         let keys = [
             "login.title", "login.email", "login.password", "login.submit",
             "agents.title", "agents.new", "agents.empty", "agents.start", "agents.stop",
+            "agents.model", "agents.internet", "agents.unhealthy",
+            "agents.model_discarded", "agents.runtimes_load_error", "agents.model_incompatible",
             "status.idle", "status.working", "status.waiting-approval", "status.error",
             "chat.placeholder", "chat.approve", "chat.deny",
             "settings.title", "settings.model", "settings.internet",

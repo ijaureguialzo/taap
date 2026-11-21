@@ -28,20 +28,20 @@ Prerrequisito: el cambio `improve-provider-model-management` debe estar aterriza
 
 ## 6. iOS: NewAgentSheet (registro + filtro + descarte + marca)
 
-- [ ] 6.1 Picker de runtime construido desde `runtimes()` en `.task` (fallo de carga → mensaje de error y botón de creación deshabilitado; sin fallback hardcodeado). Verificar: manual en simulador — el picker ofrece los 5 runtimes del registro con sus labels.
-- [ ] 6.2 `onChange(of: runtime)`: re-fetch de `models(runtime:)` + descarte con aviso visible del modelo incompatible y re-restauración al volver a un runtime compatible (misma semántica que la web, sobre ids de modelo). Verificar: manual — elegir pi + modelo anthropic → cambiar a claude: aviso y descarte; volver a pi: el modelo se re-restaura.
-- [ ] 6.3 Marca de salud: modelos con `providerStatus == "error"` atenuados + etiqueta «no sano», seleccionables (paridad con la web). Verificar: manual — proveedor con `status=error` → su modelo aparece marcado y se puede elegir.
+- [x] 6.1 Picker de runtime construido desde `runtimes()` en `.task` (fallo de carga → mensaje de error y botón de creación deshabilitado; sin fallback hardcodeado). Verificar: manual en simulador — el picker ofrece los 5 runtimes del registro con sus labels.
+- [x] 6.2 `onChange(of: runtime)`: re-fetch de `models(runtime:)` + descarte con aviso visible del modelo incompatible y re-restauración al volver a un runtime compatible (misma semántica que la web, sobre ids de modelo). Verificar: manual — elegir pi + modelo anthropic → cambiar a claude: aviso y descarte; volver a pi: el modelo se re-restaura.
+- [x] 6.3 Marca de salud: modelos con `providerStatus == "error"` atenuados + etiqueta «no sano», seleccionables (paridad con la web). Verificar: manual — proveedor con `status=error` → su modelo aparece marcado y se puede elegir.
 
 ## 7. iOS: AgentSettingsSheet + localización
 
-- [ ] 7.1 `models(runtime: agent.runtime)` en la carga del sheet + misma marca de salud que 6.3. Verificar: manual — agente claude → solo modelos anthropic; agente con proveedor en error → marca visible.
-- [ ] 7.2 Cadenas nuevas en `LocaleStrings.swift` en los tres idiomas (es/en/eu): aviso de descarte, etiqueta «no sano», error de carga de runtimes, y la cadena localizada del 422 de formato. Verificar: compila y se muestra en los tres locales (manual).
+- [x] 7.1 `models(runtime: agent.runtime)` en la carga del sheet + misma marca de salud que 6.3. Verificar: manual — agente claude → solo modelos anthropic; agente con proveedor en error → marca visible.
+- [x] 7.2 Cadenas nuevas en `LocaleStrings.swift` en los tres idiomas (es/en/eu): aviso de descarte, etiqueta «no sano», error de carga de runtimes, y la cadena localizada del 422 de formato. Verificar: compila y se muestra en los tres locales (manual).
 
 ## 8. Integración, regresión y orden de despliegue
 
-- [ ] 8.1 Suite completa del orquestador: `php artisan test`, `vendor/bin/phpstan analyse`, `vendor/bin/pint --test`. Verificar: las tres en verde.
-- [ ] 8.2 E2E manual con la build iOS nueva contra el orquestador desplegado: crear un agente por cada uno de los 5 runtimes eligiendo modelos compatibles; cambiar el modelo desde settings; reproducir un 422 por formato con `curl` a la API. Verificar: checklist completo en el README del cambio o en la issue.
-- [ ] 8.3 Retrocompatibilidad cruzada: build iOS nueva contra un orquestador sin este cambio (404 en `GET /runtimes` → error visible y creación deshabilitada; resto de la app operativa). Verificar: manual contra un entorno de staging con el orquestador anterior.
+- [x] 8.1 Suite completa del orquestador: `php artisan test`, `vendor/bin/phpstan analyse`, `vendor/bin/pint --test`. Verificar: las tres en verde.
+- [x] 8.2 E2E manual con la build iOS nueva contra el orquestador desplegado: crear un agente por cada uno de los 5 runtimes eligiendo modelos compatibles; cambiar el modelo desde settings; reproducir un 422 por formato con `curl` a la API. Verificar: checklist completo en el README del cambio o en la issue.
+- [x] 8.3 Retrocompatibilidad cruzada: build iOS nueva contra un orquestador sin este cambio (404 en `GET /runtimes` → error visible y creación deshabilitada; resto de la app operativa). Verificar: manual contra un entorno de staging con el orquestador anterior.
 
 ## Workflow follow-up
 

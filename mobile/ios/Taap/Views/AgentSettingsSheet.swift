@@ -25,7 +25,10 @@ struct AgentSettingsSheet: View {
                     Picker("Modelo", selection: $selectedModel) {
                         Text("—").tag(nil as Int?)
                         ForEach(models) { model in
-                            Text("\(model.displayName) (\(model.provider ?? "?"))").tag(model.id)
+                            // Marca de salud (paridad web): proveedor con
+                            // status "error" -> atenuado + etiqueta, sin
+                            // bloquear la seleccion.
+                            modelRow(model).tag(model.id)
                         }
                     }
                 }
@@ -96,7 +99,16 @@ struct AgentSettingsSheet: View {
                     workingDir = a.workingDir ?? ""
                     selectedModel = a.model?.id
                     selectedMcp = Set((a.mcpServers ?? []).map { $0.id })
-                    models = try await appState.api.models()
+                    // Solo los modelos compatibles con el runtime del agente
+                    // (el runtime no es editable por la API; design D5: el
+                    // cliente no decide, el servidor filtra). Un runtime que
+                    // el orquestador no conoce → 422 en el filtro → caemos
+                    // en la lista completa sin el filtro.
+                    do {
+                        models = try await appState.api.models(runtime: a.runtime)
+                    } catch {
+                        models = (try? await appState.api.models()) ?? []
+                    }
                     mcpCatalog = (try? await appState.api.mcpServers()) ?? []
                 } catch {
                     // el detalle sigue funcionando; solo no hay config
@@ -112,6 +124,17 @@ struct AgentSettingsSheet: View {
                 if on { selectedMcp.insert(id) } else { selectedMcp.remove(id) }
             }
         )
+    }
+
+    private func modelRow(_ model: ModelDTO) -> some View {
+        Group {
+            if model.isUnhealthy {
+                Text("\(model.displayName) (\(model.provider ?? "?")) · \(appState.t("agents.unhealthy"))")
+            } else {
+                Text("\(model.displayName) (\(model.provider ?? "?"))")
+            }
+        }
+        .foregroundStyle(model.isUnhealthy ? AnyShapeStyle(.secondary) : AnyShapeStyle(.primary))
     }
 
     private func save() async {
@@ -131,6 +154,12 @@ struct AgentSettingsSheet: View {
             ))
             onSaved(updated)
             dismiss()
+        } catch let error as ApiClient.ApiError {
+            // El 422 de formato (el servidor lo aplica en todo caso) se
+            // muestra con la cadena localizada, no el crudo de Laravel.
+            self.error = error == .incompatibleModel
+                ? appState.t("agents.model_incompatible")
+                : error.localizedDescription
         } catch {
             self.error = error.localizedDescription
         }

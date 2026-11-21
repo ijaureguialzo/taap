@@ -2,7 +2,7 @@ import Foundation
 
 /// Cliente REST del orquestador TAAP (base URL configurable + Bearer token).
 final class ApiClient {
-    enum ApiError: LocalizedError {
+    enum ApiError: LocalizedError, Equatable {
         case http(Int, String)
         case network(String)
         case notAuthenticated
@@ -40,8 +40,26 @@ final class ApiClient {
 
     // MARK: - Peticiones
 
+    /// Compone la URL final. Si la ruta lleva query (p. ej.
+    /// "/api/v1/models?runtime=pi"), se separa el query y se conserva en
+    /// bruto: `appendingPathComponent` codifica el "?" (%3F) y Laravel
+    /// responde 404 «route ... could not be found».
+    private func url(for path: String) -> URL {
+        guard let qIndex = path.firstIndex(of: "?") else {
+            return baseURL.appendingPathComponent(path)
+        }
+        let pathPart = String(path[..<qIndex])
+        let queryPart = String(path[path.index(after: qIndex)...])
+        var url = baseURL.appendingPathComponent(pathPart)
+        if var components = URLComponents(url: url, resolvingAgainstBaseURL: false) {
+            components.percentEncodedQuery = queryPart
+            if let resolved = components.url { url = resolved }
+        }
+        return url
+    }
+
     func request<T: Decodable>(_ path: String, method: String = "GET", body: Encodable? = nil) async throws -> T {
-        var req = URLRequest(url: baseURL.appendingPathComponent(path))
+        var req = URLRequest(url: url(for: path))
         req.httpMethod = method
         req.setValue("application/json", forHTTPHeaderField: "Accept")
         if let token { req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization") }
@@ -102,7 +120,7 @@ final class ApiClient {
 
     /// Peticion sin cuerpo de respuesta (DELETE etc.)
     func requestRaw(_ path: String, method: String = "GET", body: Encodable? = nil) async throws {
-        var req = URLRequest(url: baseURL.appendingPathComponent(path))
+        var req = URLRequest(url: url(for: path))
         req.httpMethod = method
         req.setValue("application/json", forHTTPHeaderField: "Accept")
         if let token { req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization") }

@@ -79,6 +79,14 @@ final class AppState: ObservableObject {
             // Argumento explicito: manda incluso con --taap-clean (tests).
             locale = args[i + 1]
         }
+        if let i = args.firstIndex(of: "--taap-url"), i + 1 < args.count,
+           let url = URL(string: args[i + 1]) {
+            // Comodidad de desarrollo/tests: apuntar a un orquestador distinto
+            // del guardado (p. ej. el serve local en 8010). En init el didSet
+            // de baseURLString no siempre dispara: se fija api.baseURL a mano.
+            baseURLString = url.absoluteString
+            api.baseURL = url
+        }
 
         self.isAuthenticated = api.token != nil
         if api.token != nil {
