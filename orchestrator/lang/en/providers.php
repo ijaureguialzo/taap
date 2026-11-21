@@ -22,4 +22,5 @@ return [
     'last_checked' => 'Last checked: :when',
     'delete' => 'Delete',
     'empty' => 'No providers. Add the first one (e.g. your local gateway).',
+    'admin_only' => 'Only administrators can manage the provider catalog.',
 ];

@@ -66,4 +66,48 @@ class IndexTest extends TestCase
         $this->assertStringContainsString('Nuevo modelo', $html);
         $this->assertStringContainsString('delete(', $html);
     }
+
+    public function test_non_admin_save_is_rejected_without_mutation(): void
+    {
+        $other = User::factory()->create();
+        $prov = ModelProvider::factory()->create(['created_by' => $this->admin->id]);
+        $this->actingAs($other);
+
+        Livewire::test(Index::class, [
+            'provider_id' => $prov->id,
+            'model_id' => 'intruso',
+            'name' => 'Intruso',
+        ])->call('save')->assertSee('Solo los administradores');
+
+        $this->assertSame(0, Model::count());
+    }
+
+    public function test_non_admin_delete_is_rejected_without_mutation(): void
+    {
+        $other = User::factory()->create();
+        $prov = ModelProvider::factory()->create(['created_by' => $this->admin->id]);
+        $m = Model::factory()->create(['provider_id' => $prov->id, 'model_id' => 'm1']);
+        $this->actingAs($other);
+
+        Livewire::test(Index::class)->call('delete', $m->id)->assertSee('Solo los administradores');
+
+        $this->assertNotNull($m->refresh());
+        $this->assertNotNull($prov->refresh());
+    }
+
+    public function test_admin_can_manage_models_of_providers_created_by_others(): void
+    {
+        $other = User::factory()->create();
+        $prov = ModelProvider::factory()->create(['created_by' => $other->id]);
+
+        Livewire::test(Index::class, [
+            'provider_id' => $prov->id,
+            'model_id' => 'm-creado',
+            'name' => 'Nombre nuevo',
+        ])->call('save');
+
+        $m = Model::where('provider_id', $prov->id)->where('model_id', 'm-creado')->first();
+        $this->assertNotNull($m);
+        $this->assertSame('Nombre nuevo', $m->name);
+    }
 }

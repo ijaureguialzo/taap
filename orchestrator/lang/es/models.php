@@ -11,4 +11,5 @@ return [
     'cost' => 'Coste',
     'delete' => 'Eliminar',
     'empty' => 'No hay modelos. Añade uno a un proveedor.',
+    'admin_only' => 'Solo los administradores pueden gestionar el catálogo de modelos.',
 ];

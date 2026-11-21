@@ -168,6 +168,94 @@ class IndexTest extends TestCase
         $this->assertStringContainsString('delete(', $html);
     }
 
+    public function test_non_admin_save_create_is_rejected_without_mutation(): void
+    {
+        $other = User::factory()->create();
+        $this->actingAs($other);
+        $countBefore = ModelProvider::count();
+
+        Http::fake(['*' => Http::response(['data' => []], 200)]);
+
+        Livewire::test(Index::class, [
+            'name' => 'intruso',
+            'type' => 'openai',
+            'base_url' => 'http://x.local/v1',
+            'api_key' => 'k',
+        ])->call('save')->assertSee('Solo los administradores');
+
+        $this->assertSame($countBefore, ModelProvider::count());
+        $this->assertNull(ModelProvider::where('name', 'intruso')->first());
+    }
+
+    public function test_non_admin_save_update_is_rejected_without_mutation(): void
+    {
+        $other = User::factory()->create();
+        $p = $this->provider(['name' => 'prov', 'api_key' => 'clave-original']);
+        $this->actingAs($other);
+
+        Http::fake(['*' => Http::response(['data' => []], 200)]);
+
+        Livewire::test(Index::class, [
+            'edit_id' => $p->id,
+            'name' => 'modificado',
+            'type' => $p->type,
+            'base_url' => $p->base_url,
+            'api_key' => 'otra',
+        ])->call('save')->assertSee('Solo los administradores');
+
+        $p->refresh();
+        $this->assertSame('prov', $p->name);
+        $this->assertSame('clave-original', $p->api_key);
+    }
+
+    public function test_non_admin_check_is_rejected_without_mutation(): void
+    {
+        $other = User::factory()->create();
+        $p = $this->provider(); // status = null (nunca comprobado)
+        $this->actingAs($other);
+
+        Http::fake(['*' => Http::response(['data' => []], 200)]);
+
+        Livewire::test(Index::class)->call('check', $p->id)->assertSee('Solo los administradores');
+
+        $p->refresh();
+        $this->assertNull($p->status);
+        $this->assertNull($p->last_checked_at);
+    }
+
+    public function test_non_admin_delete_is_rejected_without_mutation(): void
+    {
+        $other = User::factory()->create();
+        $p = $this->provider();
+        $m = Model::factory()->create(['provider_id' => $p->id]);
+        $this->actingAs($other);
+
+        Livewire::test(Index::class)->call('delete', $p->id)->assertSee('Solo los administradores');
+
+        $this->assertNotNull($p->refresh());
+        $this->assertNotNull($m->refresh());
+    }
+
+    public function test_admin_save_update_can_touch_providers_created_by_others(): void
+    {
+        $other = User::factory()->create();
+        $p = $this->provider(['name' => 'prov', 'created_by' => $other->id]);
+
+        Http::fake(['*' => Http::response(['data' => []], 200)]);
+
+        Livewire::test(Index::class, [
+            'edit_id' => $p->id,
+            'name' => 'modificado',
+            'type' => $p->type,
+            'base_url' => $p->base_url,
+        ])->call('save');
+
+        $p->refresh();
+        $this->assertSame('modificado', $p->name);
+        // La edicion del admin no pisa al creador original (auditoria, D1)
+        $this->assertSame($other->id, $p->created_by);
+    }
+
     public function test_health_badges_render_three_states(): void
     {
         $checked = now()->subDay();

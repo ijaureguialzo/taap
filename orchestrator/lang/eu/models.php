@@ -11,4 +11,5 @@ return [
     'cost' => 'Kostua',
     'delete' => 'Ezabatu',
     'empty' => 'Ez dago modelorik. Gehitu bat eskaintzaileari.',
+    'admin_only' => 'Bakarrik administratzaiek kudea dezakete modeloen katalogua.',
 ];

@@ -1,4 +1,19 @@
 <div class="models-index">
+    {{-- Aviso de las acciones (check/save/borrado): dentro del componente,
+         porque en una actualizacion Livewire el layout no se re-renderiza. --}}
+    @if (session('success'))
+        <div class="alert alert-success alert-dismissible fade show">
+            {{ session('success') }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    @endif
+    @if (session('error'))
+        <div class="alert alert-danger alert-dismissible fade show">
+            {{ session('error') }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    @endif
+
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h1 class="h3 mb-0">{{ __('models.title') }}</h1>
         @unless ($creating)

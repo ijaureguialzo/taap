@@ -11,4 +11,5 @@ return [
     'cost' => 'Cost',
     'delete' => 'Delete',
     'empty' => 'No models. Add one to a provider.',
+    'admin_only' => 'Only administrators can manage the model catalog.',
 ];

@@ -13,7 +13,7 @@
 ## 3. Catálogo compartido (solo-lectura para no-admins)
 
 - [x] 3.1 Quitar el scope por `created_by` en `render()` de `Providers\Index` y `Models\Index` (ver todos) y condicionar los botones de crear/editar/borrar/comprobar con `isAdmin()`. Verificar: Livewire tests — no-admin ve proveedores y modelos creados por otros sin botones de acción; admin ve todos con botones.
-- [ ] 3.2 Guardas de rol en el servidor al inicio de cada método de escritura de ambos componentes (`save`, `delete`, `check`): no-admin → flash de error y sin mutación. Verificar: feature test que dispare cada método como no-admin y aserte (a) mensaje de error y (b) la base sin cambios (n.º y valores de filas).
+- [x] 3.2 Guardas de rol en el servidor al inicio de cada método de escritura de ambos componentes (`save`, `delete`, `check`): no-admin → flash de error y sin mutación. Verificar: feature test que dispare cada método como no-admin y aserte (a) mensaje de error y (b) la base sin cambios (n.º y valores de filas).
 
 ## 4. Edición de modelos
 

@@ -36,6 +36,10 @@ class Index extends Component
 
     public function save(): void
     {
+        if (! $this->adminOnly()) {
+            return;
+        }
+
         $this->validate([
             'provider_id' => ['required', 'exists:model_providers,id'],
             'model_id' => ['required', 'string', 'max:128', Rule::unique('models', 'model_id')->where('provider_id', $this->provider_id)],
@@ -58,7 +62,27 @@ class Index extends Component
 
     public function delete(int $id): void
     {
+        if (! $this->adminOnly()) {
+            return;
+        }
+
         Model::whereKey($id)->delete();
+    }
+
+    /**
+     * Barrera de acceso (D1): la UI oculta los botones a los no-admins,
+     * pero el servidor es la barrera real — una escritura de un
+     * no-administrador devuelve un error claro, sin mutacion parcial.
+     */
+    protected function adminOnly(): bool
+    {
+        if (Auth::user()?->isAdmin()) {
+            return true;
+        }
+
+        session()->flash('error', __('models.admin_only'));
+
+        return false;
     }
 
     public function render(): View

@@ -65,6 +65,10 @@ class Index extends Component
 
     public function save(): void
     {
+        if (! $this->adminOnly()) {
+            return;
+        }
+
         $this->validate([
             'name' => ['required', 'string', 'max:64', Rule::unique('model_providers', 'name')->ignore($this->edit_id)],
             'type' => ['required', Rule::in(['openai', 'anthropic', 'other'])],
@@ -87,7 +91,6 @@ class Index extends Component
             'name' => $this->name,
             'type' => $this->type,
             'base_url' => $this->base_url,
-            'created_by' => Auth::user()->id,
         ];
 
         if ($this->edit_id) {
@@ -96,10 +99,12 @@ class Index extends Component
             }
             // Catalogo compartido (D1): un admin puede editar CUALQUIER
             // provider; la barrera de acceso es la guarda de rol, no el creador.
+            // created_by NO se toca: es campo de auditoria (quien lo creo).
             ModelProvider::whereKey($this->edit_id)->update($data);
             $id = $this->edit_id;
         } else {
             $data['api_key'] = $key;
+            $data['created_by'] = Auth::user()->id;
             $id = ModelProvider::create($data)->id;
         }
 
@@ -135,6 +140,10 @@ class Index extends Component
 
     public function check(?int $id): void
     {
+        if (! $this->adminOnly()) {
+            return;
+        }
+
         $p = ModelProvider::findOrFail($id);
 
         [$ok, , $code] = $this->probe($p, $p->api_key);
@@ -155,8 +164,28 @@ class Index extends Component
 
     public function delete(int $id): void
     {
+        if (! $this->adminOnly()) {
+            return;
+        }
+
         // Barrera: guarda de rol (D1); created_by queda como auditoria.
         ModelProvider::whereKey($id)->delete();
+    }
+
+    /**
+     * Barrera de acceso (D1): la UI oculta los botones a los no-admins,
+     * pero el servidor es la barrera real — una escritura de un
+     * no-administrador devuelve un error claro, sin mutacion parcial.
+     */
+    protected function adminOnly(): bool
+    {
+        if (Auth::user()?->isAdmin()) {
+            return true;
+        }
+
+        session()->flash('error', __('providers.admin_only'));
+
+        return false;
     }
 
     /**

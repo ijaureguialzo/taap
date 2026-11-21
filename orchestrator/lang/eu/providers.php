@@ -22,4 +22,5 @@ return [
     'last_checked' => 'Azken egiaztapena: :when',
     'delete' => 'Ezabatu',
     'empty' => 'Ez dago eskaintzailerik. Gehitu lehenengoa (adib. zure gateway lokala).',
+    'admin_only' => 'Bakarrik administratzaiek kudea dezakete eskaintzaileen katalogua.',
 ];

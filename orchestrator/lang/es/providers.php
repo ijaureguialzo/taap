@@ -22,4 +22,5 @@ return [
     'last_checked' => 'Últ. comprobación: :when',
     'delete' => 'Eliminar',
     'empty' => 'No hay proveedores. Añade el primero (p. ej. tu gateway local).',
+    'admin_only' => 'Solo los administradores pueden gestionar el catálogo de proveedores.',
 ];
