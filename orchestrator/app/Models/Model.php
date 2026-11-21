@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\AgentRuntime;
 use Database\Factories\ModelFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model as EloquentModel;
@@ -49,5 +50,16 @@ class Model extends EloquentModel
     public function fullId(): string
     {
         return $this->provider->name.'/'.$this->model_id;
+    }
+
+    /**
+     * Si el formato del proveedor de este modelo lo consume el runtime
+     * (delegate a AgentRuntime::compatibleProviderTypes, la unica fuente de
+     * verdad). Un modelo cuyo proveedor ha sido borrado es incompatible
+     * (no se puede comprobar el formato).
+     */
+    public function isCompatibleWith(AgentRuntime $runtime): bool
+    {
+        return in_array($this->provider?->type, $runtime->compatibleProviderTypes(), true);
     }
 }

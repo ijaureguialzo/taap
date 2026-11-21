@@ -109,4 +109,31 @@ enum AgentRuntime: string
     {
         return $this->modelFormats()[0] ?? null;
     }
+
+    /**
+     * Tipos de proveedor compatibles con los formatos que consume este
+     * runtime (spec model-management: los incompatibles se excluyen de la
+     * seleccion). `anthropic` solo si el runtime declara el formato
+     * `anthropic`; `openai`/`other` si declara `openai` o no declara
+     * formatos (design v1.0: `other` se trata como OpenAI; un runtime sin
+     * formatos es path defensivo de robustez).
+     *
+     * Una sola fuente de verdad: la usan el filtro y la validacion de la
+     * web (Livewire) y los de la API v1 (ios-model-runtime-compatibility).
+     *
+     * @return list<string>
+     */
+    public function compatibleProviderTypes(): array
+    {
+        $formats = $this->modelFormats();
+        $types = [];
+        if (in_array('openai', $formats, true) || $formats === []) {
+            $types = ['openai', 'other'];
+        }
+        if (in_array('anthropic', $formats, true)) {
+            $types[] = 'anthropic';
+        }
+
+        return $types;
+    }
 }
