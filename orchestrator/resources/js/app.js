@@ -57,6 +57,46 @@ function initEcho() {
 }
 
 window.addEventListener('livewire:navigated', initEcho);
+
+// Tema (brand-identity D4): conmutador de tres estados.
+// La RESOLUCION (localStorage -> sistema -> claro) ya la hizo el script
+// inline del <head> antes del pintado; aqui solo se aplica la eleccion del
+// usuario, se persiste y se marca el estado actual en los botones.
+function initThemeSwitcher() {
+    const buttons = document.querySelectorAll('[data-taap-theme-set]');
+    if (!buttons.length) {
+        return;
+    }
+    const resolve = (mode) => mode === 'auto'
+        ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+        : mode;
+    const apply = (mode) => {
+        if (mode === 'auto') {
+            localStorage.removeItem('taap-theme');
+        } else {
+            localStorage.setItem('taap-theme', mode);
+        }
+        document.documentElement.setAttribute('data-bs-theme', resolve(mode));
+        buttons.forEach((b) => {
+            b.setAttribute('aria-pressed', b.getAttribute('data-taap-theme-set') === mode ? 'true' : 'false');
+        });
+    };
+    buttons.forEach((b) => b.addEventListener('click', () => apply(b.getAttribute('data-taap-theme-set'))));
+    // Estado inicial (lo que ya hay en localStorage).
+    const saved = localStorage.getItem('taap-theme') || 'auto';
+    buttons.forEach((b) => {
+        b.setAttribute('aria-pressed', b.getAttribute('data-taap-theme-set') === saved ? 'true' : 'false');
+    });
+    // El sistema cambia y el usuario va en «auto»: seguirlo en vivo.
+    if (saved === 'auto') {
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+            document.documentElement.setAttribute('data-bs-theme', e.matches ? 'dark' : 'light');
+        });
+    }
+}
+
+document.addEventListener('DOMContentLoaded', initThemeSwitcher);
+window.addEventListener('livewire:navigated', initThemeSwitcher);
 document.addEventListener('alpine:init', () => {
     TaapAlpine.data('taap', {
         reverbReady: false,

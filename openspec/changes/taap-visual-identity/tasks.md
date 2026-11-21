@@ -8,9 +8,9 @@
 
 ## 2. Web: paleta de tokens y dark mode (design D3, D4, D8)
 
-- [ ] 2.1 Definir la tabla de tokens en `orchestrator/resources/css/app.css`: escalas `--taap-aqua-*`, `--taap-slate-*`, `--taap-ink` y estado (claro + variantes dark), y reescribir las variables `--bs-*` (primario, cuerpo, terciario, bordes, estado) en `:root` y bajo `[data-bs-theme=dark]`, sustituyendo `--taap-bg`. Verificar: `npm run build` sin errores y la app se pinta con el teal de la marca en botones/badges sin tocar ninguna vista.
-- [ ] 2.2 Script inline en `layouts/app.blade.php` y `layouts/auth.blade.php` que fija `<html data-bs-theme>` antes del primer pintado (localStorage → matchMedia → claro) y el conmutador de 3 estados (auto/claro/oscuro) en el dropdown del perfil, persistido. Verificar: elegir oscuro + recargar → la página pinta oscura sin flash (probar con `curl` + navegador; el atributo existe en el HTML servido sin JS).
-- [ ] 2.3 Pase visual de las 7 áreas (agentes, chat, modelos, proveedores, mcp, usuarios, auth) en modo claro y oscuro: superficies slate frías, contraste legible, sin colores default de Bootstrap destonando. Verificar: recorrido manual documentado con capturas de cada área en ambos modos.
+- [x] 2.1 Definir la tabla de tokens en `orchestrator/resources/css/app.css`: escalas `--taap-aqua-*`, `--taap-slate-*`, `--taap-ink` y estado (claro + variantes dark), y reescribir las variables `--bs-*` (primario, cuerpo, terciario, bordes, estado) en `:root` y bajo `[data-bs-theme=dark]`, sustituyendo `--taap-bg`. Verificar: `npm run build` sin errores y la app se pinta con el teal de la marca en botones/badges sin tocar ninguna vista.
+- [x] 2.2 Script inline en `layouts/app.blade.php` y `layouts/auth.blade.php` que fija `<html data-bs-theme>` antes del primer pintado (localStorage → matchMedia → claro) y el conmutador de 3 estados (auto/claro/oscuro) en el dropdown del perfil, persistido. Verificar: elegir oscuro + recargar → la página pinta oscura sin flash (probar con `curl` + navegador; el atributo existe en el HTML servido sin JS).
+- [x] 2.3 Pase visual de las 7 áreas (agentes, chat, modelos, proveedores, mcp, usuarios, auth) en modo claro y oscuro: superficies slate frías, contraste legible, sin colores default de Bootstrap destonando. Verificar: recorrido manual documentado con capturas de cada área en ambos modos.
 
 ## 3. Web: sistema de iconos (design D2, D6)
 

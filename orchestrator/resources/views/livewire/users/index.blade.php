@@ -60,7 +60,7 @@
                         <tr class="{{ $u->active ? '' : 'table-secondary' }}">
                             <td class="fw-semibold">{{ $u->name }}</td>
                             <td class="small">{{ $u->email }}</td>
-                            <td><span class="badge bg-{{ $u->role === \App\Enums\UserRole::Admin ? 'warning text-dark' : 'secondary' }}">{{ $u->role->value }}</span></td>
+                            <td><span class="badge bg-{{ $u->role === \App\Enums\UserRole::Admin ? 'warning' : 'secondary' }}">{{ $u->role->value }}</span></td>
                             <td class="text-center">{{ $u->active ? '✓' : '✗' }}</td>
                             <td class="text-center">{{ $u->agentQuota() }}</td>
                             <td class="text-center">{{ $u->runningAgentsCount() }}</td>

@@ -97,7 +97,7 @@
                 @else
                     <div class="d-flex flex-wrap gap-2">
                         @foreach ($models->get($provider->id) as $m)
-                            <span class="badge bg-light text-dark border">
+                            <span class="badge taap-chip">
                                 {{ $m->name }} <span class="text-muted">({{ $m->model_id }})</span>
                                 @if ($isAdmin)
                                     <button class="btn btn-sm btn-link text-secondary p-0 ms-1" style="line-height:1"

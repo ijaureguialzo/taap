@@ -50,7 +50,7 @@
                                 <option value="{{ $model->id }}" @class(['text-muted' => $unhealthy])>
                                     {{ $model->name }} ({{ $model->provider?->name }})
                                     @if ($unhealthy)
-                                        <span class="badge bg-warning text-dark ms-1">{{ __('agents.unhealthy') }}</span>
+                                        <span class="badge bg-warning ms-1">{{ __('agents.unhealthy') }}</span>
                                     @endif
                                 </option>
                             @endforeach

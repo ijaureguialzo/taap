@@ -12,6 +12,19 @@
 
     <link rel="icon" href="/favicon.ico" sizes="any">
     <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+
+    {{-- Tema (brand-identity D4): resuelve la preferencia (localStorage ->
+         sistema -> claro) ANTES del primer pintado: sin flash. El
+         conmutador vive en app.js. --}}
+    <script>
+        (function () {
+            var saved = localStorage.getItem('taap-theme');
+            var theme = (saved === 'light' || saved === 'dark') ? saved
+                : (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+            document.documentElement.setAttribute('data-bs-theme', theme);
+        })();
+    </script>
 
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
@@ -49,7 +62,7 @@
                     @endif
                 </ul>
                 <span class="navbar-text me-3 d-none d-md-inline">
-                    <span class="badge bg-{{ auth()->user()->isAdmin() ? 'warning text-dark' : 'secondary' }}">
+                    <span class="badge bg-{{ auth()->user()->isAdmin() ? 'warning' : 'secondary' }}">
                         {{ auth()->user()->isAdmin() ? __('badge.admin') : __('badge.user') }}
                     </span>
                 </span>
@@ -60,6 +73,26 @@
                         </a>
                         <ul class="dropdown-menu dropdown-menu-end">
                             <li><span class="dropdown-item-text text-muted small">{{ auth()->user()->email }}</span></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><span class="dropdown-item-text text-muted small text-uppercase">{{ __('nav.theme') }}</span></li>
+                            <li>
+                                <button class="dropdown-item" type="button" data-taap-theme-set="auto">
+                                    <x-icon name="circle-half" class="me-2" />
+                                    {{ __('nav.theme.auto') }}
+                                </button>
+                            </li>
+                            <li>
+                                <button class="dropdown-item" type="button" data-taap-theme-set="light">
+                                    <x-icon name="sun" class="me-2" />
+                                    {{ __('nav.theme.light') }}
+                                </button>
+                            </li>
+                            <li>
+                                <button class="dropdown-item" type="button" data-taap-theme-set="dark">
+                                    <x-icon name="moon-stars" class="me-2" />
+                                    {{ __('nav.theme.dark') }}
+                                </button>
+                            </li>
                             <li><hr class="dropdown-divider"></li>
                             <li>
                                 <form method="POST" action="{{ route('logout') }}">

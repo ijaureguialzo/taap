@@ -7,4 +7,8 @@ return [
     'mcp' => 'MCP',
     'users' => 'Users',
     'logout' => 'Log out',
+    'theme' => 'Theme',
+    'theme.auto' => 'System',
+    'theme.light' => 'Light',
+    'theme.dark' => 'Dark',
 ];

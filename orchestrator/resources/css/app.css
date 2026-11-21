@@ -1,12 +1,439 @@
 /* TAAP v1: Bootstrap 5 (design.md D8). Sin Tailwind/Flux. */
 @import 'bootstrap/dist/css/bootstrap.min.css';
 
+/* ===================================================================
+ * Tokens de diseño TAAP (change taap-visual-identity, design D3):
+ * tabla de colores canonica. iOS refleja los mismos valores en
+ * Taap/Assets.xcassets (color sets con variante dark).
+ * Los pares --taap-ct-* (texto superficie) los audita el test de
+ * contraste AA (design D8): uno por contexto, en claro y dark.
+ * =================================================================== */
 :root {
-    --taap-bg: #f6f7f9;
+    /* Escala primaria "aqua" (500 = marca). */
+    --taap-aqua-50: #EEFBF9;
+    --taap-aqua-100: #D6F4F0;
+    --taap-aqua-200: #ACE4DE;
+    --taap-aqua-300: #79CFC9;
+    --taap-aqua-400: #4AB4AE;
+    --taap-aqua-500: #299A94;
+    --taap-aqua-600: #1E7F7A;
+    --taap-aqua-700: #1B6863;
+    --taap-aqua-800: #185451;
+    --taap-aqua-900: #164543;
+    --taap-aqua-950: #0A2B2A;
+
+    /* Acento "ink" (la gota de la marca; tambien info). */
+    --taap-ink: #125E7A;
+    --taap-ink-dark: #67C3E0;
+
+    /* Neutros frios "slate". */
+    --taap-slate-50: #F6F8F9;
+    --taap-slate-100: #ECEFF1;
+    --taap-slate-200: #DDE2E6;
+    --taap-slate-300: #C3CBD2;
+    --taap-slate-400: #9AA6B0;
+    --taap-slate-500: #6E7D89;
+    --taap-slate-600: #55636E;
+    --taap-slate-700: #414C55;
+    --taap-slate-800: #2A333B;
+    --taap-slate-900: #1B232A;
+    --taap-slate-950: #10161B;
+
+    /* Estado (claro / dark). */
+    --taap-state-success: #157A42;
+    --taap-state-success-dark: #34C97B;
+    --taap-state-warning: #B45309;
+    --taap-state-warning-dark: #E8A33D;
+    --taap-state-danger: #C2333B;
+    --taap-state-danger-dark: #F06A6A;
+
+    /* Overrides de Bootstrap — MODO CLARO.
+     * Pagina = slate-50 (via bg-light del body); tarjetas/inputs/menu =
+     * --bs-body-bg (blanco); en dark se invierte (pagina 950, tarjetas 900). */
+    --bs-body-bg: #FFFFFF;
+    --bs-body-bg-rgb: 255, 255, 255;
+    --bs-body-color: var(--taap-slate-900);
+    --bs-body-color-rgb: 27, 35, 42;
+    --bs-tertiary-bg: var(--taap-slate-100);
+    --bs-tertiary-bg-rgb: 236, 239, 241;
+    --bs-tertiary-color: rgba(27, 35, 42, 0.55);
+    --bs-tertiary-color-rgb: 27, 35, 42;
+    --bs-secondary-bg: var(--taap-slate-100);
+    --bs-secondary-bg-rgb: 236, 239, 241;
+    --bs-secondary: var(--taap-slate-600);
+    --bs-secondary-rgb: 85, 99, 110;
+    --bs-secondary-color: var(--taap-slate-600);
+    --bs-secondary-color-rgb: 85, 99, 110;
+    --bs-emphasis-color: var(--taap-slate-950);
+    --bs-emphasis-color-rgb: 16, 22, 27;
+    --bs-emphasis-bg: #FFFFFF;
+    --bs-emphasis-bg-rgb: 255, 255, 255;
+    --bs-border-color: var(--taap-slate-200);
+    --bs-border-color-rgb: 221, 226, 230;
+    --bs-light: var(--taap-slate-50);
+    --bs-light-rgb: 246, 248, 249;
+    --bs-light-text-emphasis: var(--taap-slate-800);
+    --bs-dark: var(--taap-slate-800);
+    --bs-dark-rgb: 42, 51, 59;
+    --bs-dark-text-emphasis: var(--taap-slate-100);
+    --bs-black-rgb: 16, 22, 27;
+
+    --bs-primary: var(--taap-aqua-600);
+    --bs-primary-rgb: 30, 127, 122;
+    --bs-primary-text-emphasis: var(--taap-aqua-700);
+    --bs-primary-bg-subtle: var(--taap-aqua-100);
+    --bs-primary-border-subtle: var(--taap-aqua-200);
+    --bs-success: #157A42;
+    --bs-success-rgb: 21, 122, 66;
+    --bs-success-text-emphasis: #0F5A32;
+    --bs-success-bg-subtle: #E3F4EA;
+    --bs-success-border-subtle: #BFE5CE;
+    --bs-danger: #C2333B;
+    --bs-danger-rgb: 194, 51, 59;
+    --bs-danger-text-emphasis: #9C2830;
+    --bs-danger-bg-subtle: #F9E6E7;
+    --bs-danger-border-subtle: #F1C8CA;
+    --bs-warning: #B45309;
+    --bs-warning-rgb: 180, 83, 9;
+    --bs-warning-text-emphasis: #8A4107;
+    --bs-warning-bg-subtle: #FBEEDD;
+    --bs-warning-border-subtle: #F2D5B5;
+    --bs-info: var(--taap-ink);
+    --bs-info-rgb: 18, 94, 122;
+    --bs-info-text-emphasis: #0F4C64;
+    --bs-info-bg-subtle: #DFEFF5;
+    --bs-info-border-subtle: #BFE0EC;
+
+    --bs-link-color: var(--taap-aqua-700);
+    --bs-link-color-rgb: 27, 104, 99;
+    --bs-link-hover-color: var(--taap-aqua-800);
+    --bs-link-hover-color-rgb: 24, 84, 81;
+    --bs-focus-ring-color: rgba(30, 127, 122, 0.25);
+
+    /* Pares texto/superficie auditados por el test de contraste AA (D8). */
+    --taap-ct-body: #1B232A #F6F8F9;
+    --taap-ct-body-card: #1B232A #FFFFFF;
+    --taap-ct-secondary: #55636E #F6F8F9;
+    --taap-ct-btn-primary: #FFFFFF #1E7F7A;
+    --taap-ct-btn-success: #FFFFFF #157A42;
+    --taap-ct-btn-danger: #FFFFFF #C2333B;
+    --taap-ct-btn-warning: #FFFFFF #B45309;
+    --taap-ct-link: #1B6863 #F6F8F9;
+    --taap-ct-ink: #125E7A #F6F8F9;
+}
+
+/* Overrides de Bootstrap — MODO OSCURO (superficies slate frias, no negro
+ * puro). Mismos nombres que en claro: el atributo data-bs-theme cambia
+ * el tema sin tocar las vistas. */
+[data-bs-theme="dark"] {
+    --bs-body-bg: var(--taap-slate-900);
+    --bs-body-bg-rgb: 27, 35, 42;
+    --bs-body-color: var(--taap-slate-100);
+    --bs-body-color-rgb: 236, 239, 241;
+    --bs-tertiary-bg: var(--taap-slate-800);
+    --bs-tertiary-bg-rgb: 42, 51, 59;
+    --bs-tertiary-color: rgba(236, 239, 241, 0.55);
+    --bs-tertiary-color-rgb: 236, 239, 241;
+    --bs-secondary-bg: var(--taap-slate-800);
+    --bs-secondary-bg-rgb: 42, 51, 59;
+    --bs-secondary: var(--taap-slate-400);
+    --bs-secondary-rgb: 154, 166, 176;
+    --bs-secondary-color: var(--taap-slate-400);
+    --bs-secondary-color-rgb: 154, 166, 176;
+    --bs-emphasis-color: var(--taap-slate-50);
+    --bs-emphasis-color-rgb: 246, 248, 249;
+    --bs-emphasis-bg: var(--taap-slate-900);
+    --bs-emphasis-bg-rgb: 27, 35, 42;
+    --bs-border-color: var(--taap-slate-800);
+    --bs-border-color-rgb: 42, 51, 59;
+    --bs-light: var(--taap-slate-950);
+    --bs-light-rgb: 16, 22, 27;
+    --bs-light-text-emphasis: var(--taap-slate-200);
+    --bs-dark: var(--taap-slate-900);
+    --bs-dark-rgb: 27, 35, 42;
+    --bs-dark-text-emphasis: var(--taap-slate-200);
+    --bs-black-rgb: 8, 12, 15;
+
+    --bs-primary: var(--taap-aqua-600);
+    --bs-primary-rgb: 30, 127, 122;
+    --bs-primary-text-emphasis: var(--taap-aqua-300);
+    --bs-primary-bg-subtle: #123D3F;
+    --bs-primary-border-subtle: #1B5A58;
+    --bs-success: #157A42;
+    --bs-success-rgb: 21, 122, 66;
+    --bs-success-text-emphasis: var(--taap-state-success-dark);
+    --bs-success-bg-subtle: #0F2E1D;
+    --bs-success-border-subtle: #1B4D32;
+    --bs-danger: #C2333B;
+    --bs-danger-rgb: 194, 51, 59;
+    --bs-danger-text-emphasis: var(--taap-state-danger-dark);
+    --bs-danger-bg-subtle: #331417;
+    --bs-danger-border-subtle: #5C262B;
+    --bs-warning: #B45309;
+    --bs-warning-rgb: 180, 83, 9;
+    --bs-warning-text-emphasis: var(--taap-state-warning-dark);
+    --bs-warning-bg-subtle: #2E2110;
+    --bs-warning-border-subtle: #5C4418;
+    --bs-info: var(--taap-ink);
+    --bs-info-rgb: 18, 94, 122;
+    --bs-info-text-emphasis: var(--taap-ink-dark);
+    --bs-info-bg-subtle: #0E2A38;
+    --bs-info-border-subtle: #1E4B60;
+
+    --bs-link-color: var(--taap-aqua-300);
+    --bs-link-color-rgb: 121, 207, 201;
+    --bs-link-hover-color: var(--taap-aqua-200);
+    --bs-link-hover-color-rgb: 172, 228, 222;
+    --bs-focus-ring-color: rgba(74, 180, 174, 0.25);
+
+    --taap-ct-body: #ECEFF1 #10161B;
+    --taap-ct-body-card: #ECEFF1 #1B232A;
+    --taap-ct-secondary: #9AA6B0 #10161B;
+    --taap-ct-btn-primary: #FFFFFF #1E7F7A;
+    --taap-ct-btn-success: #FFFFFF #157A42;
+    --taap-ct-btn-danger: #FFFFFF #C2333B;
+    --taap-ct-btn-warning: #FFFFFF #B45309;
+    --taap-ct-link: #79CFC9 #10161B;
+    --taap-ct-ink: #67C3E0 #10161B;
+}
+
+/* Botones: el CSS de Bootstrap trae los --bs-btn-* con hex hardcodeado,
+ * asi que se remapean por variante a los tokens (ambos temas). */
+.btn-primary {
+    --bs-btn-bg: var(--taap-aqua-600);
+    --bs-btn-border-color: var(--taap-aqua-600);
+    --bs-btn-hover-bg: var(--taap-aqua-700);
+    --bs-btn-hover-border-color: var(--taap-aqua-700);
+    --bs-btn-active-bg: var(--taap-aqua-800);
+    --bs-btn-active-border-color: var(--taap-aqua-800);
+    --bs-btn-disabled-bg: var(--taap-aqua-300);
+    --bs-btn-disabled-border-color: var(--taap-aqua-300);
+    --bs-btn-focus-shadow-rgb: 30, 127, 122;
+}
+.btn-success {
+    --bs-btn-bg: #157A42;
+    --bs-btn-border-color: #157A42;
+    --bs-btn-hover-bg: #116437;
+    --bs-btn-hover-border-color: #116437;
+    --bs-btn-active-bg: #0F5A32;
+    --bs-btn-active-border-color: #0F5A32;
+    --bs-btn-disabled-bg: var(--taap-slate-300);
+    --bs-btn-disabled-border-color: var(--taap-slate-300);
+    --bs-btn-focus-shadow-rgb: 21, 122, 66;
+}
+.btn-danger {
+    --bs-btn-bg: #C2333B;
+    --bs-btn-border-color: #C2333B;
+    --bs-btn-hover-bg: #A32A31;
+    --bs-btn-hover-border-color: #A32A31;
+    --bs-btn-active-bg: #9C2830;
+    --bs-btn-active-border-color: #9C2830;
+    --bs-btn-disabled-bg: var(--taap-slate-300);
+    --bs-btn-disabled-border-color: var(--taap-slate-300);
+    --bs-btn-focus-shadow-rgb: 194, 51, 59;
+}
+.btn-warning {
+    --bs-btn-bg: #B45309;
+    --bs-btn-border-color: #B45309;
+    --bs-btn-hover-bg: #8A4107;
+    --bs-btn-hover-border-color: #8A4107;
+    --bs-btn-active-bg: #7A3A06;
+    --bs-btn-active-border-color: #7A3A06;
+    --bs-btn-disabled-bg: var(--taap-slate-300);
+    --bs-btn-disabled-border-color: var(--taap-slate-300);
+    --bs-btn-focus-shadow-rgb: 180, 83, 9;
+}
+.btn-outline-secondary {
+    --bs-btn-color: var(--taap-slate-600);
+    --bs-btn-border-color: var(--taap-slate-300);
+    --bs-btn-hover-color: #FFFFFF;
+    --bs-btn-hover-bg: var(--taap-slate-600);
+    --bs-btn-hover-border-color: var(--taap-slate-600);
+    --bs-btn-active-color: #FFFFFF;
+    --bs-btn-active-bg: var(--taap-slate-700);
+    --bs-btn-active-border-color: var(--taap-slate-700);
+    --bs-btn-disabled-color: var(--taap-slate-400);
+    --bs-btn-disabled-border-color: var(--taap-slate-300);
+    --bs-btn-focus-shadow-rgb: 85, 99, 110;
+}
+.btn-outline-danger {
+    --bs-btn-color: #C2333B;
+    --bs-btn-border-color: #C2333B;
+    --bs-btn-hover-color: #FFFFFF;
+    --bs-btn-hover-bg: #C2333B;
+    --bs-btn-hover-border-color: #C2333B;
+    --bs-btn-active-color: #FFFFFF;
+    --bs-btn-active-bg: #9C2830;
+    --bs-btn-active-border-color: #9C2830;
+    --bs-btn-disabled-color: #C2333B;
+    --bs-btn-disabled-border-color: #C2333B;
+    --bs-btn-focus-shadow-rgb: 194, 51, 59;
+}
+.btn-outline-success {
+    --bs-btn-color: #157A42;
+    --bs-btn-border-color: #157A42;
+    --bs-btn-hover-color: #FFFFFF;
+    --bs-btn-hover-bg: #157A42;
+    --bs-btn-hover-border-color: #157A42;
+    --bs-btn-active-color: #FFFFFF;
+    --bs-btn-active-bg: #0F5A32;
+    --bs-btn-active-border-color: #0F5A32;
+    --bs-btn-disabled-color: #157A42;
+    --bs-btn-disabled-border-color: #157A42;
+    --bs-btn-focus-shadow-rgb: 21, 122, 66;
+}
+.btn-outline-warning {
+    --bs-btn-color: #B45309;
+    --bs-btn-border-color: #B45309;
+    --bs-btn-hover-color: #FFFFFF;
+    --bs-btn-hover-bg: #B45309;
+    --bs-btn-hover-border-color: #B45309;
+    --bs-btn-active-color: #FFFFFF;
+    --bs-btn-active-bg: #8A4107;
+    --bs-btn-active-border-color: #8A4107;
+    --bs-btn-disabled-color: #B45309;
+    --bs-btn-disabled-border-color: #B45309;
+    --bs-btn-focus-shadow-rgb: 180, 83, 9;
+}
+
+[data-bs-theme="dark"] .btn-outline-secondary {
+    --bs-btn-color: var(--taap-slate-400);
+    --bs-btn-border-color: var(--taap-slate-700);
+    --bs-btn-hover-color: #10161B;
+    --bs-btn-hover-bg: var(--taap-slate-400);
+    --bs-btn-hover-border-color: var(--taap-slate-400);
+    --bs-btn-active-color: #10161B;
+    --bs-btn-active-bg: var(--taap-slate-300);
+    --bs-btn-active-border-color: var(--taap-slate-300);
+}
+[data-bs-theme="dark"] .btn-outline-danger {
+    --bs-btn-color: var(--taap-state-danger-dark);
+    --bs-btn-border-color: var(--taap-state-danger-dark);
+    --bs-btn-hover-color: #10161B;
+    --bs-btn-hover-bg: var(--taap-state-danger-dark);
+    --bs-btn-hover-border-color: var(--taap-state-danger-dark);
+    --bs-btn-active-color: #10161B;
+    --bs-btn-active-bg: #F58A8A;
+    --bs-btn-active-border-color: #F58A8A;
+}
+[data-bs-theme="dark"] .btn-outline-success {
+    --bs-btn-color: var(--taap-state-success-dark);
+    --bs-btn-border-color: var(--taap-state-success-dark);
+    --bs-btn-hover-color: #10161B;
+    --bs-btn-hover-bg: var(--taap-state-success-dark);
+    --bs-btn-hover-border-color: var(--taap-state-success-dark);
+    --bs-btn-active-color: #10161B;
+    --bs-btn-active-bg: #57DB97;
+    --bs-btn-active-border-color: #57DB97;
+}
+[data-bs-theme="dark"] .btn-outline-warning {
+    --bs-btn-color: var(--taap-state-warning-dark);
+    --bs-btn-border-color: var(--taap-state-warning-dark);
+    --bs-btn-hover-color: #10161B;
+    --bs-btn-hover-bg: var(--taap-state-warning-dark);
+    --bs-btn-hover-border-color: var(--taap-state-warning-dark);
+    --bs-btn-active-color: #10161B;
+    --bs-btn-active-bg: #F0B55E;
+    --bs-btn-active-border-color: #F0B55E;
+}
+
+/* Insignias (brand-identity): el dist de Bootstrap fija
+ * --bs-badge-color: #fff. Por tema: blanco sobre fondos claros y texto
+ * oscuro sobre fondos oscuros (los pares solidos estan auditados AA). */
+.badge {
+    --bs-badge-color: #FFFFFF;
+}
+[data-bs-theme="dark"] .badge {
+    --bs-badge-color: var(--taap-slate-950);
+}
+
+/* Badges solidos de estado en dark: el color principal de la escala es
+ * la variante «oscura» (diseñada para claro); en dark usan la variante
+ * clara + texto oscuro para mantener AA. */
+[data-bs-theme="dark"] .badge.bg-success { --bs-success-rgb: 52, 201, 123; }
+[data-bs-theme="dark"] .badge.bg-danger { --bs-danger-rgb: 240, 106, 106; }
+[data-bs-theme="dark"] .badge.bg-warning { --bs-warning-rgb: 232, 163, 61; }
+[data-bs-theme="dark"] .badge.bg-info { --bs-info-rgb: 103, 195, 224; }
+[data-bs-theme="dark"] .badge.bg-primary { --bs-primary-rgb: 74, 180, 174; }
+
+/* taap-chip: chip «papel» (modelos del catalogo, ventanas de trabajo) con
+ * sus propios tokens: bg-light/text-dark no se sostiene en modo oscuro. */
+.taap-chip {
+    background-color: var(--taap-slate-100);
+    color: var(--taap-slate-900);
+    border-color: var(--taap-slate-300);
+}
+[data-bs-theme="dark"] .taap-chip {
+    background-color: var(--taap-slate-900);
+    color: var(--taap-slate-100);
+    border-color: var(--taap-slate-700);
+}
+
+/* Estado de agente (badge.status-*): el baseline no les daba color
+ * (blanco sobre transparente = invisibles). Semantica: neutro/info/
+ * exito/aviso/error, con variante por tema (pares auditados AA). */
+.badge.status-idle,
+.badge.status-stopped,
+.badge.status-offline {
+    background-color: var(--taap-slate-200);
+    color: var(--taap-slate-700);
+}
+.badge.status-starting {
+    background-color: var(--taap-ink);
+    color: #FFFFFF;
+}
+.badge.status-working {
+    background-color: var(--taap-state-success);
+    color: #FFFFFF;
+}
+.badge.status-waiting-approval {
+    background-color: var(--taap-state-warning);
+    color: #FFFFFF;
+}
+.badge.status-error {
+    background-color: var(--taap-state-danger);
+    color: #FFFFFF;
+}
+[data-bs-theme="dark"] .badge.status-idle,
+[data-bs-theme="dark"] .badge.status-stopped,
+[data-bs-theme="dark"] .badge.status-offline {
+    background-color: var(--taap-slate-800);
+    color: var(--taap-slate-300);
+}
+[data-bs-theme="dark"] .badge.status-starting {
+    background-color: var(--taap-ink-dark);
+    color: var(--taap-slate-950);
+}
+[data-bs-theme="dark"] .badge.status-working {
+    background-color: var(--taap-state-success-dark);
+    color: var(--taap-slate-950);
+}
+[data-bs-theme="dark"] .badge.status-waiting-approval {
+    background-color: var(--taap-state-warning-dark);
+    color: var(--taap-slate-950);
+}
+[data-bs-theme="dark"] .badge.status-error {
+    background-color: var(--taap-state-danger-dark);
+    color: var(--taap-slate-950);
+}
+
+/* Controles de formulario: el dist hardcodea el azul por defecto en el
+ * estado :checked de checkbox/switch. */
+.form-check-input:checked {
+    background-color: var(--taap-aqua-600);
+    border-color: var(--taap-aqua-600);
+}
+[data-bs-theme="dark"] .form-check-input:checked {
+    background-color: var(--taap-aqua-500);
+    border-color: var(--taap-aqua-500);
+}
+.form-check-input:focus {
+    border-color: var(--taap-aqua-300);
+    box-shadow: 0 0 0 0.25rem rgba(30, 127, 122, 0.25);
 }
 
 body {
-    background-color: var(--taap-bg);
+    /* El body lleva bg-light (pagina); el resto lo resuelve la tabla. */
 }
 
 /* ------------------------------------------------------------------

@@ -41,7 +41,7 @@
                                 <div class="d-flex flex-wrap gap-1 mt-1">
                                     @foreach (['format' => 'cap.format', 'session' => 'cap.session', 'apply' => 'cap.apply'] as $group => $labelKey)
                                         @if (!empty($capabilities[$group]))
-                                            <span class="badge text-bg-light border" title="{{ __("agents.{$labelKey}") }}">
+                                            <span class="badge taap-chip" title="{{ __("agents.{$labelKey}") }}">
                                                 {{ __("agents.{$labelKey}") }}:
                                                 @if (is_array($capabilities[$group]))
                                                     {{ collect($capabilities[$group])->map(fn ($c) => __("agents.cap.{$c}"))->implode(' / ') }}
@@ -84,10 +84,10 @@
                             @endif
                             <div class="d-flex flex-wrap gap-1 mt-1">
                                 @if ($w['messages'] > 0)
-                                    <span class="badge text-bg-light border">{{ __('timeline.messages') }}: {{ $w['messages'] }}</span>
+                                    <span class="badge taap-chip">{{ __('timeline.messages') }}: {{ $w['messages'] }}</span>
                                 @endif
                                 @if ($w['tool_calls'] > 0)
-                                    <span class="badge text-bg-light border">{{ __('timeline.tools') }}: {{ $w['tool_calls'] }}</span>
+                                    <span class="badge taap-chip">{{ __('timeline.tools') }}: {{ $w['tool_calls'] }}</span>
                                     @foreach (array_slice($w['tools'], 0, 4) as $tool)
                                         <span class="badge text-bg-secondary">{{ $tool }}</span>
                                     @endforeach
