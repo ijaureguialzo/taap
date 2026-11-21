@@ -197,8 +197,8 @@ class Index extends Component
      * ModelProxyController::upstreamPath.
      *
      * @return array{0: bool, 1: ?array<mixed>, 2: ?int}
-     *         [exito, data[] del endpoint o null, codigo HTTP (null si
-     *         fallo de conexion/timeout)]
+     *                                                   [exito, data[] del endpoint o null, codigo HTTP (null si
+     *                                                   fallo de conexion/timeout)]
      */
     protected function probe(ModelProvider $provider, ?string $apiKey): array
     {
@@ -278,8 +278,9 @@ class Index extends Component
 
     /**
      * Agentes que usan los modelos de cada proveedor (D6: el borrado de un
-     * proveedor deja a esos agentes sin modelo — la FK nullOnDelete ya los
-     * huérfana y el proxy lo hace visible con un 422).
+     * proveedor deja a esos agentes sin modelo: la cadena es models
+     * (cascadeOnDelete) -> agents.model_id (nullOnDelete) y el proxy lo
+     * hace visible con un 422).
      *
      * @param  array<int>  $providerIds
      * @return array<int, int> providerId => n.º de agentes que usan sus modelos

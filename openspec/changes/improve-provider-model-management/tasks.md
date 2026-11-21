@@ -29,12 +29,15 @@
 
 ## 7. Localización
 
-- [ ] 7.1 Añadir todas las cadenas nuevas en `lang/{es,en,eu}/{providers,models,agents}.php` (estados de salud y fecha, aviso de descubrimiento fallido, etiquetas de edición, textos de confirmación con impacto, «no sano»). Verificar: cada clave `__()` usada en los blade/components modificados existe en los tres idiomas (búsqueda sistemática) y los tests de `tests/Feature/Settings/LanguageTest.php` siguen en verde.
+- [x] 7.1 Añadir todas las cadenas nuevas en `lang/{es,en,eu}/{providers,models,agents}.php` (estados de salud y fecha, aviso de descubrimiento fallido, etiquetas de edición, textos de confirmación con impacto, «no sano»). Verificar: cada clave `__()` usada en los blade/components modificados existe en los tres idiomas (búsqueda sistemática) y los tests de `tests/Feature/Settings/LanguageTest.php` siguen en verde.
 
 ## 8. Integración y regresión
 
-- [ ] 8.1 Prueba de flujo completo (nuevo en `tests/Feature/Providers/` o `Models/`): admin crea proveedor (check ok + descubrimiento) → no-admin consulta el catálogo en solo-lectura → admin edita un modelo → se crea un agente con un modelo sano → el provider pasa a `error` → el modelo queda marcado en el formulario de creación. Verificar: el test pasa de punta a punta.
-- [ ] 8.2 Ejecutar `php artisan test`, `vendor/bin/phpstan analyse` y `vendor/bin/pint --test` en el orquestador y corregir cualquier regresión. Verificar: las tres suites salen en verde.
+- [x] 8.1 Prueba de flujo completo (nuevo en `tests/Feature/Providers/` o `Models/`): admin crea proveedor (check ok + descubrimiento) → no-admin consulta el catálogo en solo-lectura → admin edita un modelo → se crea un agente con un modelo sano → el provider pasa a `error` → el modelo queda marcado en el formulario de creación. Verificar: el test pasa de punta a punta.
+- [x] 8.2 Ejecutar `php artisan test`, `vendor/bin/phpstan analyse` y `vendor/bin/pint --test` en el orquestador y corregir cualquier regresión. Verificar: las tres suites salen en verde.
+  - phpunit: 141 ok; los 10 errores restantes son los RuntimeIntegrationTest de Docker preexistentes (idénticos al baseline pre-cambio).
+  - phpstan: 41 errores, todos preexistentes en `app/Agents/*Adapter`/`ConfigRenderer`/`StdioRpcAdapter` (idéntico al baseline); cero en los archivos del cambio.
+  - pint: verde tras corregir los dos archivos del cambio.
 
 ## Workflow follow-up
 
