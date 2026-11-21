@@ -36,28 +36,16 @@ class Create extends Component
     public string $system_prompt = '';
 
     /**
-     * Modelos compatibles con el runtime elegido: los de proveedores cuyo
-     * formato sea el que el runtime consume (spec model-management: los
-     * incompatibles se excluyen de la seleccion).
+     * Tipos de proveedor compatibles con el runtime elegido (ios-
+     * model-runtime-compatibility 1.2, design D1): delega en el enum, la
+     * unica fuente de verdad, que tambien usan los filtros y validaciones
+     * de la API v1.
      *
-     * @return list<string> tipos de provider compatibles
+     * @return list<string>
      */
     protected function compatibleProviderTypes(): array
     {
-        // Spec model-management (generalizada v1.1): el runtime declara en
-        // el registro los formatos que consume. OpenCode consume AMBOS ->
-        // todos los proveedores; `other` se trata como OpenAI (design v1.0).
-        $formats = AgentRuntime::fromString($this->runtime)->modelFormats();
-
-        $types = [];
-        if (in_array('anthropic', $formats, true)) {
-            $types[] = 'anthropic';
-        }
-        if (in_array('openai', $formats, true) || $formats === []) {
-            $types = array_merge(['openai', 'other'], $types);
-        }
-
-        return $types;
+        return AgentRuntime::fromString($this->runtime)->compatibleProviderTypes();
     }
 
     /**
@@ -70,11 +58,11 @@ class Create extends Component
      */
     public function updatedRuntime(): void
     {
-        $types = $this->compatibleProviderTypes();
+        $runtime = AgentRuntime::fromString($this->runtime);
 
         if ($this->model_id !== null) {
             $model = Model::with('provider')->find($this->model_id);
-            if ($model && in_array($model->provider?->type, $types, true)) {
+            if ($model && $model->isCompatibleWith($runtime)) {
                 // Sigue compatible: un descarte previo queda resuelto.
                 $this->discarded_model_id = null;
             } else {
@@ -85,7 +73,7 @@ class Create extends Component
 
         if ($this->discarded_model_id !== null) {
             $discarded = Model::with('provider')->find($this->discarded_model_id);
-            if ($discarded && in_array($discarded->provider?->type, $types, true)) {
+            if ($discarded && $discarded->isCompatibleWith($runtime)) {
                 $this->model_id = $this->discarded_model_id;
                 $this->discarded_model_id = null;
             }
@@ -111,8 +99,7 @@ class Create extends Component
             'runtime' => ['required', Rule::in(AgentRuntime::supported())],
             'model_id' => ['required', 'exists:models,id', function (string $attribute, mixed $value, \Closure $fail) {
                 $model = Model::with('provider')->find($value);
-                $types = $this->compatibleProviderTypes();
-                if (! $model || ! in_array($model->provider?->type, $types, true)) {
+                if (! $model?->isCompatibleWith(AgentRuntime::fromString($this->runtime))) {
                     $fail(__('agents.model_incompatible_format'));
                 }
             }],
@@ -157,7 +144,6 @@ class Create extends Component
             ->whereHas('provider', fn ($q) => $q->whereIn('type', $this->compatibleProviderTypes()))
             ->get()
             ->keyBy('id');
-
         $discarded = $this->discarded_model_id !== null
             ? Model::with('provider')->find($this->discarded_model_id)
             : null;

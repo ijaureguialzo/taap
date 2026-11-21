@@ -5,7 +5,7 @@ Prerrequisito: el cambio `improve-provider-model-management` debe estar aterriza
 ## 1. Helper de compatibilidad compartido (PHP)
 
 - [x] 1.1 Extraer la lógica de `Livewire\Agents\Create::compatibleProviderTypes()` a `AgentRuntime::compatibleProviderTypes()` y añadir `Model::isCompatibleWith(AgentRuntime)` (semántica: `anthropic` ⟺ el runtime declara `anthropic`; `openai`/`other` ⟺ declara `openai` o no declara formatos — D1). Verificar: `tests/Unit/ModelCompatibilityTest.php` nuevo con tabla de los 5 runtimes × 3 tipos de proveedor (pi/hermes/codex rechazan anthropic y aceptan openai+other; claude acepta solo anthropic; opencode acepta todo; runtime sin formatos → openai+other).
-- [ ] 1.2 Refactorizar `Livewire\Agents\Create` para usar el helper (sin cambio de comportamiento observable). Verificar: `tests/Feature/Agents/CreateFormTest.php` completo en verde (filtro, descarte, validación de submit).
+- [x] 1.2 Refactorizar `Livewire\Agents\Create` para usar el helper (sin cambio de comportamiento observable). Verificar: `tests/Feature/Agents/CreateFormTest.php` completo en verde (filtro, descarte, validación de submit).
 
 ## 2. Registro expuesto por API
 
