@@ -27,15 +27,27 @@
         <div class="card mb-4">
             <div class="card-body">
                 <div class="row g-3">
-                    <div class="col-md-3">
-                        <label class="form-label small">{{ __('models.provider') }} *</label>
-                        <select wire:model="provider_id" class="form-select form-select-sm" required>
-                            <option value="">—</option>
-                            @foreach ($providers as $p)
-                                <option value="{{ $p->id }}">{{ $p->name }}</option>
-                            @endforeach
-                        </select>
-                    </div>
+                    @if ($edit_id)
+                        {{-- D5: el proveedor es INMODIFICABLE — se envia oculto
+                             con el valor original (etiqueta visible, sin editar). --}}
+                        <div class="col-md-3">
+                            <label class="form-label small">{{ __('models.provider') }} *</label>
+                            <input type="hidden" wire:model="provider_id">
+                            <input type="text" class="form-control form-control-sm" disabled
+                                   value="{{ $providers->firstWhere('id', $provider_id)?->name ?? '' }}">
+                            <div class="form-text">{{ __('models.provider_locked') }}</div>
+                        </div>
+                    @else
+                        <div class="col-md-3">
+                            <label class="form-label small">{{ __('models.provider') }} *</label>
+                            <select wire:model="provider_id" class="form-select form-select-sm" required>
+                                <option value="">—</option>
+                                @foreach ($providers as $p)
+                                    <option value="{{ $p->id }}">{{ $p->name }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                    @endif
                     <div class="col-md-3">
                         <label class="form-label small">{{ __('models.model_id') }} *</label>
                         <input type="text" wire:model="model_id" class="form-control form-control-sm" required>
@@ -51,6 +63,18 @@
                     <div class="col-md-2">
                         <label class="form-label small">{{ __('models.max_tokens') }}</label>
                         <input type="number" wire:model="max_tokens" class="form-control form-control-sm">
+                    </div>
+                </div>
+                <div class="row g-3 mt-0">
+                    <div class="col-md-12">
+                        <span class="form-label small">{{ __('models.capabilities') }}</span>
+                        @foreach (['tools' => __('models.cap_tools'), 'vision' => __('models.cap_vision'), 'streaming' => __('models.cap_streaming')] as $cap => $label)
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="checkbox" wire:model="capabilities"
+                                       id="cap{{ ucfirst($cap) }}" value="{{ $cap }}">
+                                <label class="form-check-label small" for="cap{{ ucfirst($cap) }}">{{ $label }}</label>
+                            </div>
+                        @endforeach
                     </div>
                 </div>
                 <div class="mt-3">
@@ -76,6 +100,8 @@
                             <span class="badge bg-light text-dark border">
                                 {{ $m->name }} <span class="text-muted">({{ $m->model_id }})</span>
                                 @if ($isAdmin)
+                                    <button class="btn btn-sm btn-link text-secondary p-0 ms-1" style="line-height:1"
+                                            wire:click="startEdit({{ $m->id }})" title="{{ __('actions.edit') }}">✎</button>
                                     <button class="btn btn-sm btn-link text-danger p-0 ms-1" style="line-height:1"
                                             wire:click="delete({{ $m->id }})" data-confirm="{{ e($confirms[$m->id] ?? __('models.delete').'?') }}">✕</button>
                                 @endif

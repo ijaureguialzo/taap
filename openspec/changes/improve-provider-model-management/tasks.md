@@ -17,7 +17,7 @@
 
 ## 4. Edición de modelos
 
-- [ ] 4.1 En `Models\Index`: estado `edit_id` + formulario de edición con `model_id`, `name`, `context_window`, `max_tokens` y checkboxes `capabilities` (`tools`/`vision`/`streaming`); `provider_id` oculto fijo con el valor original (etiqueta visible, inmodificable — D5); unique `(provider_id, model_id)` excluyendo el propio registro; precarga de `capabilities` desde el cast array. Verificar: Livewire test — editar un modelo usado por un agente → campos actualizados, `provider_id` intacto; duplicar `model_id` del mismo provider → error de validación sin guardar.
+- [x] 4.1 En `Models\Index`: estado `edit_id` + formulario de edición con `model_id`, `name`, `context_window`, `max_tokens` y checkboxes `capabilities` (`tools`/`vision`/`streaming`); `provider_id` oculto fijo con el valor original (etiqueta visible, inmodificable — D5); unique `(provider_id, model_id)` excluyendo el propio registro; precarga de `capabilities` desde el cast array. Verificar: Livewire test — editar un modelo usado por un agente → campos actualizados, `provider_id` intacto; duplicar `model_id` del mismo provider → error de validación sin guardar.
 
 ## 5. Borrado seguro
 

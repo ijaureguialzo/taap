@@ -3,6 +3,7 @@
 namespace Tests\Feature\Models;
 
 use App\Livewire\Models\Index;
+use App\Models\Agent;
 use App\Models\Model;
 use App\Models\ModelProvider;
 use App\Models\User;
@@ -93,6 +94,78 @@ class IndexTest extends TestCase
 
         $this->assertNotNull($m->refresh());
         $this->assertNotNull($prov->refresh());
+    }
+
+    public function test_admin_can_edit_model_fields_and_provider_stays(): void
+    {
+        $other = User::factory()->create();
+        $prov = ModelProvider::factory()->create(['created_by' => $other->id]);
+        $m = Model::factory()->create([
+            'provider_id' => $prov->id,
+            'model_id' => 'm1',
+            'name' => 'Original',
+            'context_window' => 8000,
+            'max_tokens' => 2000,
+            'capabilities' => ['tools'],
+        ]);
+        // En uso por un agente: la edicion no lo debe interrumpir
+        $agent = Agent::factory()->create(['model_id' => $m->id]);
+
+        Livewire::test(Index::class, [
+            'edit_id' => $m->id,
+            'provider_id' => $m->provider_id,
+            'model_id' => 'm1',
+            'name' => 'Nuevo nombre',
+            'context_window' => 32000,
+            'max_tokens' => 4096,
+            'capabilities' => ['tools', 'vision'],
+        ])->call('save');
+
+        $m->refresh();
+        $this->assertSame('Nuevo nombre', $m->name);
+        $this->assertSame(32000, $m->context_window);
+        $this->assertSame(4096, $m->max_tokens);
+        $this->assertSame(['tools', 'vision'], $m->capabilities);
+        // D5: el proveedor queda intacto
+        $this->assertSame($prov->id, $m->provider_id);
+        // El agente en uso sigue ahi (FK y datos intactos)
+        $this->assertNotNull($agent->refresh());
+        $this->assertSame($m->id, $agent->fresh()->model_id);
+    }
+
+    public function test_edit_rejects_duplicate_model_id_of_same_provider(): void
+    {
+        $prov = ModelProvider::factory()->create(['created_by' => $this->admin->id]);
+        $m = Model::factory()->create(['provider_id' => $prov->id, 'model_id' => 'm1', 'name' => 'Uno']);
+        Model::factory()->create(['provider_id' => $prov->id, 'model_id' => 'm2', 'name' => 'Dos']);
+
+        Livewire::test(Index::class, [
+            'edit_id' => $m->id,
+            'provider_id' => $prov->id,
+            'model_id' => 'm2', // duplicado del mismo provider
+            'name' => 'X',
+        ])->call('save')->assertHasErrors('model_id');
+
+        $m->refresh();
+        $this->assertSame('m1', $m->model_id, 'el guardado debe quedar invalidado');
+    }
+
+    public function test_edit_allows_keeping_own_model_id(): void
+    {
+        $provA = ModelProvider::factory()->create(['created_by' => $this->admin->id]);
+        $provB = ModelProvider::factory()->create(['created_by' => $this->admin->id]);
+        $m = Model::factory()->create(['provider_id' => $provA->id, 'model_id' => 'gpt-4o', 'name' => 'A']);
+        // El mismo model_id existe en OTRO provider: no debe colisionar
+        Model::factory()->create(['provider_id' => $provB->id, 'model_id' => 'gpt-4o', 'name' => 'B']);
+
+        Livewire::test(Index::class, [
+            'edit_id' => $m->id,
+            'provider_id' => $provA->id,
+            'model_id' => 'gpt-4o', // su propio valor (ignore)
+            'name' => 'Renombrado',
+        ])->call('save')->assertHasNoErrors();
+
+        $this->assertSame('Renombrado', $m->refresh()->name);
     }
 
     public function test_admin_can_manage_models_of_providers_created_by_others(): void
