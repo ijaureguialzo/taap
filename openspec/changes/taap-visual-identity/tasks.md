@@ -3,7 +3,7 @@
 ## 1. Marca: el grifo (design D1)
 
 - [x] 1.1 Dibujar el maestro `orchestrator/assets/brand/taap-faucet.svg`: 2 paths planos (silueta del grifo + gota), viewBox 1024, glifo al 62 %, sin degradados. Verificar: el SVG se abre en el navegador y el glifo se lee como grifo a 16 y 64 px.
-- [ ] 1.2 Escribir el generador `orchestrator/assets/brand/generate.mjs` (usa `rsvg-convert`): del maestro rinde `public/favicon.svg`, `public/favicon.ico` (16/32/48), `public/apple-touch-icon.png` (180) y `mobile/ios/Taap/Assets.xcassets/AppIcon.appiconset/*` (16 PNGs de la teja: fondo `aqua-600`, glifo blanco, gota `aqua-200`, 20/29/40/60/76/83.5/120/152/167.25/180). Verificar: `node generate.mjs` crea todos los archivos y `file`/`sips` confirman tamaños; el build iOS compila con el AppIcon.
+- [x] 1.2 Escribir el generador `orchestrator/assets/brand/generate.mjs` (usa `rsvg-convert`): del maestro rinde `public/favicon.svg`, `public/favicon.ico` (16/32/48), `public/apple-touch-icon.png` (180) y `mobile/ios/Taap/Assets.xcassets/AppIcon.appiconset/*` (16 PNGs de la teja: fondo `aqua-600`, glifo blanco, gota `aqua-200`, 20/29/40/60/76/83.5/120/152/167.25/180). Verificar: `node generate.mjs` crea todos los archivos y `file`/`sips` confirman tamaños; el build iOS compila con el AppIcon.
 - [x] 1.3 Sustituir los favicons existentes (`public/favicon.ico` y `favicon.svg` del cubo rojo) por los generados y enlazar `apple-touch-icon` en el layout. Verificar: `php artisan serve` + abrir una página en el navegador muestra el grifo en la pestaña; la web no referencia el cubo rojo en ninguna parte.
 
 ## 2. Web: paleta de tokens y dark mode (design D3, D4, D8)
@@ -30,5 +30,5 @@
 
 ## 6. Contraste AA y verificación integral (design D8)
 
-- [ ] 6.1 Test PHP de contraste: extraer la tabla de tokens de `app.css` (pares texto-superficie declarados, claro + dark) y fallar si algún par < 4.5:1 (luminancia relativa WCAG). Verificar: `php artisan test --filter=Contrast` en verde; mutar un valor a propósito → el test falla señalando el par.
-- [ ] 6.2 Verificación integral: suite PHP completa + suite unitaria iOS + tests de UI iOS existentes, con la app nueva y el orquestador corriendo. Verificar: sin fallos nuevos respecto a la línea base (los 10 errores `$servePort` de integración y el `test_loginFlow` que exige compose en 8011 son ruidos de entorno documentados, no fallos de este cambio).
+- [x] 6.1 Test PHP de contraste: extraer la tabla de tokens de `app.css` (pares texto-superficie declarados, claro + dark) y fallar si algún par < 4.5:1 (luminancia relativa WCAG). Verificar: `php artisan test --filter=Contrast` en verde; mutar un valor a propósito → el test falla señalando el par.
+- [x] 6.2 Verificación integral: suite PHP completa + suite unitaria iOS + tests de UI iOS existentes, con la app nueva y el orquestador corriendo. Verificar: sin fallos nuevos respecto a la línea base (los 10 errores `$servePort` de integración y el `test_loginFlow` que exige compose en 8011 son ruidos de entorno documentados, no fallos de este cambio).
