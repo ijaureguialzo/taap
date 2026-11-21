@@ -23,6 +23,12 @@ class Create extends Component
 
     public ?int $model_id = null;
 
+    /**
+     * Modelo descartado al cambiar de runtime (id): el aviso lo cita con
+     * su proveedor; si el runtime vuelve a ser compatible se restaura.
+     */
+    public ?int $discarded_model_id = null;
+
     public bool $internet_enabled = false;
 
     public bool $auto_restart = true;
@@ -56,13 +62,43 @@ class Create extends Component
 
     /**
      * Al cambiar de runtime, el modelo elegido puede quedar incompatible:
-     * se limpia (la validacion lo exigiria de nuevo).
+     * se descarta (model_id -> null) con un aviso visible (reportado: el
+     * limpiado era en silencio y el submit fallaba con un error generico
+     * que no llevaba a ningun sitio). Si hay un modelo descartado y el
+     * runtime nuevo vuelve a ser compatible, se restaura sin obligar al
+     * usuario a re-seleccionarlo.
      */
     public function updatedRuntime(): void
     {
-        $model = Model::find($this->model_id);
-        if ($model && ! in_array($model->provider?->type, $this->compatibleProviderTypes(), true)) {
-            $this->model_id = null;
+        $types = $this->compatibleProviderTypes();
+
+        if ($this->model_id !== null) {
+            $model = Model::with('provider')->find($this->model_id);
+            if ($model && in_array($model->provider?->type, $types, true)) {
+                // Sigue compatible: un descarte previo queda resuelto.
+                $this->discarded_model_id = null;
+            } else {
+                $this->discarded_model_id = $this->model_id;
+                $this->model_id = null;
+            }
+        }
+
+        if ($this->discarded_model_id !== null) {
+            $discarded = Model::with('provider')->find($this->discarded_model_id);
+            if ($discarded && in_array($discarded->provider?->type, $types, true)) {
+                $this->model_id = $this->discarded_model_id;
+                $this->discarded_model_id = null;
+            }
+        }
+    }
+
+    /**
+     * Al elegir (de nuevo) un modelo, el aviso de descarte deja de aplicar.
+     */
+    public function updatedModelId(): void
+    {
+        if ($this->model_id !== null) {
+            $this->discarded_model_id = null;
         }
     }
 
@@ -122,10 +158,15 @@ class Create extends Component
             ->get()
             ->keyBy('id');
 
+        $discarded = $this->discarded_model_id !== null
+            ? Model::with('provider')->find($this->discarded_model_id)
+            : null;
+
         return view('livewire.agents.create', [
             'models' => $models,
             'runtimes' => AgentRuntime::supported(),
             'canCreate' => Auth::user()->canCreateAgent(),
+            'discarded_model' => $discarded,
         ]);
     }
 }

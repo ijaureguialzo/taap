@@ -29,7 +29,7 @@
                 <div class="row">
                     <div class="col-md-4 mb-3">
                         <label class="form-label">{{ __('agents.runtime') }} *</label>
-                        <select wire:model="runtime" class="form-select">
+                        <select wire:model.live="runtime" class="form-select">
                             @foreach ($runtimes as $rt)
                                 <option value="{{ $rt }}">{{ \App\Enums\AgentRuntime::fromString($rt)->label() }}</option>
                             @endforeach
@@ -37,7 +37,7 @@
                     </div>
                     <div class="col-md-8 mb-3">
                         <label class="form-label">{{ __('agents.model') }} *</label>
-                        <select wire:model="model_id" class="form-select @error('model_id') is-invalid @enderror">
+                        <select wire:model.live="model_id" class="form-select @error('model_id') is-invalid @enderror">
                             <option value="">{{ __('agents.select_model') }}</option>
                             @foreach ($models as $model)
                                 {{-- Marcado de no sanos (design D7): informativo, no
@@ -56,8 +56,28 @@
                             @endforeach
                         </select>
                         @error('model_id')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
+                        @if ($discarded_model)
+                            {{-- El modelo se descartO al cambiar de runtime: explicar el porquE
+                                 (antes desaparecia en silencio y el submit fallaba con un error
+                                 generico que no llevaba a ningun sitio). --}}
+                            <div class="form-text text-warning">{{
+                                __('agents.model_discarded', [
+                                    'model' => $discarded_model->name,
+                                    'provider' => $discarded_model->provider?->name,
+                                    'runtime' => \App\Enums\AgentRuntime::fromString($runtime)->label(),
+                                    'formats' => implode(' / ', collect(\App\Enums\AgentRuntime::fromString($runtime)->modelFormats())->map(fn ($f) => __("agents.cap.{$f}"))->all()),
+                                ])
+                            }}</div>
+                        @endif
                         @if ($models->isEmpty())
-                            <div class="form-text">{{ __('agents.no_models') }}</div>
+                            {{-- Hint orientada: los modelos pueden EXISTIR y simplemente no
+                                 ser compatibles con el runtime elegido. --}}
+                            <div class="form-text">{{
+                                __('agents.no_models', [
+                                    'runtime' => \App\Enums\AgentRuntime::fromString($runtime)->label(),
+                                    'formats' => implode(' / ', collect(\App\Enums\AgentRuntime::fromString($runtime)->modelFormats())->map(fn ($f) => __("agents.cap.{$f}"))->all()),
+                                ])
+                            }}</div>
                         @endif
                     </div>
                 </div>

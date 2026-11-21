@@ -123,6 +123,131 @@ class CreateFormTest extends TestCase
         $this->assertSame($m->id, $agent->model_id);
         $this->assertSame('taap/agent-claude:local', $agent->image);
     }
+
+    /**
+     * Livewire v4 cambio la semantica de v3: `wire:model` plano (sin .live)
+     * = "ephemeral immediate, NO network" (ver PRD-wire-model-modifiers.md en
+     * el paquete): el cambio solo actualiza el estado local del navegador.
+     * El listado de modelos se filtra en render() (servidor), asi que el
+     * desplegable de runtime necesita `.live` para que, al cambiar de
+     * runtime, el servidor re-renderize la lista ya filtrada (reportado:
+     * "el listado de modelos no filtra y no me da la opcion de usar un
+     * proveedor de tipo Anthropic" al elegir Claude Code).
+     */
+    public function test_runtime_and_model_selects_round_trip_on_change(): void
+    {
+        $html = Livewire::test(Create::class)->html();
+
+        $this->assertStringContainsString('wire:model.live="runtime"', $html);
+        $this->assertStringContainsString('wire:model.live="model_id"', $html);
+    }
+
+    /**
+     * Reportado: con un modelo elegido, al cambiar a un runtime cuyo formato
+     * no lo consume, el modelo se limpiaba en SILENCIO: el submit fallaba con
+     * "The model id field is required." (en ingles, sin localizar) y el
+     * desplegable salia vacio con "Crea un proveedor y un modelo primero",
+     * y el usuario no sabia por que no podia crear el agente.
+     * Ahora: el descarte es visible (aviso con el modelo y el porquE).
+     */
+    public function test_switching_runtime_discards_incompatible_model_with_visible_notice(): void
+    {
+        $openai = $this->provider('openai', 'prov-openai');
+        $m = $this->model($openai, 'm-openai');
+
+        $component = Livewire::test(Create::class, [
+            'name' => 'mi-agente',
+            'runtime' => 'pi',
+            'model_id' => $m->id,
+        ]);
+
+        $component->set('runtime', 'claude')
+            ->assertSet('model_id', null)
+            ->assertSet('discarded_model_id', $m->id)
+            ->assertSee('m-openai')            // el aviso cita el modelo descartado
+            ->assertSee('Claude Code');          // ...y el runtime que lo hizo incompatible
+
+        // El submit falla con el error de obligatorio (el modelo ya no esta elegido)
+        $component->call('submit')->assertHasErrors('model_id');
+    }
+
+    /**
+     * pi -> claude (descarte) -> pi: el modelo se re-restaura, sin obligar a
+     * re-seleccionar. (El flujo exacto del bug reportado, cerrado en bucle.)
+     */
+    public function test_switching_runtime_back_restores_discarded_compatible_model(): void
+    {
+        $openai = $this->provider('openai', 'prov-openai');
+        $m = $this->model($openai, 'm-openai');
+
+        $component = Livewire::test(Create::class, [
+            'runtime' => 'pi',
+            'model_id' => $m->id,
+        ])
+            ->set('runtime', 'claude')
+            ->assertSet('model_id', null)
+            ->set('runtime', 'pi');
+
+        $component->assertSet('model_id', $m->id)
+            ->assertSet('discarded_model_id', null);
+    }
+
+    public function test_picking_a_model_clears_the_discard_notice(): void
+    {
+        $openai = $this->provider('openai', 'prov-openai');
+        $anthropic = $this->provider('anthropic', 'prov-anthropic');
+        $mOpenai = $this->model($openai, 'm-openai');
+        $mAnthropic = $this->model($anthropic, 'm-anthropic');
+
+        Livewire::test(Create::class, [
+            'runtime' => 'pi',
+            'model_id' => $mOpenai->id,
+        ])
+            ->set('runtime', 'claude')              // descarta m-openai (aviso)
+            ->assertSet('discarded_model_id', $mOpenai->id)
+            ->set('model_id', $mAnthropic->id)      // elige uno compatible
+            ->assertSet('discarded_model_id', null)
+            ->assertSet('model_id', $mAnthropic->id);
+    }
+
+    /**
+     * Spec localizacion: todos los textos de la interfaz en es/en/eu, incluso
+     * los de validacion (antes salian en ingles: "The model id field is
+     * required." para un usuario en castellano).
+     */
+    public function test_validation_errors_are_rendered_in_the_user_locale(): void
+    {
+        $openai = $this->provider('openai', 'prov-openai');
+        $m = $this->model($openai, 'm-openai');
+
+        // Usuario en castellano (locale por defecto del factory)
+        $this->app->setLocale('es');
+
+        // Elegir el modelo y LUEGO cambiar a un runtime incompatible hace que
+        // updatedRuntime() lo descarte (model_id -> null): el submit debe fallar
+        // con la regla `required` y NO con un mensaje en ingles.
+        $component = Livewire::test(Create::class, [
+            'name' => 'mi-agente',
+            'runtime' => 'pi',
+            'model_id' => $m->id,
+        ])
+            ->set('runtime', 'claude')
+            ->assertSet('model_id', null)
+            ->call('submit')
+            ->assertHasErrors('model_id');
+
+        $html = $component->html();
+
+        $this->assertStringContainsString('El campo modelo es obligatorio.', $html);
+        $this->assertStringNotContainsString('field is required', $html);
+    }
+
+    /**
+     * Marcado de no sanos en el selector (improve-provider-model-management
+     * 6.1, design D7): los modelos cuyo provider esta marcado `error`
+     * aparecen atenuados con etiqueta; los sanos/por-comprobar no; la marca
+     * es informativa, no bloqueante.
+     */
     public function test_models_of_unhealthy_providers_are_labeled_but_still_selectable(): void
     {
         $this->app->setLocale('es');
