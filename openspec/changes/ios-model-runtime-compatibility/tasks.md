@@ -9,7 +9,7 @@ Prerrequisito: el cambio `improve-provider-model-management` debe estar aterriza
 
 ## 2. Registro expuesto por API
 
-- [ ] 2.1 Ruta `GET /v1/runtimes` (`auth:sanctum`) que devuelve `[{id, label, formats}]` desde `AgentRuntime::supported()` + registry (campos mínimos, D2). Verificar: feature test nuevo (`tests/Feature/Api/RuntimesTest.php`) — usuario autenticado recibe exactamente los 5 runtimes con id/label/formats; sin token → 401.
+- [x] 2.1 Ruta `GET /v1/runtimes` (`auth:sanctum`) que devuelve `[{id, label, formats}]` desde `AgentRuntime::supported()` + registry (campos mínimos, D2). Verificar: feature test nuevo (`tests/Feature/Api/RuntimesTest.php`) — usuario autenticado recibe exactamente los 5 runtimes con id/label/formats; sin token → 401.
 
 ## 3. Lista de modelos: filtro por runtime + payload
 

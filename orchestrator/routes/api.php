@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\ChatController;
 use App\Http\Controllers\Api\McpController;
 use App\Http\Controllers\Api\ModelController;
+use App\Http\Controllers\Api\RuntimeController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Proxy\McpBridgeController;
 use App\Http\Controllers\Proxy\ModelProxyController;
@@ -87,6 +88,11 @@ Route::prefix('v1')->group(function () {
         Route::get('agents/{agent}/timeline', [ChatController::class, 'timeline']);
         Route::post('agents/{agent}/messages', [ChatController::class, 'send']);
         Route::post('agents/{agent}/approvals/{approvalId}', [ChatController::class, 'approve']);
+
+        /* runtimes del registro (ios-model-runtime-compatibility: los
+           clientes construyen sus selectores desde esta lista, no desde
+           hardcode) */
+        Route::get('runtimes', [RuntimeController::class, 'index']);
 
         /* modelos (ver: todos; crear: admin) */
         Route::get('models', [ModelController::class, 'index']);
