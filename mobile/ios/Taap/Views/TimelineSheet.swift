@@ -54,7 +54,7 @@ struct TimelineSheet: View {
         VStack(alignment: .leading, spacing: 6) {
             HStack {
                 Image(systemName: w.open ? "clock.fill" : "checkmark.circle.fill")
-                    .foregroundStyle(w.open ? .orange : .green)
+                    .foregroundStyle(w.open ? TaapColor.warning : TaapColor.success)
                 Text(w.open ? appState.t("timeline.open") : appState.t("timeline.done"))
                     .font(.subheadline.weight(.medium))
                 Spacer()
@@ -71,16 +71,16 @@ struct TimelineSheet: View {
 
             HStack(spacing: 6) {
                 if w.messages > 0 {
-                    chip("\(appState.t("timeline.messages")): \(w.messages)", color: .gray)
+                    chip("\(appState.t("timeline.messages")): \(w.messages)", color: TaapColor.textSecondary)
                 }
                 if w.toolCalls > 0 {
-                    chip("\(appState.t("timeline.tools")): \(w.toolCalls)", color: .blue)
+                    chip("\(appState.t("timeline.tools")): \(w.toolCalls)", color: TaapColor.ink)
                 }
                 if w.approvals > 0 {
-                    chip("\(appState.t("timeline.approvals")): \(w.approvals)", color: .orange)
+                    chip("\(appState.t("timeline.approvals")): \(w.approvals)", color: TaapColor.warning)
                 }
                 if w.errors > 0 {
-                    chip("\(appState.t("timeline.errors")): \(w.errors)", color: .red)
+                    chip("\(appState.t("timeline.errors")): \(w.errors)", color: TaapColor.danger)
                 }
                 if w.tools.isEmpty {
                     Text(timeText(w))

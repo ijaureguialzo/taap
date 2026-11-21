@@ -20,13 +20,13 @@
 
 ## 4. iOS: asset catalog y tokens (design D3, D5, D7)
 
-- [ ] 4.1 Crear `mobile/ios/Taap/Assets.xcassets` con los color sets de la paleta (primary aqua 500/400-dark, ink, surface/surfaceElevated, textPrimary/textSecondary, success/warning/danger con variantes Any+Dark) y los 16 PNGs del AppIcon (1.2) + `Contents.json`; pasar `regenerate.sh`. Verificar: `xcodebuild build` exitoso y el .app resultante lleva el icono del grifo (inspeccionar `Assets_carousel`/ícono del simulador).
-- [ ] 4.2 Accessors `TaapColor` (Swift) sobre los color sets y pase de sustitución de los colores hardcodeados (`.indigo`, `.red`, `.green`, `systemGray5` en `AgentDetailView`/`AgentListView`/resto) por los tokens, con el mismo mapa semántico que la web. Verificar: `grep -rn "Color.indigo\|Color.red\|Color.green\|systemGray" Taap/Views/` devuelve 0 (salvo usos deliberados y anotados) y el test unitario de iOS pasa.
+- [x] 4.1 Crear `mobile/ios/Taap/Assets.xcassets` con los color sets de la paleta (primary aqua 500/400-dark, ink, surface/surfaceElevated, textPrimary/textSecondary, success/warning/danger con variantes Any+Dark) y los 16 PNGs del AppIcon (1.2) + `Contents.json`; pasar `regenerate.sh`. Verificar: `xcodebuild build` exitoso y el .app resultante lleva el icono del grifo (inspeccionar `Assets_carousel`/ícono del simulador).
+- [x] 4.2 Accessors `TaapColor` (Swift) sobre los color sets y pase de sustitución de los colores hardcodeados (`.indigo`, `.red`, `.green`, `systemGray5` en `AgentDetailView`/`AgentListView`/resto) por los tokens, con el mismo mapa semántico que la web. Verificar: `grep -rn "Color.indigo\|Color.red\|Color.green\|systemGray" Taap/Views/` devuelve 0 (salvo usos deliberados y anotados) y el test unitario de iOS pasa.
 
 ## 5. iOS: modo oscuro (design D5)
 
-- [ ] 5.1 Conmutador de tema de 3 estados (auto/claro/oscuro) en Ajustes: `@AppStorage("taap-theme")` con la misma semántica de resolución que la web, aplicando `.preferredColorScheme(…)` desde la raíz. Verificar: elegir oscuro → todas las pantallas (lista, chat, ajustes) usan las variantes dark del asset catalog; la elección persiste al relanzar; con auto sigue el sistema.
-- [ ] 5.2 Test unitario iOS de la persistencia/resolución del tema (3 estados, orden de resolución). Verificar: `xcodebuild test -only-testing:TaapUnitTests` en verde.
+- [x] 5.1 Conmutador de tema de 3 estados (auto/claro/oscuro) en Ajustes: `@AppStorage("taap-theme")` con la misma semántica de resolución que la web, aplicando `.preferredColorScheme(…)` desde la raíz. Verificar: elegir oscuro → todas las pantallas (lista, chat, ajustes) usan las variantes dark del asset catalog; la elección persiste al relanzar; con auto sigue el sistema.
+- [x] 5.2 Test unitario iOS de la persistencia/resolución del tema (3 estados, orden de resolución). Verificar: `xcodebuild test -only-testing:TaapUnitTests` en verde.
 
 ## 6. Contraste AA y verificación integral (design D8)
 

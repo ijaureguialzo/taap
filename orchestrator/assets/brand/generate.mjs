@@ -63,6 +63,10 @@ log('public/apple-touch-icon.png (180, teja)')
 
 console.log('app icon (teja):')
 writeFileSync(
+    path.join(repo, 'mobile/ios/Taap/Assets.xcassets/Contents.json'),
+    JSON.stringify({ info: { author: 'taap-brand', version: 1 } }, null, 4) + '\n'
+)
+writeFileSync(
     path.join(iosAssets, 'Contents.json'),
     JSON.stringify({
         images: [
@@ -74,19 +78,31 @@ writeFileSync(
             { filename: 'icon-40@3x.png', idiom: 'iphone', scale: '3x', size: '40x40' },
             { filename: 'icon-60@2x.png', idiom: 'iphone', scale: '2x', size: '60x60' },
             { filename: 'icon-60@3x.png', idiom: 'iphone', scale: '3x', size: '60x60' },
-            { filename: 'icon-76@2x.png', idiom: 'iphone', scale: '2x', size: '76x76' },
-            { filename: 'icon-83.5@2x.png', idiom: 'iphone', scale: '2x', size: '83.5x83.5' },
+            { filename: 'ipad-icon-20@1x.png', idiom: 'ipad', scale: '1x', size: '20x20' },
+            { filename: 'ipad-icon-20@2x.png', idiom: 'ipad', scale: '2x', size: '20x20' },
+            { filename: 'ipad-icon-29@1x.png', idiom: 'ipad', scale: '1x', size: '29x29' },
+            { filename: 'ipad-icon-29@2x.png', idiom: 'ipad', scale: '2x', size: '29x29' },
+            { filename: 'ipad-icon-40@1x.png', idiom: 'ipad', scale: '1x', size: '40x40' },
+            { filename: 'ipad-icon-76@1x.png', idiom: 'ipad', scale: '1x', size: '76x76' },
+            { filename: 'ipad-icon-76@2x.png', idiom: 'ipad', scale: '2x', size: '76x76' },
+            { filename: 'ipad-icon-83.5@2x.png', idiom: 'ipad', scale: '2x', size: '83.5x83.5' },
+            { filename: 'marketing-1024.png', idiom: 'ios-marketing', scale: '1x', size: '1024x1024' },
         ],
         info: { author: 'taap-brand', version: 1 },
     }, null, 4) + '\n'
 )
+log('Assets.xcassets/Contents.json')
 log('AppIcon.appiconset/Contents.json')
 for (const [name, size] of [
     ['icon-20@2x.png', 40], ['icon-20@3x.png', 60],
     ['icon-29@2x.png', 58], ['icon-29@3x.png', 87],
     ['icon-40@2x.png', 80], ['icon-40@3x.png', 120],
     ['icon-60@2x.png', 120], ['icon-60@3x.png', 180],
-    ['icon-76@2x.png', 152], ['icon-83.5@2x.png', 167],
+    ['ipad-icon-20@1x.png', 20], ['ipad-icon-20@2x.png', 40],
+    ['ipad-icon-29@1x.png', 29], ['ipad-icon-29@2x.png', 58],
+    ['ipad-icon-40@1x.png', 40], ['ipad-icon-76@1x.png', 76],
+    ['ipad-icon-76@2x.png', 152], ['ipad-icon-83.5@2x.png', 167],
+    ['marketing-1024.png', 1024],
 ]) {
     raster(TILE, size, path.join(iosAssets, name))
     log(`AppIcon ${name} (${size}px)`)

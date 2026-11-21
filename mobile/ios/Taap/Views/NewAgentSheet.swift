@@ -50,7 +50,7 @@ struct NewAgentSheet: View {
                             "runtime": runtimeLabel,
                         ]))
                         .font(.footnote)
-                        .foregroundStyle(.orange)
+                        .foregroundStyle(TaapColor.warning)
                     }
                 }
 

@@ -26,8 +26,11 @@
 		8D97F14B061E127EF79E084B /* ApiClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABE486C0348A4CFD26A59BBB /* ApiClient.swift */; };
 		8F9333100E9E7DCDBB5A7BCB /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D07C569F9B1E43845FC38BB /* AppState.swift */; };
 		9311ED1073CADB1D4859B8A1 /* AgentListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D7158ED5B491241B53C921A /* AgentListView.swift */; };
+		93532C672220BEF04625EE56 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5E930B88C7D557C92FCCA47 /* Theme.swift */; };
 		B66A2E03E036BE7162B96900 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 610348FF333845F96E8F2994 /* Assets.xcassets */; };
 		CD35F841284C25BB7962DC1C /* ChatSessionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09A3C03A20871B3880042720 /* ChatSessionTests.swift */; };
+		D4F069EF4DF6AC49A4BED82E /* ThemeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F42BAC3C7BBCF42F7B682C1B /* ThemeTests.swift */; };
+		EEA612CBBF180111A693533F /* TaapColor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 225246525351BC1DCF347AD8 /* TaapColor.swift */; };
 		F39D8C34C95CCB403504DEBA /* ReverbSocketTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0C89C3B525B6765DAFF76EC /* ReverbSocketTests.swift */; };
 		F8E0A77F013BAFF68D32CAE3 /* PusherTestServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50740E533E309FB267D3386A /* PusherTestServer.swift */; };
 		FC1F20E61DA68E6E671A0183 /* MainTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E204C0F64D1047056B4268C1 /* MainTabView.swift */; };
@@ -53,6 +56,7 @@
 /* Begin PBXFileReference section */
 		07F9323DE7F77AE4CCBA007D /* KeyVault.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyVault.swift; sourceTree = "<group>"; };
 		09A3C03A20871B3880042720 /* ChatSessionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatSessionTests.swift; sourceTree = "<group>"; };
+		225246525351BC1DCF347AD8 /* TaapColor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaapColor.swift; sourceTree = "<group>"; };
 		2337338C1B7ED4CAB952877B /* AgentDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentDetailView.swift; sourceTree = "<group>"; };
 		3210642FB172B2D6F7E46E13 /* AgentSettingsSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentSettingsSheet.swift; sourceTree = "<group>"; };
 		50740E533E309FB267D3386A /* PusherTestServer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PusherTestServer.swift; sourceTree = "<group>"; };
@@ -73,12 +77,14 @@
 		CA246ED136BBA260395A00A2 /* TimelineSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineSheet.swift; sourceTree = "<group>"; };
 		CCB405B5E034A5399EF65C94 /* LocaleStrings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocaleStrings.swift; sourceTree = "<group>"; };
 		CCCC432E62E07498AB4DC52F /* DtosTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DtosTests.swift; sourceTree = "<group>"; };
+		D5E930B88C7D557C92FCCA47 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
 		D90BB92A58008B6B4D515C7A /* TaapUnitTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = TaapUnitTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		DA1919E8D0F3C70A812E3B1D /* LocaleStringsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocaleStringsTests.swift; sourceTree = "<group>"; };
 		E204C0F64D1047056B4268C1 /* MainTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainTabView.swift; sourceTree = "<group>"; };
 		E3A39B754DA97F87F95DFC68 /* Taap.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Taap.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		E8343CFF2738E23ED2D417C8 /* TaapUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaapUITests.swift; sourceTree = "<group>"; };
 		EC9207EE2E24E54D35F1F194 /* ReverbSocket.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReverbSocket.swift; sourceTree = "<group>"; };
+		F42BAC3C7BBCF42F7B682C1B /* ThemeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThemeTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -120,6 +126,7 @@
 				CCCC432E62E07498AB4DC52F /* DtosTests.swift */,
 				DA1919E8D0F3C70A812E3B1D /* LocaleStringsTests.swift */,
 				C0C89C3B525B6765DAFF76EC /* ReverbSocketTests.swift */,
+				F42BAC3C7BBCF42F7B682C1B /* ThemeTests.swift */,
 				9AEA865E5EA69FE8E8259A98 /* Support */,
 			);
 			name = Unit;
@@ -178,6 +185,8 @@
 				07F9323DE7F77AE4CCBA007D /* KeyVault.swift */,
 				CCB405B5E034A5399EF65C94 /* LocaleStrings.swift */,
 				EC9207EE2E24E54D35F1F194 /* ReverbSocket.swift */,
+				225246525351BC1DCF347AD8 /* TaapColor.swift */,
+				D5E930B88C7D557C92FCCA47 /* Theme.swift */,
 			);
 			path = Support;
 			sourceTree = "<group>";
@@ -314,6 +323,8 @@
 				1CED24351A9D0CE9FD4EECB3 /* NewAgentSheet.swift in Sources */,
 				62C49EE273F062422E33390D /* ReverbSocket.swift in Sources */,
 				31FF36C9D93671AC212EA264 /* TaapApp.swift in Sources */,
+				EEA612CBBF180111A693533F /* TaapColor.swift in Sources */,
+				93532C672220BEF04625EE56 /* Theme.swift in Sources */,
 				565BD52C3D8FB5DE7CC33112 /* TimelineSheet.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -327,6 +338,7 @@
 				084C4C6373E0E5FDE301CBC0 /* LocaleStringsTests.swift in Sources */,
 				F8E0A77F013BAFF68D32CAE3 /* PusherTestServer.swift in Sources */,
 				F39D8C34C95CCB403504DEBA /* ReverbSocketTests.swift in Sources */,
+				D4F069EF4DF6AC49A4BED82E /* ThemeTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

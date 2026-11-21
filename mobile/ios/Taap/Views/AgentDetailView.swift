@@ -118,11 +118,11 @@ struct AgentDetailView: View {
             }
             HStack(spacing: 3) {
                 Circle()
-                    .fill(live ? Color.green : Color.gray)
+                    .fill(live ? TaapColor.success : TaapColor.textSecondary)
                     .frame(width: 7, height: 7)
                 Text(live ? "WSS" : "…")
                     .font(.caption2)
-                    .foregroundStyle(live ? .green : .secondary)
+                    .foregroundStyle(live ? TaapColor.success : TaapColor.textSecondary)
             }
         }
         .padding(.horizontal, 12)
@@ -135,14 +135,7 @@ struct AgentDetailView: View {
     }
 
     private var statusColor: Color {
-        switch agent?.status ?? "" {
-        case "idle": return .green
-        case "working": return .blue
-        case "waiting-approval": return .orange
-        case "starting": return .yellow
-        case "error": return .red
-        default: return .gray
-        }
+        TaapColor.status(agent?.status ?? "")
     }
 
     private var isOwner: Bool {
@@ -198,7 +191,7 @@ struct AgentDetailView: View {
                 Image(systemName: "paperplane.fill")
                     .foregroundStyle(.white)
                     .padding(8)
-                    .background(Color.indigo, in: Circle())
+                    .background(TaapColor.primary, in: Circle())
             }
             .disabled(draft.trimmingCharacters(in: .whitespaces).isEmpty)
         }
@@ -309,8 +302,8 @@ struct MessageBubble: View {
                 .textSelection(.enabled)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
-                .background(message.isUser ? Color.indigo : Color(.systemGray5), in: RoundedRectangle(cornerRadius: 12))
-                .foregroundStyle(message.isUser ? .white : .primary)
+                .background(message.isUser ? TaapColor.primary : TaapColor.surfaceElevated, in: RoundedRectangle(cornerRadius: 12))
+                .foregroundStyle(message.isUser ? TaapColor.primaryText : TaapColor.textPrimary)
             if !message.isUser { Spacer(minLength: 48) }
         }
     }
@@ -326,7 +319,7 @@ struct ApprovalBubble: View {
         VStack(alignment: .leading, spacing: 8) {
             Label("Aprobación", systemImage: "hand.raised")
                 .font(.footnote.weight(.semibold))
-                .foregroundStyle(.orange)
+                .foregroundStyle(TaapColor.warning)
             Text(prompt)
                 .font(.footnote)
             HStack {
@@ -335,17 +328,17 @@ struct ApprovalBubble: View {
                         .frame(minWidth: 80)
                 }
                 .buttonStyle(.borderedProminent)
-                .tint(.green)
+                .tint(TaapColor.success)
 
                 Button(action: onDeny) {
                     Text(appState.t("chat.deny"))
                         .frame(minWidth: 80)
                 }
                 .buttonStyle(.bordered)
-                .tint(.red)
+                .tint(TaapColor.danger)
             }
         }
         .padding(12)
-        .background(.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: 12))
+        .background(TaapColor.warning.opacity(0.12), in: RoundedRectangle(cornerRadius: 12))
     }
 }

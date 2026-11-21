@@ -107,14 +107,7 @@ struct AgentRowView: View {
     }
 
     private var color: Color {
-        switch agent.status {
-        case "idle": return .green
-        case "working": return .blue
-        case "waiting-approval": return .orange
-        case "starting": return .yellow
-        case "error": return .red
-        default: return .gray
-        }
+        TaapColor.status(agent.status)
     }
 
     private var statusText: String {

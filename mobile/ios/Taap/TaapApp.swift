@@ -20,19 +20,27 @@ struct TaapApp: App {
             RootView()
                 .environmentObject(appState)
                 .environment(\.locale, Locale(identifier: appState.locale))
-                .tint(.indigo)
+                .tint(TaapColor.primary)
         }
     }
 }
 
 struct RootView: View {
     @EnvironmentObject var appState: AppState
+    // brand-identity D5: tema de 3 estados (mismo contrato que la web).
+    // auto -> nil: el sistema decide; light/dark fuerzan.
+    @AppStorage("taap-theme") private var theme = "auto"
+
+    var resolved: TaapTheme { TaapTheme(resolving: theme) }
 
     var body: some View {
-        if appState.isAuthenticated {
-            MainTabView()
-        } else {
-            LoginView()
+        Group {
+            if appState.isAuthenticated {
+                MainTabView()
+            } else {
+                LoginView()
+            }
         }
+        .preferredColorScheme(resolved.colorScheme)
     }
 }

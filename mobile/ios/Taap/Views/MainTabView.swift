@@ -3,6 +3,8 @@ import SwiftUI
 struct MainTabView: View {
     @EnvironmentObject var appState: AppState
     @State private var selectedTab: Tab = .agents
+    // brand-identity D5: conmutador de tema (3 estados).
+    @AppStorage("taap-theme") private var theme = "auto"
 
     enum Tab: Hashable {
         case agents
@@ -26,6 +28,11 @@ struct MainTabView: View {
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
                 Menu {
+                    Picker(appState.t("menu.theme"), selection: $theme) {
+                        Text(appState.t("theme.auto")).tag("auto")
+                        Text(appState.t("theme.light")).tag("light")
+                        Text(appState.t("theme.dark")).tag("dark")
+                    }
                     Picker(appState.t("menu.language"), selection: $appState.locale) {
                         Text("es").tag("es")
                         Text("en").tag("en")
@@ -63,7 +70,7 @@ struct BannerView: View {
             Text(banner.text)
                 .font(.footnote)
                 .padding(10)
-                .background(banner.kind == .error ? Color.red.opacity(0.9) : Color.indigo.opacity(0.9), in: RoundedRectangle(cornerRadius: 8))
+                .background(banner.kind == .error ? TaapColor.danger.opacity(0.9) : TaapColor.primary.opacity(0.9), in: RoundedRectangle(cornerRadius: 8))
                 .foregroundStyle(.white)
                 .padding(.top, 8)
             Spacer()
