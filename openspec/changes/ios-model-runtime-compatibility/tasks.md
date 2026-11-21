@@ -23,8 +23,8 @@ Prerrequisito: el cambio `improve-provider-model-management` debe estar aterriza
 
 ## 5. iOS: cliente API y DTOs
 
-- [ ] 5.1 `Dtos.swift`: `RuntimeDTO` + envelope; `ModelDTO` con `providerType: String?` / `providerStatus: String?` vía `decodeIfPresent` (decodificación tolerante con orquestador viejo — D5). Verificar: unit tests nuevos en `ios/Tests` que decoden payloads de ejemplo con y sin los campos nuevos; ejecutar `xcodebuild test` (o el equivalente del proyecto vía `regenerate.sh`).
-- [ ] 5.2 `ApiClient.swift`: `runtimes()` y `models(runtime: String? = nil)` (añade `?runtime=` solo si no es nil). Verificar: los tests de 5.1 cubren la serialización del parámetro; verificación manual en simulador contra el orquestador local.
+- [x] 5.1 `Dtos.swift`: `RuntimeDTO` + envelope; `ModelDTO` con `providerType: String?` / `providerStatus: String?` vía `decodeIfPresent` (decodificación tolerante con orquestador viejo — D5). Verificar: unit tests nuevos en `ios/Tests` que decoden payloads de ejemplo con y sin los campos nuevos; ejecutar `xcodebuild test` (o el equivalente del proyecto vía `regenerate.sh`).
+- [x] 5.2 `ApiClient.swift`: `runtimes()` y `models(runtime: String? = nil)` (añade `?runtime=` solo si no es nil). Verificar: los tests de 5.1 cubren la serialización del parámetro; verificación manual en simulador contra el orquestador local.
 
 ## 6. iOS: NewAgentSheet (registro + filtro + descarte + marca)
 

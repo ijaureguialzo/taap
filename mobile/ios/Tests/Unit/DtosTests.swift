@@ -1,0 +1,120 @@
+import Foundation
+import XCTest
+
+@testable import Taap
+
+/// DTOs de modelos y runtimes (ios-model-runtime-compatibility 5.1, design
+/// D5/D6): decodificacion tolerante con un orquestador viejo (los campos
+/// nuevos via `decodeIfPresent`) y serializacion del filtro `?runtime=`.
+final class DtosTests: XCTestCase {
+    private let decoder = JSONDecoder()
+
+    private func decode<T: Decodable>(_ type: T.Type, _ json: String) throws -> T {
+        try decoder.decode(type, from: Data(json.utf8))
+    }
+
+    // MARK: - ModelDTO: campos nuevos
+
+    func test_model_with_new_provider_fields_decodes() throws {
+        let json = """
+        {"id": 1, "model_id": "gpt-x", "name": "Modelo GPT", "provider": "prov-ok",
+         "provider_type": "openai", "provider_status": "error",
+         "context_window": 8000, "max_tokens": 2000, "capabilities": ["tools"]}
+        """
+
+        let m = try decode(ModelDTO.self, json)
+        XCTAssertEqual(m.id, 1)
+        XCTAssertEqual(m.provider, "prov-ok")
+        XCTAssertEqual(m.providerType, "openai")
+        XCTAssertEqual(m.providerStatus, "error")
+        XCTAssertTrue(m.isUnhealthy)
+    }
+
+    /// Decodificacion tolerante (design D5): un orquestador anterior, sin
+    /// los campos nuevos, debe decodificar igual que antes.
+    func test_model_without_new_fields_decodes_from_old_orchestrator() throws {
+        let json = """
+        {"id": 2, "model_id": "claude-y", "name": "Modelo Claude",
+         "provider": "prov-anthropic", "context_window": null,
+         "max_tokens": null, "capabilities": null}
+        """
+
+        let m = try decode(ModelDTO.self, json)
+        XCTAssertEqual(m.modelId, "claude-y")
+        XCTAssertNil(m.providerType)
+        XCTAssertNil(m.providerStatus)
+        XCTAssertFalse(m.isUnhealthy)
+    }
+
+    func test_model_with_explicit_null_status_is_not_unhealthy() throws {
+        // Sin comprobacion: status null en el JSON (no un string vacio)
+        let json = """
+        {"id": 3, "model_id": "m", "name": "M", "provider": "p",
+         "provider_type": "other", "provider_status": null}
+        """
+
+        let m = try decode(ModelDTO.self, json)
+        XCTAssertEqual(m.providerType, "other")
+        XCTAssertNil(m.providerStatus)
+        XCTAssertFalse(m.isUnhealthy)
+    }
+
+    func test_healthy_and_unchecked_models_are_not_unhealthy() throws {
+        let ok = try decode(ModelDTO.self, """
+        {"id": 4, "model_id": "a", "provider": "p", "provider_status": "ok"}
+        """)
+        XCTAssertFalse(ok.isUnhealthy)
+
+        let unknown = try decode(ModelDTO.self, """
+        {"id": 5, "model_id": "b", "provider": "p"}
+        """)
+        XCTAssertFalse(unknown.isUnhealthy)
+    }
+
+    // MARK: - RuntimeDTO
+
+    func test_runtimes_envelope_decodes_the_registry() throws {
+        let json = """
+        {"runtimes": [
+            {"id": "pi", "label": "Pi", "formats": ["openai"]},
+            {"id": "hermes", "label": "Hermes", "formats": ["openai"]},
+            {"id": "claude", "label": "Claude Code", "formats": ["anthropic"]},
+            {"id": "codex", "label": "Codex", "formats": ["openai"]},
+            {"id": "opencode", "label": "OpenCode", "formats": ["openai", "anthropic"]}
+        ]}
+        """
+
+        let res = try decode(RuntimesEnvelope.self, json)
+        XCTAssertEqual(res.runtimes.map(\.id), ["pi", "hermes", "claude", "codex", "opencode"])
+        XCTAssertEqual(res.runtimes[2].label, "Claude Code")
+        XCTAssertEqual(res.runtimes[4].formats, ["openai", "anthropic"])
+    }
+
+    // MARK: - Filtro ?runtime= (ApiClient.modelsPath)
+
+    func test_models_path_without_runtime_has_no_query() {
+        XCTAssertEqual(ApiClient.modelsPath(), "api/v1/models")
+    }
+
+    func test_models_path_with_runtime_appends_the_query() {
+        // Se añade ?runtime= solo si hay runtime (los tests de 5.1 cubren
+        // la serializacion del parametro, task 5.2).
+        XCTAssertEqual(ApiClient.modelsPath(runtime: "claude"), "api/v1/models?runtime=claude")
+        XCTAssertEqual(ApiClient.modelsPath(runtime: "pi"), "api/v1/models?runtime=pi")
+    }
+
+    // MARK: - 422 de formato
+
+    func test_validation_errors_body_exposes_model_id_error() throws {
+        // Cuerpo de un 422 de Laravel: la deteccion del 422 de formato
+        // (ApiClient.request) mira la clave `model_id` de `errors`.
+        let json = """
+        {"message": "The given data was invalid.",
+         "errors": {"model_id": ["El modelo usa el formato anthropic, que el runtime Pi no consume."]}}
+        """
+
+        let res = try decode(ApiValidationErrors.self, json)
+        XCTAssertNotNil(res.errors?["model_id"])
+        XCTAssertNil(res.errors?["name"])
+    }
+}

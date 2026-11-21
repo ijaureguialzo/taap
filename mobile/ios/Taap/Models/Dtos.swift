@@ -134,12 +134,36 @@ struct ModelDTO: Decodable, Identifiable, Hashable {
     /// `GET /models` devuelve el NOMBRE del proveedor (string), no un
     /// objeto: decodificarlo como ProviderSummary hundia la lista entera.
     let provider: String?
+    /// Formato de alambre del proveedor (openai/anthropic/other). Campo
+    /// aditivo del orquestador (ios-model-runtime-compatibility):
+    /// `decodeIfPresent` para que un orquestador viejo sin el campo no
+    /// rompa la decodificacion (design D5/D6).
+    let providerType: String?
+    /// Salud del proveedor (ok/error) o null si no ha sido comprobado.
+    /// `"error"` -> la UI lo marca atenuado + «no sano» (paridad web).
+    let providerStatus: String?
 
     var displayName: String { name ?? modelId }
+
+    /// Proveedor marcado como no sano: la UI lo atenúa y etiqueta, sin
+    /// bloquear la seleccion (spec ios-client "Marca de proveedor no sano").
+    var isUnhealthy: Bool { providerStatus == "error" }
 
     enum CodingKeys: String, CodingKey {
         case id, name, provider
         case modelId = "model_id"
+        case providerType = "provider_type"
+        case providerStatus = "provider_status"
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(Int.self, forKey: .id)
+        modelId = try c.decode(String.self, forKey: .modelId)
+        name = try c.decodeIfPresent(String.self, forKey: .name)
+        provider = try c.decodeIfPresent(String.self, forKey: .provider)
+        providerType = try c.decodeIfPresent(String.self, forKey: .providerType)
+        providerStatus = try c.decodeIfPresent(String.self, forKey: .providerStatus)
     }
 }
 
@@ -161,6 +185,22 @@ struct ProviderDTO: Decodable, Identifiable, Hashable {
         case baseUrl = "base_url"
     }
 }
+
+// MARK: - Runtimes del registro
+
+/// Un runtime soportado por el servicio, tal y como lo expone
+/// `GET /v1/runtimes` (ios-model-runtime-compatibility, design D2):
+/// identificador, etiqueta de registro y formatos de alambre que consume.
+struct RuntimeDTO: Decodable, Identifiable, Hashable {
+    let id: String
+    let label: String
+    /// Formatos de alambre que consume (openai/anthropic). Informativo:
+    /// el cliente NUNCA decide la compatibilidad localmente (design D5);
+    /// la lista de modelos filtrada por el servidor es la fuente de verdad.
+    let formats: [String]?
+}
+
+struct RuntimesEnvelope: Decodable { let runtimes: [RuntimeDTO] }
 
 // MARK: - Chat
 

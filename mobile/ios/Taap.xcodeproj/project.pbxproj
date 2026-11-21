@@ -14,6 +14,7 @@
 		2B07E63B95FA3F1DD3202109 /* TaapUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8343CFF2738E23ED2D417C8 /* TaapUITests.swift */; };
 		312977689A9D98E927BA51D9 /* KeyVault.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07F9323DE7F77AE4CCBA007D /* KeyVault.swift */; };
 		31FF36C9D93671AC212EA264 /* TaapApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 815519A3FB3F7E7E8610EB0A /* TaapApp.swift */; };
+		43BECF47F76929FB159C7C87 /* DtosTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCCC432E62E07498AB4DC52F /* DtosTests.swift */; };
 		4988C04183886B4DCEEE137F /* AgentSettingsSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3210642FB172B2D6F7E46E13 /* AgentSettingsSheet.swift */; };
 		5264FA91F42954C525EA25EC /* ChatSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4E4451B9204A327BAD14692 /* ChatSession.swift */; };
 		565BD52C3D8FB5DE7CC33112 /* TimelineSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA246ED136BBA260395A00A2 /* TimelineSheet.swift */; };
@@ -69,6 +70,7 @@
 		C0C89C3B525B6765DAFF76EC /* ReverbSocketTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReverbSocketTests.swift; sourceTree = "<group>"; };
 		CA246ED136BBA260395A00A2 /* TimelineSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineSheet.swift; sourceTree = "<group>"; };
 		CCB405B5E034A5399EF65C94 /* LocaleStrings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocaleStrings.swift; sourceTree = "<group>"; };
+		CCCC432E62E07498AB4DC52F /* DtosTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DtosTests.swift; sourceTree = "<group>"; };
 		D90BB92A58008B6B4D515C7A /* TaapUnitTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = TaapUnitTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		DA1919E8D0F3C70A812E3B1D /* LocaleStringsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocaleStringsTests.swift; sourceTree = "<group>"; };
 		E204C0F64D1047056B4268C1 /* MainTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainTabView.swift; sourceTree = "<group>"; };
@@ -112,6 +114,7 @@
 			isa = PBXGroup;
 			children = (
 				09A3C03A20871B3880042720 /* ChatSessionTests.swift */,
+				CCCC432E62E07498AB4DC52F /* DtosTests.swift */,
 				DA1919E8D0F3C70A812E3B1D /* LocaleStringsTests.swift */,
 				C0C89C3B525B6765DAFF76EC /* ReverbSocketTests.swift */,
 				9AEA865E5EA69FE8E8259A98 /* Support */,
@@ -305,6 +308,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				CD35F841284C25BB7962DC1C /* ChatSessionTests.swift in Sources */,
+				43BECF47F76929FB159C7C87 /* DtosTests.swift in Sources */,
 				084C4C6373E0E5FDE301CBC0 /* LocaleStringsTests.swift in Sources */,
 				F8E0A77F013BAFF68D32CAE3 /* PusherTestServer.swift in Sources */,
 				F39D8C34C95CCB403504DEBA /* ReverbSocketTests.swift in Sources */,

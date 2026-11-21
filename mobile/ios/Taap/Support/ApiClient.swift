@@ -6,12 +6,17 @@ final class ApiClient {
         case http(Int, String)
         case network(String)
         case notAuthenticated
+        /// 422 de validacion con error en `model_id`: el formato del modelo
+        /// no es compatible con el runtime (el servidor aplica la regla en
+        /// todo caso; la vista lo mapea a su cadena localizada).
+        case incompatibleModel
 
         var errorDescription: String? {
             switch self {
             case .http(let code, let msg): return "Error \(code): \(msg)"
             case .network(let msg): return msg
             case .notAuthenticated: return "Sesión no válida"
+            case .incompatibleModel: return "El modelo no es compatible con este runtime"
             }
         }
     }
@@ -69,6 +74,15 @@ final class ApiClient {
             throw ApiError.notAuthenticated
         }
         if http.statusCode >= 400 {
+            // Un 422 con error en `model_id` es el 422 de formato
+            // modelo↔runtime de la API (design D4): se expone como un
+            // error propio para que la UI muestre su cadena localizada
+            // en lugar del crudo de Laravel (riesgo del design).
+            if http.statusCode == 422,
+               let validation = try? JSONDecoder().decode(ApiValidationErrors.self, from: data),
+               validation.errors?["model_id"] != nil {
+                throw ApiError.incompatibleModel
+            }
             let msg = (try? JSONDecoder().decode([String: String].self, from: data))?["message"]
                 ?? (try? JSONDecoder().decode(ApiMessage.self, from: data))?.message
                 ?? "error HTTP"
@@ -200,9 +214,28 @@ final class ApiClient {
 
     // MARK: - Catálogos
 
-    func models() async throws -> [ModelDTO] {
-        let res: ModelsEnvelope = try await request("api/v1/models")
+    /// Ruta de `GET /models` con el filtro opcional por runtime
+    /// (ios-model-runtime-compatibility, design D3). Sin runtime, la query
+    /// no se añade: un orquestador viejo no conoce el parametro (y un
+    /// cliente viejo no lo envia; retrocompatible).
+    static func modelsPath(runtime: String? = nil) -> String {
+        guard let runtime else { return "api/v1/models" }
+        return "api/v1/models?runtime=\(runtime)"
+    }
+
+    func models(runtime: String? = nil) async throws -> [ModelDTO] {
+        let res: ModelsEnvelope = try await request(Self.modelsPath(runtime: runtime))
         return res.models
+    }
+
+    /// Runtimes del registro del servicio (`GET /v1/runtimes`): la base del
+    /// picker de runtime, que NO se hardcodea en la app (spec agent-runtimes
+    /// / ios-client "Runtimes desde el servicio"). Un orquestador viejo
+    /// devuelve 404: la UI lo muestra como error y deshabilita la creacion
+    /// (design D6), sin inventar runtimes.
+    func runtimes() async throws -> [RuntimeDTO] {
+        let res: RuntimesEnvelope = try await request("api/v1/runtimes")
+        return res.runtimes
     }
 
     /// Catálogo de servidores MCP (para la seccion MCP de la config).
@@ -239,6 +272,14 @@ struct MessageEnvelope: Decodable { let message: ChatMessageDTO }
 struct ModelsEnvelope: Decodable { let models: [ModelDTO] }
 struct ProvidersEnvelope: Decodable { let providers: [ProviderDTO] }
 struct ApiMessage: Decodable { let message: String }
+
+/// Cuerpo de un 422 de validacion de Laravel: permite distinguir el 422
+/// por formato modelo↔runtime (error en `model_id`) de otros 422 y
+/// mapearlo a la cadena localizada de la app.
+struct ApiValidationErrors: Decodable {
+    let message: String?
+    let errors: [String: [String]]?
+}
 
 struct ReverbConfig: Decodable {
     let key: String
