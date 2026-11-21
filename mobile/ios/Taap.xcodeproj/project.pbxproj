@@ -26,6 +26,7 @@
 		8D97F14B061E127EF79E084B /* ApiClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABE486C0348A4CFD26A59BBB /* ApiClient.swift */; };
 		8F9333100E9E7DCDBB5A7BCB /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D07C569F9B1E43845FC38BB /* AppState.swift */; };
 		9311ED1073CADB1D4859B8A1 /* AgentListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D7158ED5B491241B53C921A /* AgentListView.swift */; };
+		B66A2E03E036BE7162B96900 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 610348FF333845F96E8F2994 /* Assets.xcassets */; };
 		CD35F841284C25BB7962DC1C /* ChatSessionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09A3C03A20871B3880042720 /* ChatSessionTests.swift */; };
 		F39D8C34C95CCB403504DEBA /* ReverbSocketTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0C89C3B525B6765DAFF76EC /* ReverbSocketTests.swift */; };
 		F8E0A77F013BAFF68D32CAE3 /* PusherTestServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50740E533E309FB267D3386A /* PusherTestServer.swift */; };
@@ -56,6 +57,7 @@
 		3210642FB172B2D6F7E46E13 /* AgentSettingsSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentSettingsSheet.swift; sourceTree = "<group>"; };
 		50740E533E309FB267D3386A /* PusherTestServer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PusherTestServer.swift; sourceTree = "<group>"; };
 		50D58600F9939EB6B99B2C84 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		610348FF333845F96E8F2994 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		61A6D31504C2E8408FB490C5 /* AgentChannelManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentChannelManager.swift; sourceTree = "<group>"; };
 		6D7158ED5B491241B53C921A /* AgentListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentListView.swift; sourceTree = "<group>"; };
 		7D07C569F9B1E43845FC38BB /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
@@ -83,6 +85,7 @@
 		0E663E8234850971311F0D19 /* Taap */ = {
 			isa = PBXGroup;
 			children = (
+				610348FF333845F96E8F2994 /* Assets.xcassets */,
 				50D58600F9939EB6B99B2C84 /* Info.plist */,
 				815519A3FB3F7E7E8610EB0A /* TaapApp.swift */,
 				2741667CE62BC278464217BA /* Models */,
@@ -205,6 +208,7 @@
 			buildConfigurationList = BFD96F25AAC335D5F6521514 /* Build configuration list for PBXNativeTarget "Taap" */;
 			buildPhases = (
 				82FB4B88316A7132F01D2EF1 /* Sources */,
+				F171C4F272BF8BFF6FAFB293 /* Resources */,
 			);
 			buildRules = (
 			);
@@ -269,6 +273,17 @@
 			);
 		};
 /* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		F171C4F272BF8BFF6FAFB293 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B66A2E03E036BE7162B96900 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		6983B08B77877492D0957944 /* Sources */ = {

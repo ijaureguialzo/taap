@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="TAAP">
+  <!--
+    TAAP — marca: el grifo. Maestro de la identidad visual (brand-identity D1).
+    Geometria: viewBox 1024, glifo al ~62 % (bbox 200..824 x 200..868),
+    dos paths planos (silueta + gota), sin degradados ni sombras.
+    Componentes de la silueta (todos unen a la misma figura):
+      percha (T) 352..772 x 200..296 · viga 456..568 x 256..404
+      cuerpo 200..824 x 380..524 · boquilla 200..344 x 380..680
+    La gota (path separado, acento) cuelga bajo la boquilla.
+    Derivados (generate.mjs): favicon bicolor, teja app icon, wordmark.
+  -->
+  <path id="faucet" fill="#1E7F7A" d="M 400 200 H 724 A 48 48 0 0 1 724 296 H 400 A 48 48 0 0 1 400 200 Z M 512 256 H 512 A 56 56 0 0 1 568 312 V 348 A 56 56 0 0 1 512 404 H 512 A 56 56 0 0 1 456 348 V 312 A 56 56 0 0 1 512 256 Z M 272 380 H 752 A 72 72 0 0 1 752 524 H 272 A 72 72 0 0 1 272 380 Z M 256 380 H 288 A 56 56 0 0 1 344 436 V 624 A 56 56 0 0 1 288 680 H 256 A 56 56 0 0 1 200 624 V 436 A 56 56 0 0 1 256 380 Z"/>
+  <path id="drop" fill="#125E7A" d="M 272 700 C 296 748 336 768 336 812 A 64 64 0 1 1 208 812 C 208 768 248 748 272 700 Z"/>
+</svg>
