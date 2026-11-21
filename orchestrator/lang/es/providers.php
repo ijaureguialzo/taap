@@ -12,6 +12,9 @@ return [
     'check' => 'Comprobar conectividad',
     'check_ok' => 'Conectado correctamente.',
     'check_fail' => 'No se pudo conectar.',
+    'saved' => 'Guardado.',
+    'saved_unhealthy' => 'Guardado, pero el endpoint no respondió (marcado no sano).',
+    'discovered' => 'Guardado. :count modelos nuevos descubiertos.',
     'delete' => 'Eliminar',
     'empty' => 'No hay proveedores. Añade el primero (p. ej. tu gateway local).',
 ];

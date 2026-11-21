@@ -12,6 +12,9 @@ return [
     'check' => 'Egiaztatu konektibitatea',
     'check_ok' => 'Ondo konektatua.',
     'check_fail' => 'Ezin da konektatu.',
+    'saved' => 'Gordeta.',
+    'saved_unhealthy' => 'Gordeta, baina ezin da konektatu (ez da osasuntsua).',
+    'discovered' => 'Gordeta. :count modelo berri aurkitu dira.',
     'delete' => 'Ezabatu',
     'empty' => 'Ez dago eskaintzailerik. Gehitu lehenengoa (adib. zure gateway lokala).',
 ];

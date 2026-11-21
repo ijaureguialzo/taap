@@ -1,4 +1,21 @@
 <div class="providers-index">
+    {{-- El layout renderiza el flash solo en la carga inicial de pagina: en una
+         actualizacion Livewire NO se re-renderiza el layout, asi que el aviso de
+         estas acciones (check/save) se muestra aqui, dentro del componente.
+         (El flash se consume al terminar la actualizacion: aviso de un uso.) --}}
+    @if (session('success'))
+        <div class="alert alert-success alert-dismissible fade show">
+            {{ session('success') }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    @endif
+    @if (session('error'))
+        <div class="alert alert-danger alert-dismissible fade show">
+            {{ session('error') }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    @endif
+
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h1 class="h3 mb-0">{{ __('providers.title') }}</h1>
         @unless ($creating)

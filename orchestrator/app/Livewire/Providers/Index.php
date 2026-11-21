@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Providers;
 
+use App\Models\Model;
 use App\Models\ModelProvider;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Auth;
@@ -94,39 +95,125 @@ class Index extends Component
                 $data['api_key'] = $key;
             }
             ModelProvider::whereKey($this->edit_id)->where('created_by', Auth::user()->id)->update($data);
+            $id = $this->edit_id;
         } else {
             $data['api_key'] = $key;
-            ModelProvider::create($data);
+            $id = ModelProvider::create($data)->id;
+        }
+
+        $provider = ModelProvider::query()->findOrFail($id);
+
+        // Comprobacion al guardar (D3): el provider queda persistido en
+        // cualquier caso; el resultado (salud) y, para openai/other, el
+        // descubrimiento de modelos (D4) dependen de la respuesta.
+        [$ok, $models, $code] = $this->probe($provider, $provider->api_key);
+        $provider->forceFill([
+            'status' => $ok ? ModelProvider::STATUS_OK : ModelProvider::STATUS_ERROR,
+            'last_checked_at' => now(),
+        ])->save();
+
+        if ($ok) {
+            if (in_array($provider->type, ['openai', 'other'], true)) {
+                $created = $this->discoverModels($provider, $models ?? []);
+                session()->flash('success', $created > 0
+                    ? __('providers.discovered', ['count' => $created])
+                    : __('providers.saved'));
+            } else {
+                session()->flash('success', __('providers.saved'));
+            }
+        } else {
+            session()->flash('error', $code
+                ? __('providers.saved_unhealthy').' ('.$code.')'
+                : __('providers.saved_unhealthy'));
         }
 
         $this->creating = false;
         $this->edit_id = null;
-        session()->flash('success', __('actions.save'));
     }
 
     public function check(?int $id): void
     {
         $p = ModelProvider::findOrFail($id);
-        $headers = $p->api_key ? ['Authorization' => 'Bearer '.$p->api_key] : [];
 
-        try {
-            $res = Http::timeout(15)
-                ->withHeaders($headers)
-                ->get(rtrim($p->base_url, '/').'/models');
+        [$ok, , $code] = $this->probe($p, $p->api_key);
 
-            if ($res->successful()) {
-                session()->flash('success', __('providers.check_ok'));
-            } else {
-                session()->flash('error', __('providers.check_fail')." ({$res->status()})");
-            }
-        } catch (\Throwable $e) {
-            session()->flash('error', __('providers.check_fail'));
+        $p->forceFill([
+            'status' => $ok ? ModelProvider::STATUS_OK : ModelProvider::STATUS_ERROR,
+            'last_checked_at' => now(),
+        ])->save();
+
+        if ($ok) {
+            session()->flash('success', __('providers.check_ok'));
+        } else {
+            session()->flash('error', $code
+                ? __('providers.check_fail').' ('.$code.')'
+                : __('providers.check_fail'));
         }
     }
 
     public function delete(int $id): void
     {
         ModelProvider::whereKey($id)->where('created_by', Auth::user()->id)->delete();
+    }
+
+    /**
+     * Comprobar el endpoint de modelos (design D3): el path depende del
+     * formato — para openai/other `{base_url}/models` (el base_url ya
+     * incluye su /v1) y para anthropic `{base_url}/v1/models` (su base_url
+     * no lo lleva): la misma convencion que usa
+     * ModelProxyController::upstreamPath.
+     *
+     * @return array{0: bool, 1: ?array<mixed>, 2: ?int}
+     *         [exito, data[] del endpoint o null, codigo HTTP (null si
+     *         fallo de conexion/timeout)]
+     */
+    protected function probe(ModelProvider $provider, ?string $apiKey): array
+    {
+        $headers = $apiKey ? ['Authorization' => 'Bearer '.$apiKey] : [];
+        $url = rtrim($provider->base_url, '/').($provider->type === 'anthropic' ? '/v1/models' : '/models');
+
+        try {
+            $res = Http::timeout(15)->withHeaders($headers)->get($url);
+        } catch (\Throwable) {
+            return [false, null, null]; // timeout o error de conexion
+        }
+
+        if (! $res->successful()) {
+            return [false, null, $res->status()];
+        }
+
+        $data = $res->json('data');
+
+        return [true, is_array($data) ? $data : [], null];
+    }
+
+    /**
+     * Descubrimiento (design D4): merge no destructivo — solo crea los
+     * (provider_id, model_id) ausentes; las filas curadas a mano no se
+     * tocan (el podado es accion manual en la pagina de modelos).
+     *
+     * @param  array<mixed>  $entries  `data[]` del endpoint
+     * @return int numero de modelos creados
+     */
+    protected function discoverModels(ModelProvider $provider, array $entries): int
+    {
+        $known = Model::where('provider_id', $provider->id)->pluck('model_id')->all();
+        $created = 0;
+
+        foreach ($entries as $entry) {
+            $modelId = is_array($entry) ? ($entry['id'] ?? null) : null;
+            if (! is_string($modelId) || $modelId === '' || in_array($modelId, $known, true)) {
+                continue;
+            }
+            $known[] = $modelId; // dedupe dentro de la propia respuesta
+            Model::firstOrCreate(
+                ['provider_id' => $provider->id, 'model_id' => $modelId],
+                ['name' => $modelId],
+            );
+            $created++;
+        }
+
+        return $created;
     }
 
     public function render(): View

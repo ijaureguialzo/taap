@@ -12,6 +12,9 @@ return [
     'check' => 'Check connectivity',
     'check_ok' => 'Connected successfully.',
     'check_fail' => 'Could not connect.',
+    'saved' => 'Saved.',
+    'saved_unhealthy' => 'Saved, but the endpoint did not respond (marked unhealthy).',
+    'discovered' => 'Saved. :count new models discovered.',
     'delete' => 'Delete',
     'empty' => 'No providers. Add the first one (e.g. your local gateway).',
 ];
