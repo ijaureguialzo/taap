@@ -2,7 +2,7 @@
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h1 class="h3 mb-0">{{ __('agents.title') }}</h1>
         <a href="{{ route('agents.create') }}" class="btn btn-primary">
-            + {{ __('agents.new') }}
+            <x-icon name="plus-lg" class="me-1" />{{ __('agents.new') }}
         </a>
     </div>
 
@@ -52,9 +52,7 @@
                                 <td><span class="badge bg-secondary">{{ $agent->runtime->value }}</span></td>
                                 <td class="small">{{ $agent->model?->name ?? '—' }}</td>
                                 <td>
-                                    <span class="badge status-{{ $status->value }} live-status" data-agent-id="{{ $agent->id }}">
-                                        <span data-status-label data-status-value="{{ $status->value }}">{{ __('status.' . $status->value) }}</span>
-                                    </span>
+                                <x-status-badge :status="$status" :agent-id="$agent->id" />
                                 </td>
                                 <td class="text-end small text-muted">{{ $agent->ip ?? '—' }}</td>
                             </tr>

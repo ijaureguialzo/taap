@@ -14,9 +14,9 @@
 
 ## 3. Web: sistema de iconos (design D2, D6)
 
-- [ ] 3.1 Añadir `bootstrap-icons` a `package.json`, importarlo en `app.css` y crear el componente Blade `orchestrator/resources/views/components/icon.blade.php` (`<x-icon name="…">` → `<i class="bi bi-…" aria-hidden="true">`, con variante funcional `<span class="sr-only">`). Verificar: `npm run build` empaqueta el font woff2 local (sin CDN en el HTML) y el componente renderiza.
-- [ ] 3.2 Pase de iconos del mapa D6 en todas las vistas: nav (5 enlaces), badges (admin/user/runtime), estados de agente, botones (borrar `trash3` sustituyendo 🗑 en providers/mcp/users, nuevo, editar, check proveedor), chat (enviar/parar/aprobar/historial), auth (envelope/lock/fingerprint) y estados vacíos. Verificar: `grep -r "🗑\|⚡" resources/views/` devuelve 0; tests de feature/Unit existentes en verde.
-- [ ] 3.3 Marca en la interfaz: glifo inline del grifo (SVG `currentColor`) + texto TAAP en el navbar y en el auth layout, sustituyendo los ⚡. Verificar: navbar y pantalla de login muestran la marca; los tests de UI web existentes no se rompen.
+- [x] 3.1 Añadir `bootstrap-icons` a `package.json`, importarlo en `app.css` y crear el componente Blade `orchestrator/resources/views/components/icon.blade.php` (`<x-icon name="…">` → `<i class="bi bi-…" aria-hidden="true">`, con variante funcional `<span class="sr-only">`). Verificar: `npm run build` empaqueta el font woff2 local (sin CDN en el HTML) y el componente renderiza.
+- [x] 3.2 Pase de iconos del mapa D6 en todas las vistas: nav (5 enlaces), badges (admin/user/runtime), estados de agente, botones (borrar `trash3` sustituyendo 🗑 en providers/mcp/users, nuevo, editar, check proveedor), chat (enviar/parar/aprobar/historial), auth (envelope/lock/fingerprint) y estados vacíos. Verificar: `grep -r "🗑\|⚡" resources/views/` devuelve 0; tests de feature/Unit existentes en verde.
+- [x] 3.3 Marca en la interfaz: glifo inline del grifo (SVG `currentColor`) + texto TAAP en el navbar y en el auth layout, sustituyendo los ⚡. Verificar: navbar y pantalla de login muestran la marca; los tests de UI web existentes no se rompen.
 
 ## 4. iOS: asset catalog y tokens (design D3, D5, D7)
 

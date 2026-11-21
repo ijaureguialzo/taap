@@ -3,9 +3,7 @@
         <div>
             <div class="d-flex align-items-center gap-2">
                 <h1 class="h3 mb-0">{{ $agent->name }}</h1>
-                <span class="badge status-{{ $status->value }} live-status" data-status-value="{{ $status->value }}">
-                    <span data-status-label data-status-value="{{ $status->value }}">{{ __('status.' . $status->value) }}</span>
-                </span>
+                <x-status-badge :status="$status" />
             </div>
             @if ($agent->description)
                 <div class="text-muted">{{ $agent->description }}</div>
@@ -14,12 +12,12 @@
         @if ($canManage)
             <div class="d-flex gap-2">
                 @if ($agent->status->isRunning())
-                    <button class="btn btn-outline-warning btn-sm" wire:click="lifecycle('stop')">{{ __('agents.stop') }}</button>
+                    <button class="btn btn-outline-warning btn-sm" wire:click="lifecycle('stop')"><x-icon name="stop-circle" class="me-1" />{{ __('agents.stop') }}</button>
                 @else
-                    <button class="btn btn-success btn-sm" wire:click="lifecycle('start')">{{ __('agents.start') }}</button>
+                    <button class="btn btn-success btn-sm" wire:click="lifecycle('start')"><x-icon name="play-fill" class="me-1" />{{ __('agents.start') }}</button>
                 @endif
                 <button class="btn btn-outline-secondary btn-sm" wire:click="lifecycle('restart')"
-                        @disabled(! $agent->container_name)>{{ __('agents.restart') }}</button>
+                        @disabled(! $agent->container_name)><x-icon name="arrow-repeat" class="me-1" />{{ __('agents.restart') }}</button>
             </div>
         @endif
     </div>
@@ -65,7 +63,7 @@
 
             {{-- Linea de tiempo (7.2, design D6) --}}
             <div class="card">
-                <div class="card-header">{{ __('timeline.title') }}</div>
+                <div class="card-header"><x-icon name="clock-history" class="me-1" />{{ __('timeline.title') }}</div>
                 <div class="card-body small">
                     @forelse ($windows as $w)
                         <div class="border-bottom py-2 mb-2 {{ $w['open'] ? 'border-primary' : '' }}">
@@ -109,7 +107,7 @@
             {{-- Configuracion --}}
             @if ($canManage)
                 <div class="card">
-                    <div class="card-header">{{ __('actions.edit') }}</div>
+                    <div class="card-header"><x-icon name="gear" class="me-1" />{{ __('actions.edit') }}</div>
                     <div class="card-body">
                         <div class="mb-2">
                             <label class="form-label small">{{ __('agents.model') }}</label>
@@ -132,7 +130,7 @@
                             <input class="form-check-input" type="checkbox" wire:model="auto_restart" id="d-restart">
                             <label class="form-check-label small" for="d-restart">{{ __('agents.auto_restart') }}</label>
                         </div>
-                        <button class="btn btn-primary btn-sm" wire:click="saveConfig">{{ __('actions.save') }}</button>
+                        <button class="btn btn-primary btn-sm" wire:click="saveConfig"><x-icon name="check-lg" class="me-1" />{{ __('actions.save') }}</button>
                     </div>
                 </div>
 
@@ -140,7 +138,7 @@
                     <div class="card-body py-2">
                         <button class="btn btn-outline-danger btn-sm" wire:click="delete"
                                 data-confirm="{{ __('agents.delete_confirm') }}">
-                            {{ __('agents.delete') }}
+                            <x-icon name="trash3" label="{{ __('agents.delete') }}" class="me-1" />{{ __('agents.delete') }}
                         </button>
                     </div>
                 </div>

@@ -2,7 +2,7 @@
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h1 class="h3 mb-0">{{ __('mcp.title') }}</h1>
         @unless ($creating)
-            <button class="btn btn-primary btn-sm" wire:click="startCreate">+ {{ __('mcp.new') }}</button>
+            <button class="btn btn-primary btn-sm" wire:click="startCreate"><x-icon name="plus-lg" class="me-1" />{{ __('mcp.new') }}</button>
         @endunless
     </div>
 
@@ -42,15 +42,15 @@
                     <label class="form-check-label small" for="mcp-enabled">{{ __('mcp.enabled') }}</label>
                 </div>
                 <div>
-                    <button class="btn btn-primary btn-sm" wire:click="save">{{ __('actions.save') }}</button>
-                    <button class="btn btn-outline-secondary btn-sm" wire:click="cancel">{{ __('actions.cancel') }}</button>
+                    <button class="btn btn-primary btn-sm" wire:click="save"><x-icon name="check-lg" class="me-1" />{{ __('actions.save') }}</button>
+                    <button class="btn btn-outline-secondary btn-sm" wire:click="cancel"><x-icon name="x-lg" class="me-1" />{{ __('actions.cancel') }}</button>
                 </div>
             </div>
         </div>
     @endif
 
     @if ($servers->isEmpty())
-        <div class="card"><div class="card-body text-center text-muted py-5">{{ __('mcp.empty') }}</div></div>
+        <div class="card"><div class="card-body text-center text-muted py-5"><x-icon name="plug" size="lg" class="d-block mx-auto mb-2" />{{ __('mcp.empty') }}</div></div>
     @else
         <div class="card">
             <div class="table-responsive">
@@ -74,13 +74,13 @@
                                 </td>
                                 <td class="text-center">{{ $s->agents_count }}</td>
                                 <td class="text-end">
-                                    <button class="btn btn-outline-secondary btn-sm" wire:click="startEdit({{ $s->id }})">✎</button>
+                                    <button class="btn btn-outline-secondary btn-sm" wire:click="startEdit({{ $s->id }})" aria-label="{{ __('actions.edit') }}"><x-icon name="pencil" /></button>
                                     <button class="btn btn-outline-secondary btn-sm" wire:click="toggle({{ $s->id }})"
-                                            title="{{ __('mcp.enabled') }}">
-                                        {{ $s->enabled ? '✓' : '○' }}
+                                            title="{{ __('mcp.enabled') }}" aria-label="{{ __('mcp.enabled') }}">
+                                        <x-icon name="power" class="{{ $s->enabled ? 'text-success' : 'text-secondary opacity-50' }}" />
                                     </button>
                                     <button class="btn btn-outline-danger btn-sm" wire:click="delete({{ $s->id }})"
-                                            data-confirm="{{ __('mcp.delete') }}?">🗑</button>
+                                            data-confirm="{{ __('mcp.delete') }}?" aria-label="{{ __('mcp.delete') }}?"><x-icon name="trash3" /></button>
                                 </td>
                             </tr>
                         @endforeach

@@ -18,7 +18,7 @@
         <h1 class="h3 mb-0">{{ __('models.title') }}</h1>
         @unless ($creating)
             @if ($isAdmin)
-                <button class="btn btn-primary btn-sm" wire:click="startCreate">+ {{ __('models.new') }}</button>
+                <button class="btn btn-primary btn-sm" wire:click="startCreate"><x-icon name="plus-lg" class="me-1" />{{ __('models.new') }}</button>
             @endif
         @endunless
     </div>
@@ -78,8 +78,8 @@
                     </div>
                 </div>
                 <div class="mt-3">
-                    <button class="btn btn-primary btn-sm" wire:click="save">{{ __('actions.save') }}</button>
-                    <button class="btn btn-outline-secondary btn-sm" wire:click="cancel">{{ __('actions.cancel') }}</button>
+                    <button class="btn btn-primary btn-sm" wire:click="save"><x-icon name="check-lg" class="me-1" />{{ __('actions.save') }}</button>
+                    <button class="btn btn-outline-secondary btn-sm" wire:click="cancel"><x-icon name="x-lg" class="me-1" />{{ __('actions.cancel') }}</button>
                 </div>
             </div>
         </div>
@@ -93,7 +93,7 @@
             </div>
             <div class="card-body py-2">
                 @if (($models->get($provider->id) ?? collect())->isEmpty())
-                    <div class="text-muted small">{{ __('models.empty') }}</div>
+                    <div class="text-muted small"><x-icon name="box-seam" class="me-1" />{{ __('models.empty') }}</div>
                 @else
                     <div class="d-flex flex-wrap gap-2">
                         @foreach ($models->get($provider->id) as $m)
@@ -101,7 +101,8 @@
                                 {{ $m->name }} <span class="text-muted">({{ $m->model_id }})</span>
                                 @if ($isAdmin)
                                     <button class="btn btn-sm btn-link text-secondary p-0 ms-1" style="line-height:1"
-                                            wire:click="startEdit({{ $m->id }})" title="{{ __('actions.edit') }}">✎</button>
+                                            wire:click="startEdit({{ $m->id }})" title="{{ __('actions.edit') }}"
+                                            aria-label="{{ __('actions.edit') }}"><x-icon name="pencil" /></button>
                                     <button class="btn btn-sm btn-link text-danger p-0 ms-1" style="line-height:1"
                                             wire:click="delete({{ $m->id }})" data-confirm="{{ e($confirms[$m->id] ?? __('models.delete').'?') }}">✕</button>
                                 @endif
@@ -114,7 +115,7 @@
     @endforeach
 
     @if ($providers->isEmpty())
-        <div class="card"><div class="card-body text-center text-muted py-5">{{ __('providers.empty') }}</div></div>
+        <div class="card"><div class="card-body text-center text-muted py-5"><x-icon name="cloud-arrow-down" size="lg" class="d-block mx-auto mb-2" />{{ __('providers.empty') }}</div></div>
     @endif
 
     <script>

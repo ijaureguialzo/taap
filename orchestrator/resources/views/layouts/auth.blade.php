@@ -21,7 +21,7 @@
 <body class="bg-light d-flex align-items-center" style="min-height: 100vh">
     <div class="container" style="max-width: 420px">
         <div class="text-center mb-4">
-            <h1 class="h2 fw-bold">⚡ TAAP</h1>
+            <x-wordmark size="40" class="mb-1" />
             <p class="text-muted mb-0">{{ __('footer.tagline') }}</p>
         </div>
         {{ $slot }}

@@ -34,8 +34,8 @@
                     </div>
                 </div>
                 <div class="mt-3">
-                    <button class="btn btn-primary btn-sm" wire:click="save">{{ __('actions.save') }}</button>
-                    <button class="btn btn-outline-secondary btn-sm" wire:click="cancel">{{ __('actions.cancel') }}</button>
+                    <button class="btn btn-primary btn-sm" wire:click="save"><x-icon name="check-lg" class="me-1" />{{ __('actions.save') }}</button>
+                    <button class="btn btn-outline-secondary btn-sm" wire:click="cancel"><x-icon name="x-lg" class="me-1" />{{ __('actions.cancel') }}</button>
                 </div>
             </div>
         </div>
@@ -65,9 +65,9 @@
                             <td class="text-center">{{ $u->agentQuota() }}</td>
                             <td class="text-center">{{ $u->runningAgentsCount() }}</td>
                             <td class="text-end">
-                                <button class="btn btn-outline-secondary btn-sm" wire:click="startEdit({{ $u->id }})">✎</button>
+                                <button class="btn btn-outline-secondary btn-sm" wire:click="startEdit({{ $u->id }})" aria-label="{{ __('actions.edit') }}"><x-icon name="pencil" /></button>
                                 <button class="btn btn-outline-danger btn-sm" wire:click="delete({{ $u->id }})"
-                                        data-confirm="{{ __('users.delete') }}?">🗑</button>
+                                        data-confirm="{{ __('users.delete') }}?" aria-label="{{ __('users.delete') }}?"><x-icon name="trash3" /></button>
                             </td>
                         </tr>
                     @endforeach

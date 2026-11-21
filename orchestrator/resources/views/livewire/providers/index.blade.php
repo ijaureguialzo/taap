@@ -20,7 +20,7 @@
         <h1 class="h3 mb-0">{{ __('providers.title') }}</h1>
         @unless ($creating)
             @if ($isAdmin)
-                <button class="btn btn-primary btn-sm" wire:click="startCreate">+ {{ __('providers.new') }}</button>
+                <button class="btn btn-primary btn-sm" wire:click="startCreate"><x-icon name="plus-lg" class="me-1" />{{ __('providers.new') }}</button>
             @endif
         @endunless
     </div>
@@ -60,15 +60,15 @@
                     </div>
                 </div>
                 <div class="mt-3">
-                    <button class="btn btn-primary btn-sm" wire:click="save">{{ __('actions.save') }}</button>
-                    <button class="btn btn-outline-secondary btn-sm" wire:click="cancel">{{ __('actions.cancel') }}</button>
+                    <button class="btn btn-primary btn-sm" wire:click="save"><x-icon name="check-lg" class="me-1" />{{ __('actions.save') }}</button>
+                    <button class="btn btn-outline-secondary btn-sm" wire:click="cancel"><x-icon name="x-lg" class="me-1" />{{ __('actions.cancel') }}</button>
                 </div>
             </div>
         </div>
     @endif
 
     @if ($providers->isEmpty())
-        <div class="card"><div class="card-body text-center text-muted py-5">{{ __('providers.empty') }}</div></div>
+        <div class="card"><div class="card-body text-center text-muted py-5"><x-icon name="cloud-arrow-down" size="lg" class="d-block mx-auto mb-2" />{{ __('providers.empty') }}</div></div>
     @else
         <div class="card">
             <div class="table-responsive">
@@ -107,10 +107,11 @@
                                 <td class="text-end">
                                     @if ($isAdmin)
                                         <button class="btn btn-outline-secondary btn-sm" wire:click="check({{ $p->id }})"
-                                                title="{{ __('providers.check') }}">⇄</button>
-                                        <button class="btn btn-outline-secondary btn-sm" wire:click="startEdit({{ $p->id }})">✎</button>
+                                                title="{{ __('providers.check') }}" aria-label="{{ __('providers.check') }}"><x-icon name="arrow-repeat" /></button>
+                                        <button class="btn btn-outline-secondary btn-sm" wire:click="startEdit({{ $p->id }})" aria-label="{{ __('actions.edit') }}"><x-icon name="pencil" /></button>
                                         <button class="btn btn-outline-danger btn-sm" wire:click="delete({{ $p->id }})"
-                                                data-confirm="{{ e($confirms[$p->id] ?? __('providers.delete').'?') }}">🗑</button>
+                                                data-confirm="{{ e($confirms[$p->id] ?? __('providers.delete').'?') }}"
+                                                aria-label="{{ e($confirms[$p->id] ?? __('providers.delete').'?') }}"><x-icon name="trash3" /></button>
                                     @endif
                                 </td>
                             </tr>

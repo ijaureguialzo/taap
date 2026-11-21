@@ -51,14 +51,14 @@
                             @if (!empty($pendingApprovalInfo['options']))
                                 @foreach ($pendingApprovalInfo['options'] as $opt)
                                     @if ($opt['value'] === 'deny')
-                                        <button class="btn btn-sm btn-outline-danger" wire:click="approve(false, '{{ $opt['value'] }}')">{{ $opt['label'] }}</button>
+                                        <button class="btn btn-sm btn-outline-danger" wire:click="approve(false, '{{ $opt['value'] }}')"><x-icon name="x-lg" class="me-1" />{{ $opt['label'] }}</button>
                                     @else
-                                        <button class="btn btn-sm {{ $opt['value'] === 'once' ? 'btn-success' : 'btn-outline-success' }}" wire:click="approve(true, '{{ $opt['value'] }}')">{{ $opt['label'] }}</button>
+                                        <button class="btn btn-sm {{ $opt['value'] === 'once' ? 'btn-success' : 'btn-outline-success' }}" wire:click="approve(true, '{{ $opt['value'] }}')"><x-icon name="check-lg" class="me-1" />{{ $opt['label'] }}</button>
                                     @endif
                                 @endforeach
                             @else
-                                <button class="btn btn-sm btn-success me-2" wire:click="approve(true)">{{ __('chat.approve') }}</button>
-                                <button class="btn btn-sm btn-outline-danger" wire:click="approve(false)">{{ __('chat.deny') }}</button>
+                                <button class="btn btn-sm btn-success me-2" wire:click="approve(true)"><x-icon name="check-lg" class="me-1" />{{ __('chat.approve') }}</button>
+                                <button class="btn btn-sm btn-outline-danger" wire:click="approve(false)"><x-icon name="x-lg" class="me-1" />{{ __('chat.deny') }}</button>
                             @endif
                         </div>
                     </div>
@@ -91,7 +91,7 @@
                @disabled(! $agent->status->acceptsMessages())>
         <button class="btn btn-primary" type="button" id="chat-send"
                 @disabled(! $agent->status->acceptsMessages() || trim($content) === '')>
-            {{ __('chat.send') }}
+            <x-icon name="send" class="me-1" />{{ __('chat.send') }}
         </button>
     </div>
     @if (! $agent->status->acceptsMessages())

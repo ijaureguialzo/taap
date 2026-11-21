@@ -1,5 +1,12 @@
 /* TAAP v1: Bootstrap 5 (design.md D8). Sin Tailwind/Flux. */
 @import 'bootstrap/dist/css/bootstrap.min.css';
+/* Set de iconos de la web (brand-identity D2): empaquetado local, sin CDN. */
+@import 'bootstrap-icons/font/bootstrap-icons.css';
+
+/* Tamaños de <x-icon> (brand-identity D2). */
+.bi-icon-sm { font-size: 75%; }
+.bi-icon-lg { font-size: 150%; }
+.bi-icon-xl { font-size: 200%; }
 
 /* ===================================================================
  * Tokens de diseño TAAP (change taap-visual-identity, design D3):
@@ -431,6 +438,24 @@
     border-color: var(--taap-aqua-300);
     box-shadow: 0 0 0 0.25rem rgba(30, 127, 122, 0.25);
 }
+
+/* Wordmark (brand-identity D3): colores por contexto. */
+.taap-wordmark {
+    font-size: var(--taap-wm-size, 1.6rem);
+}
+.taap-wordmark .wm-glyph { fill: var(--taap-aqua-600); }
+.taap-wordmark .wm-drop { fill: var(--taap-ink); }
+.taap-wordmark .wm-text {
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    color: var(--taap-slate-900);
+}
+[data-bs-theme="dark"] .taap-wordmark:not(.taap-wordmark-dark) .wm-glyph,
+.taap-wordmark-dark .wm-glyph { fill: var(--taap-aqua-300); }
+[data-bs-theme="dark"] .taap-wordmark:not(.taap-wordmark-dark) .wm-drop,
+.taap-wordmark-dark .wm-drop { fill: var(--taap-ink-dark); }
+[data-bs-theme="dark"] .taap-wordmark .wm-text,
+.taap-wordmark-dark .wm-text { color: var(--taap-slate-100); }
 
 body {
     /* El body lleva bg-light (pagina); el resto lo resuelve la tabla. */

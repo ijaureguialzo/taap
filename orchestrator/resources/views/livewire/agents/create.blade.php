@@ -2,7 +2,7 @@
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h1 class="h3 mb-0">{{ __('agents.new') }}</h1>
         <a href="{{ route('agents.index') }}" wire:navigate class="btn btn-outline-secondary btn-sm">
-            ← {{ __('actions.back') }}
+            <x-icon name="arrow-left" label="{{ __('actions.back') }}" />
         </a>
     </div>
 
@@ -50,7 +50,7 @@
                                 <option value="{{ $model->id }}" @class(['text-muted' => $unhealthy])>
                                     {{ $model->name }} ({{ $model->provider?->name }})
                                     @if ($unhealthy)
-                                        <span class="badge bg-warning ms-1">{{ __('agents.unhealthy') }}</span>
+                                        <span class="badge bg-warning ms-1"><x-icon name="exclamation-triangle" class="me-1" />{{ __('agents.unhealthy') }}</span>
                                     @endif
                                 </option>
                             @endforeach
@@ -98,7 +98,7 @@
                 </div>
 
                 <button type="submit" class="btn btn-primary" @disabled(! $canCreate)>
-                    {{ __('agents.start') }}
+                    <x-icon name="play-fill" class="me-1" />{{ __('agents.start') }}
                 </button>
             </form>
         </div>

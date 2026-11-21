@@ -45,24 +45,25 @@
 @auth
     <nav class="navbar navbar-expand-lg bg-dark navbar-dark">
         <div class="container-fluid">
-            <a class="navbar-brand fw-bold" href="{{ route('agents.index') }}">
-                ⚡ TAAP
+            <a class="navbar-brand" href="{{ route('agents.index') }}">
+                <x-wordmark variant="dark" size="26" />
             </a>
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#nav">
                 <span class="navbar-toggler-icon"></span>
             </button>
             <div class="collapse navbar-collapse" id="nav">
                 <ul class="navbar-nav me-auto">
-                    <li class="nav-item"><a class="nav-link" href="{{ route('agents.index') }}">{{ __('nav.agents') }}</a></li>
-                    <li class="nav-item"><a class="nav-link" href="{{ route('models.index') }}">{{ __('nav.models') }}</a></li>
-                    <li class="nav-item"><a class="nav-link" href="{{ route('providers.index') }}">{{ __('nav.providers') }}</a></li>
-                    <li class="nav-item"><a class="nav-link" href="{{ route('mcp.index') }}">{{ __('nav.mcp') }}</a></li>
+                    <li class="nav-item"><a class="nav-link" href="{{ route('agents.index') }}"><x-icon name="robot" class="me-1" />{{ __('nav.agents') }}</a></li>
+                    <li class="nav-item"><a class="nav-link" href="{{ route('models.index') }}"><x-icon name="box-seam" class="me-1" />{{ __('nav.models') }}</a></li>
+                    <li class="nav-item"><a class="nav-link" href="{{ route('providers.index') }}"><x-icon name="cloud-arrow-down" class="me-1" />{{ __('nav.providers') }}</a></li>
+                    <li class="nav-item"><a class="nav-link" href="{{ route('mcp.index') }}"><x-icon name="plug" class="me-1" />{{ __('nav.mcp') }}</a></li>
                     @if (auth()->user()->isAdmin())
-                        <li class="nav-item"><a class="nav-link" href="{{ route('users.index') }}">{{ __('nav.users') }}</a></li>
+                        <li class="nav-item"><a class="nav-link" href="{{ route('users.index') }}"><x-icon name="people" class="me-1" />{{ __('nav.users') }}</a></li>
                     @endif
                 </ul>
                 <span class="navbar-text me-3 d-none d-md-inline">
                     <span class="badge bg-{{ auth()->user()->isAdmin() ? 'warning' : 'secondary' }}">
+                        <x-icon :name="auth()->user()->isAdmin() ? 'patch-check' : 'person-bounding'" class="me-1" />
                         {{ auth()->user()->isAdmin() ? __('badge.admin') : __('badge.user') }}
                     </span>
                 </span>
