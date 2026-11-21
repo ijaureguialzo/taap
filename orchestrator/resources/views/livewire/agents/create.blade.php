@@ -40,8 +40,18 @@
                         <select wire:model="model_id" class="form-select @error('model_id') is-invalid @enderror">
                             <option value="">{{ __('agents.select_model') }}</option>
                             @foreach ($models as $model)
-                                <option value="{{ $model->id }}">
+                                {{-- Marcado de no sanos (design D7): informativo, no
+                                     bloqueante — la marca es un badge atenuado; el modelo
+                                     sigue seleccionable. (El status llega con la relacion
+                                     `provider` cargada completa en render().) --}}
+                                @php
+                                    $unhealthy = $model->provider?->isUnhealthy() ?? false;
+                                @endphp
+                                <option value="{{ $model->id }}" @class(['text-muted' => $unhealthy])>
                                     {{ $model->name }} ({{ $model->provider?->name }})
+                                    @if ($unhealthy)
+                                        <span class="badge bg-warning text-dark ms-1">{{ __('agents.unhealthy') }}</span>
+                                    @endif
                                 </option>
                             @endforeach
                         </select>

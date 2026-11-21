@@ -25,6 +25,7 @@ return [
     'select_model' => 'Hautatu modelo bat',
     'no_models' => 'Ez dago modelorik. Sortu eskaintzaile eta modelo bat lehenik.',
     'model_incompatible_format' => 'Eskaintzailearen formatua ez da runtime honekin konpatibila.',
+    'unhealthy' => 'ez osasuntsua',
     'capabilities' => 'Gaitasunak',
     'cap.format' => 'Modelo formatua',
     'cap.session' => 'Sesioa',

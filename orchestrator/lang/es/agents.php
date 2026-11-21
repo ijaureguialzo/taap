@@ -25,6 +25,7 @@ return [
     'select_model' => 'Selecciona un modelo',
     'no_models' => 'No hay modelos disponibles. Crea un proveedor y un modelo primero.',
     'model_incompatible_format' => 'El formato del proveedor no es compatible con este runtime.',
+    'unhealthy' => 'no sano',
     'capabilities' => 'Capacidades',
     'cap.format' => 'Formato de modelo',
     'cap.session' => 'Sesión',

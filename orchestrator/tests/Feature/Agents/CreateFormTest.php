@@ -123,4 +123,53 @@ class CreateFormTest extends TestCase
         $this->assertSame($m->id, $agent->model_id);
         $this->assertSame('taap/agent-claude:local', $agent->image);
     }
+    public function test_models_of_unhealthy_providers_are_labeled_but_still_selectable(): void
+    {
+        $this->app->setLocale('es');
+
+        $bad = $this->provider('openai', 'prov-bad');
+        $bad->forceFill(['status' => ModelProvider::STATUS_ERROR, 'last_checked_at' => now()])->save();
+        $this->model($bad, 'modelo-malo');
+
+        $good = $this->provider('openai', 'prov-good');
+        $good->forceFill(['status' => ModelProvider::STATUS_OK, 'last_checked_at' => now()])->save();
+        $this->model($good, 'modelo-bueno');
+
+        // status null (nunca comprobado): tampoco va marcado
+        $this->model($this->provider('openai', 'prov-neutral'), 'modelo-neutral');
+
+        $html = Livewire::test(Create::class, ['runtime' => 'pi'])->html();
+
+        $optionBad = collect(explode('<option', $html))->first(fn ($o) => str_contains($o, 'modelo-malo'));
+        $this->assertNotNull($optionBad, 'el modelo del proveedor no sano sigue en el desplegable');
+        $this->assertStringContainsString('text-muted', $optionBad);
+        $this->assertStringContainsString('no sano', $optionBad);
+
+        $optionGood = collect(explode('<option', $html))->first(fn ($o) => str_contains($o, 'modelo-bueno'));
+        $this->assertNotNull($optionGood);
+        $this->assertStringNotContainsString('no sano', $optionGood);
+        $this->assertStringNotContainsString('text-muted', $optionGood);
+
+        $optionNeutral = collect(explode('<option', $html))->first(fn ($o) => str_contains($o, 'modelo-neutral'));
+        $this->assertNotNull($optionNeutral);
+        $this->assertStringNotContainsString('no sano', $optionNeutral);
+    }
+
+    public function test_create_agent_with_model_of_unhealthy_provider_is_allowed(): void
+    {
+        $bad = $this->provider('openai', 'prov-bad');
+        $bad->forceFill(['status' => ModelProvider::STATUS_ERROR, 'last_checked_at' => now()])->save();
+        $m = $this->model($bad, 'modelo-malo');
+
+        // La marca es informativa: la seleccion y el submit no se bloquean.
+        Livewire::test(Create::class, [
+            'name' => 'mi-agente',
+            'runtime' => 'pi',
+            'model_id' => $m->id,
+        ])->call('submit');
+
+        $agent = Agent::where('name', 'mi-agente')->first();
+        $this->assertNotNull($agent, 'crear con un modelo de provider no sano debe ser permitido');
+        $this->assertSame($m->id, $agent->model_id);
+    }
 }

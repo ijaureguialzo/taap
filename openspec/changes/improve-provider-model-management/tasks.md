@@ -25,7 +25,7 @@
 
 ## 6. Marcado de no sanos en la creación de agentes
 
-- [ ] 6.1 En `Agents\Create::render()` cargar el `status` del provider junto al modelo y, en `agents/create.blade.php`, aplicar clase atenuada + etiqueta «no sano» a los modelos de providers con `status=error` (selección y submit no bloqueados, D7). Verificar: añadir a `tests/Feature/Agents/CreateFormTest.php` — proveedor con `status=error` → su modelo aparece con la etiqueta y sigue seleccionable; proveedor `ok`/null → sin etiqueta.
+- [x] 6.1 En `Agents\Create::render()` cargar el `status` del provider junto al modelo y, en `agents/create.blade.php`, aplicar clase atenuada + etiqueta «no sano» a los modelos de providers con `status=error` (selección y submit no bloqueados, D7). Verificar: añadir a `tests/Feature/Agents/CreateFormTest.php` — proveedor con `status=error` → su modelo aparece con la etiqueta y sigue seleccionable; proveedor `ok`/null → sin etiqueta.
 
 ## 7. Localización
 

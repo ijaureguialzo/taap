@@ -25,6 +25,7 @@ return [
     'select_model' => 'Select a model',
     'no_models' => 'No models available. Create a provider and a model first.',
     'model_incompatible_format' => 'The provider format is not compatible with this runtime.',
+    'unhealthy' => 'unhealthy',
     'capabilities' => 'Capabilities',
     'cap.format' => 'Model format',
     'cap.session' => 'Session',
