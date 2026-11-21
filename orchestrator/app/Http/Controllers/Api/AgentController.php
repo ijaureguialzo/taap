@@ -11,6 +11,8 @@ use App\Enums\AgentStatus;
 use App\Http\Controllers\Controller;
 use App\Jobs\BridgeApplyConfig;
 use App\Models\Agent;
+use App\Models\Model;
+use Closure;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -38,7 +40,7 @@ class AgentController extends Controller
             'name' => ['required', 'string', 'max:64', Rule::unique('agents', 'name')->whereNull('deleted_at')],
             'description' => ['nullable', 'string', 'max:500'],
             'runtime' => ['required', 'in:'.implode(',', AgentRuntime::supported())],
-            'model_id' => ['nullable', 'integer', 'exists:models,id'],
+            'model_id' => ['nullable', 'integer', 'exists:models,id', fn ($attribute, $value, Closure $fail) => $this->assertModelFormatCompatible($request, $value, $request->input('runtime'), $fail)],
             'system_prompt' => ['nullable', 'string', 'max:20000'],
             'internet_enabled' => ['boolean'],
             'working_dir' => ['nullable', 'string', 'max:255'],
@@ -97,7 +99,9 @@ class AgentController extends Controller
         $data = $request->validate([
             'name' => ['required', 'string', 'max:64', 'unique:agents,name,'.$agent->id],
             'description' => ['nullable', 'string', 'max:500'],
-            'model_id' => ['nullable', 'integer', 'exists:models,id'],
+            // El runtime no es editable por la API: la compatibilidad se
+            // comprueba contra el runtime ACTUAL del agente.
+            'model_id' => ['nullable', 'integer', 'exists:models,id', fn ($attribute, $value, Closure $fail) => $this->assertModelFormatCompatible($request, $value, $agent->runtime, $fail)],
             'system_prompt' => ['nullable', 'string', 'max:20000'],
             'internet_enabled' => ['boolean'],
             'auto_restart' => ['boolean'],
@@ -196,6 +200,33 @@ class AgentController extends Controller
     }
 
     /* ------- helpers ------- */
+
+    /**
+     * Validacion de compatibilidad modelo↔runtime (ios-model-runtime-compatibility,
+     * design D4): defensa en profundidad (con el filtro de GET /models el
+     * cliente rara vez la ve, pero protege a cualquier cliente que eluda el
+     * filtro). Mismo criterio que la web via Model::isCompatibleWith.
+     */
+    protected function assertModelFormatCompatible(Request $request, mixed $modelId, AgentRuntime|string|null $runtime, Closure $fail): void
+    {
+        if ($modelId === null) {
+            return;
+        }
+
+        $runtime = $runtime instanceof AgentRuntime ? $runtime : AgentRuntime::tryFrom((string) $runtime);
+        if ($runtime === null) {
+            return; // runtime invalido: su propia regla ya reporta el error
+        }
+
+        $model = Model::with('provider')->find($modelId);
+
+        if (! $model?->isCompatibleWith($runtime)) {
+            $fail(__('agents.model_format_mismatch', [
+                'format' => $model?->provider?->type ?? '?',
+                'runtime' => $runtime->label(),
+            ]));
+        }
+    }
 
     protected function authorize(Request $request, Agent $agent): void
     {

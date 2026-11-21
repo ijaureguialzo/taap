@@ -18,8 +18,8 @@ Prerrequisito: el cambio `improve-provider-model-management` debe estar aterriza
 
 ## 4. Validación de formato en la API de agentes
 
-- [ ] 4.1 En `AgentController::store`: regla de `model_id` con `Model::isCompatibleWith(runtime)` que devuelve 422 con mensaje translatable que nombra formato y runtime (D4). Verificar: feature test — pi + modelo anthropic → 422 con mensaje claro; par válido → 201; `model_id` nulo → 201.
-- [ ] 4.2 En `AgentController::update`: misma validación contra el runtime actual del agente. Verificar: feature test — actualizar un agente pi con un modelo anthropic → 422 y el agente conserva su modelo anterior.
+- [x] 4.1 En `AgentController::store`: regla de `model_id` con `Model::isCompatibleWith(runtime)` que devuelve 422 con mensaje translatable que nombra formato y runtime (D4). Verificar: feature test — pi + modelo anthropic → 422 con mensaje claro; par válido → 201; `model_id` nulo → 201.
+- [x] 4.2 En `AgentController::update`: misma validación contra el runtime actual del agente. Verificar: feature test — actualizar un agente pi con un modelo anthropic → 422 y el agente conserva su modelo anterior.
 
 ## 5. iOS: cliente API y DTOs
 

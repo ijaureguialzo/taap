@@ -25,6 +25,7 @@ return [
     'select_model' => 'Select a model',
     'no_models' => 'No models compatible with :runtime (:formats format). Create a provider and a model of that format, or change the runtime.',
     'model_incompatible_format' => 'The provider format is not compatible with this runtime.',
+    'model_format_mismatch' => 'The model uses the :format format, which the :runtime runtime does not consume.',
     'unhealthy' => 'unhealthy',
     'model_discarded' => 'The model :model (:provider) is not compatible with :runtime (:formats format) and was discarded. Pick a model of that format, or switch back to a compatible runtime.',
     'capabilities' => 'Capabilities',

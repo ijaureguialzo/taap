@@ -25,6 +25,7 @@ return [
     'select_model' => 'Selecciona un modelo',
     'no_models' => 'No hay modelos compatibles con :runtime (formato :formats). Crea un proveedor y un modelo de ese formato, o cambia el runtime.',
     'model_incompatible_format' => 'El formato del proveedor no es compatible con este runtime.',
+    'model_format_mismatch' => 'El modelo usa el formato :format, que el runtime :runtime no consume.',
     'unhealthy' => 'no sano',
     'model_discarded' => 'El modelo «:model» (:provider) no es compatible con :runtime (formato :formats) y se ha descartado. Elige un modelo de ese formato, o vuelve a un runtime compatible.',
     'capabilities' => 'Capacidades',

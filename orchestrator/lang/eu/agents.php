@@ -25,6 +25,7 @@ return [
     'select_model' => 'Hautatu modelo bat',
     'no_models' => 'Ez dago :runtime(r)ekin konpatibik den modelorik (formatua: :formats). Sortu formatu horretako eskaintzaile eta modelo bat, edo aldatu runtimea.',
     'model_incompatible_format' => 'Eskaintzailearen formatua ez da runtime honekin konpatibila.',
+    'model_format_mismatch' => 'Modeloak :format formatua erabiltzen du, eta :runtime runtimeak ez du formatu hori konsumatzen.',
     'unhealthy' => 'ez osasuntsua',
     'model_discarded' => ':model modeloa (:provider) ez da :runtime(r)ekin konpatibila (formatua: :formats) eta baztertuta dago. Hautatu formatu horretako modelo bat, edo itzuli runtime konpatible batera.',
     'capabilities' => 'Gaitasunak',
