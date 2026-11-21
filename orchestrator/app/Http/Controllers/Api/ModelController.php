@@ -2,11 +2,13 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Enums\AgentRuntime;
 use App\Http\Controllers\Controller;
 use App\Models\Model;
 use App\Models\ModelProvider;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 class ModelController extends Controller
 {
@@ -76,13 +78,36 @@ class ModelController extends Controller
 
     public function index(Request $request): JsonResponse
     {
-        $models = Model::with('provider:id,name')->orderBy('provider_id')->orderBy('name')->get();
+        $data = $request->validate([
+            // Filtro opcional por runtime (ios-model-runtime-compatibility,
+            // design D3): valor desconocido → 422 (protege typos del cliente,
+            // no se ignora). Sin parametro → todos (retrocompatible: un
+            // cliente viejo no lo envia).
+            'runtime' => ['nullable', Rule::in(AgentRuntime::supported())],
+        ]);
+
+        $query = Model::with('provider:id,name,type,status')->orderBy('provider_id')->orderBy('name');
+
+        if (! empty($data['runtime'])) {
+            // Misma semantica que el filtro de la web: solo modelos de
+            // proveedores cuyo formato lo consume el runtime.
+            $types = AgentRuntime::fromString($data['runtime'])->compatibleProviderTypes();
+            $query->whereHas('provider', fn ($q) => $q->whereIn('type', $types));
+        }
+
+        $models = $query->get();
 
         return response()->json([
             'models' => $models->map(fn (Model $m) => [
                 'id' => $m->id,
                 'provider_id' => $m->provider_id,
                 'provider' => $m->provider?->name,
+                // Aditivo (design D3): el tipo de formato y el estado de
+                // salud del proveedor, para que los clientes filtren/marquen
+                // sin logica local. `provider` sigue siendo el nombre en
+                // string (el DTO de iOS exige string).
+                'provider_type' => $m->provider?->type,
+                'provider_status' => $m->provider?->status,
                 'model_id' => $m->model_id,
                 'name' => $m->name,
                 'context_window' => $m->context_window,

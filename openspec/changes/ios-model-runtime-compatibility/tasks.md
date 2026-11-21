@@ -13,8 +13,8 @@ Prerrequisito: el cambio `improve-provider-model-management` debe estar aterriza
 
 ## 3. Lista de modelos: filtro por runtime + payload
 
-- [ ] 3.1 En `ModelController::index`: parámetro `?runtime=` opcional validado contra `supported()` (valor desconocido → 422) y filtro `whereHas('provider', whereIn(type, compatibleProviderTypes))`; sin parámetro → todos (D3). Verificar: feature test — `?runtime=claude` solo modelos anthropic; `?runtime=opencode` todos; sin parámetro todos; `?runtime=marco` → 422.
-- [ ] 3.2 Añadir `provider_type` y `provider_status` (nullable) al payload de cada modelo de `GET /models`, conservando `provider` como string. Verificar: feature test — el payload incluye el tipo y el estado (incluido `null` cuando no hay comprobación).
+- [x] 3.1 En `ModelController::index`: parámetro `?runtime=` opcional validado contra `supported()` (valor desconocido → 422) y filtro `whereHas('provider', whereIn(type, compatibleProviderTypes))`; sin parámetro → todos (D3). Verificar: feature test — `?runtime=claude` solo modelos anthropic; `?runtime=opencode` todos; sin parámetro todos; `?runtime=marco` → 422.
+- [x] 3.2 Añadir `provider_type` y `provider_status` (nullable) al payload de cada modelo de `GET /models`, conservando `provider` como string. Verificar: feature test — el payload incluye el tipo y el estado (incluido `null` cuando no hay comprobación).
 
 ## 4. Validación de formato en la API de agentes
 
