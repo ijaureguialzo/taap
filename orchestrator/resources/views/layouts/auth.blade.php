@@ -1,5 +1,6 @@
 <!DOCTYPE html>
-<html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
+@php $themeAttr = in_array(($t = request()->cookie('taap-theme')), ['light', 'dark'], true) ? $t : null; @endphp
+<html lang="{{ str_replace('_', '-', app()->getLocale()) }}"@if ($themeAttr) data-bs-theme="{{ $themeAttr }}"@endif>
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -8,12 +9,14 @@
     <link rel="icon" href="/favicon.ico" sizes="any">
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
     {{-- Tema (brand-identity D4): antes del primer pintado, sin flash. --}}
+    {{-- spa-theme-persistence D2: espejo a la cookie para la navegacion --}}
     <script>
         (function () {
             var saved = localStorage.getItem('taap-theme');
             var theme = (saved === 'light' || saved === 'dark') ? saved
                 : (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
             document.documentElement.setAttribute('data-bs-theme', theme);
+            document.cookie = 'taap-theme=' + theme + '; path=/; max-age=31536000';
         })();
     </script>
     @vite(['resources/css/app.css', 'resources/js/app.js'])

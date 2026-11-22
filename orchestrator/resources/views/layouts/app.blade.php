@@ -1,5 +1,6 @@
 <!DOCTYPE html>
-<html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
+@php $themeAttr = in_array(($t = request()->cookie('taap-theme')), ['light', 'dark'], true) ? $t : null; @endphp
+<html lang="{{ str_replace('_', '-', app()->getLocale()) }}"@if ($themeAttr) data-bs-theme="{{ $themeAttr }}"@endif>
 @props(['title' => null])
 <head>
     <meta charset="utf-8" />
@@ -17,12 +18,17 @@
     {{-- Tema (brand-identity D4): resuelve la preferencia (localStorage ->
          sistema -> claro) ANTES del primer pintado: sin flash. El
          conmutador vive en app.js. --}}
+    {{-- spa-theme-persistence D2: el tema resuelto se espeja a la cookie
+         taap-theme para que el <html> servido lo llega y la navegacion
+         wire:navigate (que borra lo que el HTML recibido no trae y no
+         re-ejecuta este script) lo conserve. --}}
     <script>
         (function () {
             var saved = localStorage.getItem('taap-theme');
             var theme = (saved === 'light' || saved === 'dark') ? saved
                 : (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
             document.documentElement.setAttribute('data-bs-theme', theme);
+            document.cookie = 'taap-theme=' + theme + '; path=/; max-age=31536000';
         })();
     </script>
 

@@ -21,6 +21,13 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
 
         $middleware->append(SetLocale::class);
+
+        // spa-theme-persistence D1: la cookie taap-theme la escribe
+        // JavaScript en texto plano (para que el <html> servido lleve el
+        // tema y la navegacion wire:navigate lo conserve): no cifrarla —
+        // un decrypt() fallido la dejaría en null y la respuesta la
+        // re-cifraria, pisando el valor del cliente.
+        $middleware->encryptCookies(except: ['taap-theme']);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(

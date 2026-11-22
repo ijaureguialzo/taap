@@ -58,45 +58,111 @@ function initEcho() {
 
 window.addEventListener('livewire:navigated', initEcho);
 
-// Tema (brand-identity D4): conmutador de tres estados.
-// La RESOLUCION (localStorage -> sistema -> claro) ya la hizo el script
-// inline del <head> antes del pintado; aqui solo se aplica la eleccion del
-// usuario, se persiste y se marca el estado actual en los botones.
-function initThemeSwitcher() {
-    const buttons = document.querySelectorAll('[data-taap-theme-set]');
-    if (!buttons.length) {
-        return;
+// Tema (brand-identity D4): conmutador de tres estados. La RESOLUCION
+// (localStorage -> sistema -> claro) ya la hizo el script inline del <head>
+// antes del primer pintado; aqui se aplica la eleccion del usuario, se
+// persiste y se marca el estado actual en los botones.
+//
+// spa-theme-persistence (D2/D3): la elección se espeja ADEMAS a la cookie
+// taap-theme (texto plano: bootstrap/app.php configura EncryptCookies para
+// no cifrarla), para que el <html> que renderiza el servidor lleve el
+// atributo data-bs-theme y la sincronización de wire:navigate lo PRESERVE
+// (el swap borra lo que el HTML recibido no trae y no re-ejecuta el
+// script del <head>). El listener del conmutador va por DELEGACION en
+// document (el document sobrevive al swap; el body, no) y el tema se
+// re-aplica en livewire:navigated como red de seguridad.
+const resolveTheme = (mode) => (mode === 'light' || mode === 'dark')
+    ? mode
+    : (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+
+const storedThemeMode = () => {
+    const saved = localStorage.getItem('taap-theme');
+    return saved === 'light' || saved === 'dark' ? saved : 'auto';
+};
+
+// Espeja el tema RESUELTO a la cookie (con «auto» escribe el tema del
+// sistema, nunca el literal): asi el servidor nunca queda desfasado.
+const mirrorThemeCookie = (theme) => {
+    document.cookie = 'taap-theme=' + theme + '; path=/; max-age=31536000';
+};
+
+const applyTheme = (theme) => {
+    document.documentElement.setAttribute('data-bs-theme', theme);
+    mirrorThemeCookie(theme);
+};
+
+// Eleccion explicita del usuario: persistir (con «auto» se quita la
+// preferencia para seguir el sistema) y aplicar.
+const applyThemeChoice = (mode) => {
+    if (mode === 'auto') {
+        localStorage.removeItem('taap-theme');
+    } else {
+        localStorage.setItem('taap-theme', mode);
     }
-    const resolve = (mode) => mode === 'auto'
-        ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
-        : mode;
-    const apply = (mode) => {
-        if (mode === 'auto') {
-            localStorage.removeItem('taap-theme');
-        } else {
-            localStorage.setItem('taap-theme', mode);
-        }
-        document.documentElement.setAttribute('data-bs-theme', resolve(mode));
-        buttons.forEach((b) => {
-            b.setAttribute('aria-pressed', b.getAttribute('data-taap-theme-set') === mode ? 'true' : 'false');
-        });
-    };
-    buttons.forEach((b) => b.addEventListener('click', () => apply(b.getAttribute('data-taap-theme-set'))));
-    // Estado inicial (lo que ya hay en localStorage).
-    const saved = localStorage.getItem('taap-theme') || 'auto';
-    buttons.forEach((b) => {
-        b.setAttribute('aria-pressed', b.getAttribute('data-taap-theme-set') === saved ? 'true' : 'false');
+    applyTheme(resolveTheme(mode));
+    syncThemeButtons();
+};
+
+// aria-pressed contra el DOM actual (los botones se recrean en cada
+// navegacion SPA).
+const syncThemeButtons = () => {
+    const mode = storedThemeMode();
+    document.querySelectorAll('[data-taap-theme-set]').forEach((b) => {
+        b.setAttribute('aria-pressed', b.getAttribute('data-taap-theme-set') === mode ? 'true' : 'false');
     });
+};
+
+function initThemeSwitcher() {
+    // Delegacion en document: un solo listener para toda la vida de la
+    // sesion (window/document no se intercambian en wire:navigate).
+    if (!window.__taapThemeDelegated) {
+        window.__taapThemeDelegated = true;
+        document.addEventListener('click', (e) => {
+            const btn = (e.target && e.target.closest) ? e.target.closest('[data-taap-theme-set]') : null;
+            if (btn) {
+                applyThemeChoice(btn.getAttribute('data-taap-theme-set'));
+            }
+        });
+    }
+    if (!document.querySelector('[data-taap-theme-set]')) {
+        return; // pagina de guest: no hay conmutador
+    }
+    // Red de seguridad: re-aplicar el tema resuelto (el swap borra el
+    // atributo y el script del <head> no se re-ejecuta en la navegacion).
+    applyTheme(resolveTheme(storedThemeMode()));
+    syncThemeButtons();
     // El sistema cambia y el usuario va en «auto»: seguirlo en vivo.
-    if (saved === 'auto') {
+    // (El MediaQueryList sobrevive al swap: registrarlo una sola vez.)
+    if (storedThemeMode() === 'auto' && !window.__taapThemeSystemListener) {
+        window.__taapThemeSystemListener = true;
         window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
-            document.documentElement.setAttribute('data-bs-theme', e.matches ? 'dark' : 'light');
+            applyTheme(e.matches ? 'dark' : 'light');
         });
     }
 }
 
+// Los componentes Bootstrap se inician una vez (contra el DOM inicial);
+// tras un swap de wire:navigate el body nuevo queda sin listeners:
+// re-inicializar los toggles (dropdown/collapse) sin instancia.
+function reinitBootstrapToggles() {
+    if (!window.bootstrap) {
+        return;
+    }
+    const kinds = { dropdown: window.bootstrap.Dropdown, collapse: window.bootstrap.Collapse };
+    Object.keys(kinds).forEach((kind) => {
+        document.querySelectorAll('[data-bs-toggle="' + kind + '"]').forEach((el) => {
+            if (!kinds[kind].getInstance(el)) {
+                kinds[kind].getOrCreateInstance(el);
+            }
+        });
+    });
+}
+
 document.addEventListener('DOMContentLoaded', initThemeSwitcher);
-window.addEventListener('livewire:navigated', initThemeSwitcher);
+window.addEventListener('livewire:navigated', () => {
+    initThemeSwitcher();
+    reinitBootstrapToggles();
+});
 document.addEventListener('alpine:init', () => {
     TaapAlpine.data('taap', {
         reverbReady: false,
