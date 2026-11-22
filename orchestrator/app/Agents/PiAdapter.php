@@ -97,11 +97,10 @@ class PiAdapter extends StdioRpcAdapter
 
     public function applyConfig(Agent $agent): void
     {
-        // La config nativa (models.json, mcp.json, agent.env) se reescribe
-        // por el renderer; un restart del contenedor la aplica y la sesion
-        // se reanuda con el mismo --session-id.
-        app(AgentManager::class)->restart($agent);
-        $this->attach($agent);
+        // No-op: BridgeApplyConfig ya re-renderizo la config nativa antes
+        // de invocar este metodo. El daemon TaapBridgeCommand detecta el
+        // restart del contenedor y re-adjunta la sesion IPC en su proximo
+        // ciclo de status-poll (~30s). No spawnea coprocesos locales (D2).
     }
 
     /**
