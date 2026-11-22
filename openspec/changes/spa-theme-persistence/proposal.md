@@ -37,11 +37,7 @@ el siguiente reload.
 
 ### Modified Capabilities
 
-- `brand-identity`: la exigencia de modo oscuro amplía su contrato de
-  «aplicado antes del primer pintado, sin parpadeo» a la **navegación
-  client-side** entre páginas: el destino debe pintarse con el tema vigente
-  sin flash, y el control de tema debe seguir siendo usable después de esa
-  navegación.
+- `brand-identity`: la spec gana una exigencia nueva («Modo oscuro: persistencia en la navegación interna»): el tema vigente debe conservarse a través de la navegación client-side sin parpadeo, y el control de tema debe seguir siendo usable tras esa navegación.
 
 ## Impact
 
