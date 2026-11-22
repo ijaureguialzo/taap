@@ -38,6 +38,7 @@ Cada acción, estado y contenido vacío de la interfaz SHALL llevar un icono de 
 
 ### Requirement: Tokens de color de la marca
 La paleta de la marca (escala aqua como color primario, acento ink, colores de estado y neutros fríos) SHALL definirse como tokens: variables CSS en la web que reescriben las variables del framework para que todos sus componentes las adopten, y color sets en el asset catalog de iOS. Toda la interfaz (web e iOS) SHALL usar exclusivamente esos tokens: ningún elemento tomará un color ad hoc que no exista en la tabla de tokens.
+El alcance incluye las utilidades de color literal del framework.
 
 #### Scenario: Un cambio de paleta global
 - **WHEN** se modifica un valor de la escala primaria en la tabla de tokens
@@ -46,6 +47,10 @@ La paleta de la marca (escala aqua como color primario, acento ink, colores de e
 #### Scenario: Una pantalla nueva
 - **WHEN** se desarrolla una nueva pantalla en web o en iOS
 - **THEN** usa colores de la tabla de tokens y no hexadecimales sueltos
+
+#### Scenario: Un área con color literal
+- **WHEN** un área de la interfaz usa una utilidad de color literal del framework (p. ej. `bg-white`) en vez de un token
+- **THEN** esa superficie adopta el color temático correspondiente de la tabla de tokens (en dark, no queda blanca)
 
 ### Requirement: Modo oscuro
 El sistema SHALL ofrecer en todas las plataformas un tema de tres estados (automático, claro y oscuro): por defecto automático siguiendo el sistema, y la elección del usuario se persiste por dispositivo. El modo oscuro SHALL usar superficies oscuras frías (no negro puro) con la misma semántica de colores que el modo claro, y en la web el tema SHALL aplicarse antes del primer pintado para que no haya parpadeo, adaptando todos los componentes mediante el mecanismo nativo del framework.
@@ -61,6 +66,10 @@ El sistema SHALL ofrecer en todas las plataformas un tema de tres estados (autom
 #### Scenario: Seguir el sistema
 - **WHEN** el usuario no ha elegido tema (automático) y su sistema pasa a modo oscuro
 - **THEN** la web y la app adoptan el modo oscuro sin acción del usuario
+
+#### Scenario: Ventana de chat en modo oscuro
+- **WHEN** un usuario en modo oscuro abre el chat de un agente
+- **THEN** el área de mensajes y las burbujas usan las superficies del tema oscuro (no un fondo blanco) y el texto mantiene su contraste AA
 
 ### Requirement: Contraste accesible
 Todos los pares texto-superficie de la paleta (en modo claro y en modo oscuro) SHALL cumplir el contraste mínimo AA (4.5:1) de WCAG, y la tabla de tokens SHALL verificarse automáticamente en cada build: un par que no cumpla la ratio debe hacer fallar la verificación.
