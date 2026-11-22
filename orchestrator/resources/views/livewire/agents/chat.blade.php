@@ -1,7 +1,7 @@
 <div class="agent-chat" data-agent-id="{{ $agent->id }}">
 
     {{-- Historial + streaming --}}
-    <div class="chat-scroll flex-grow-1 overflow-auto border rounded-2 p-3 bg-white mb-3" id="chat-box">
+    <div class="chat-scroll flex-grow-1 overflow-auto border rounded-2 p-3 bg-body mb-3" id="chat-box">
         @if (count($history) === 0 && $streaming === null)
             <div class="text-center text-muted py-5">{{ __('chat.empty') }}</div>
         @endif
@@ -10,14 +10,14 @@
             @if ($msg['author'] === 'user')
                 <div class="d-flex justify-content-end mb-3">
                     <div class="bubble bubble-user">
-                        <div class="small text-muted mb-1">{{ __('chat.you') }} · {{ $msg['at'] }}</div>
+                        <div class="small mb-1">{{ __('chat.you') }} · <time class="chat-time" data-time="{{ $msg['at'] }}">{{ $msg['at'] }}</time></div>
                         <div class="message-content">{{ $msg['content'] }}</div>
                     </div>
                 </div>
             @else
                 <div class="d-flex mb-3">
                     <div class="bubble bubble-agent">
-                        <div class="small text-muted mb-1">{{ $agent->name }} · {{ $msg['at'] }}</div>
+                        <div class="small mb-1">{{ $agent->name }} · <time class="chat-time" data-time="{{ $msg['at'] }}">{{ $msg['at'] }}</time></div>
                         <div class="message-content">{{ $msg['content'] }}</div>
                     </div>
                 </div>
@@ -133,6 +133,21 @@
                 return el ? window.Livewire.find(el.getAttribute('wire:id')) : null;
             };
 
+            // Horas locales del visor (web-chat-ux D2): el servidor envia el
+            // instante en ISO 8601 (data-time) y el cliente lo renderiza en
+            // la zona horaria del dispositivo. El fallback visible hasta que
+            // corre el JS es el propio ISO (un instante, no una hora horneada).
+            const fmtLocal = (iso) => {
+                const d = new Date(iso);
+                return isNaN(d) ? null : d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            };
+            const formatTimes = (scope) => {
+                (scope || currentRoot()).querySelectorAll('time.chat-time[data-time]').forEach((el) => {
+                    const t = fmtLocal(el.getAttribute('data-time'));
+                    if (t !== null) el.textContent = t;
+                });
+            };
+
             const setup = () => {
                 if (window[FLAG]) return; // idempotente (re-ejecuciones del script)
                 // Se marca ANTES del trabajo: si algo lanza, el retry sigue.
@@ -220,7 +235,6 @@
                     //    round-trip de wire:model con debounce 400ms).
                     let sending = false;
                     let sendTries = 0;
-
                     const currentInput = () => document.querySelector('#chat-input');
                     const currentBtn = () => document.querySelector('#chat-send');
 
@@ -297,11 +311,13 @@
                             if (el.id === 'chat-input' || el.id === 'chat-send' ||
                                 (el.closest && el.closest('.agent-chat[data-agent-id="' + agentId + '"]'))) {
                                 refreshSend();
+                                if (el.matches('time.chat-time') || el.querySelector('time.chat-time')) formatTimes(el);
                             }
                         });
                     }
                     document.addEventListener('livewire:initialized', () => refreshSend());
                     refreshSend();
+                    formatTimes();
                 } catch (e) {
                     window[FLAG] = false; // permitir retry
                     console.warn('taap: chat setup', e);

@@ -197,7 +197,7 @@ class Chat extends Component
         $this->events[] = [
             'type' => $type,
             'label' => $data['name'] ?? $data['label'] ?? $type,
-            'at' => now()->format('H:i:s'),
+            'at' => now()->toIso8601String(),
         ];
         if (count($this->events) > 12) {
             array_shift($this->events);
@@ -223,7 +223,7 @@ class Chat extends Component
                 'id' => $m->id,
                 'author' => $m->author,
                 'content' => $m->content,
-                'at' => $m->created_at?->format('H:i'),
+                'at' => $m->created_at?->toIso8601String(),
                 'meta' => $m->meta ?? null,
             ])
             ->all();

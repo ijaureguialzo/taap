@@ -62,7 +62,7 @@
             </div>
 
             {{-- Linea de tiempo (7.2, design D6) --}}
-            <div class="card">
+            <div class="card" id="timeline-card">
                 <div class="card-header"><x-icon name="clock-history" class="me-1" />{{ __('timeline.title') }}</div>
                 <div class="card-body small">
                     @forelse ($windows as $w)
@@ -72,8 +72,8 @@
                                     {{ $w['open'] ? __('timeline.open') : __('timeline.done') }}
                                 </span>
                                 <span class="text-muted">
-                                    {{ $w['start']->format('d/m H:i') }}
-                                    @if ($w['end']) – {{ $w['end']->format('H:i') }} @endif
+                                    <time class="tl-time" data-time="{{ $w['start']->toIso8601String() }}">{{ $w['start']->format('d/m H:i') }}</time>
+                                    @if ($w['end']) – <time class="tl-time" data-time="{{ $w['end']->toIso8601String() }}">{{ $w['end']->format('H:i') }}</time> @endif
                                     · {{ app(App\Agents\Timeline::class)->humanDuration($w) }}
                                 </span>
                             </div>
@@ -103,6 +103,33 @@
                     @endforelse
                 </div>
             </div>
+
+            <script>
+                // Ventanas en la zona horaria del visor (web-chat-ux D2): el
+                // servidor envia instantes ISO (data-time) y el cliente
+                // renderiza d/m H:i local. Fallback (sin JS): la hora del
+                // servidor. Idempotente (FLAG) como el chat.
+                (() => {
+                    const FLAG = '__taapTimelineSetup_' + {{ $agent->id }};
+                    if (window[FLAG]) return;
+                    window[FLAG] = true;
+                    const card = document.querySelector('#timeline-card');
+                    if (!card) return;
+                    const fmt = new Intl.DateTimeFormat(undefined, {
+                        day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit',
+                    });
+                    const apply = (scope) => {
+                        (scope || card).querySelectorAll('time.tl-time[data-time]').forEach((el) => {
+                            const d = new Date(el.getAttribute('data-time'));
+                            if (!isNaN(d)) el.textContent = fmt.format(d);
+                        });
+                    };
+                    apply();
+                    // Los nodos de la linea se re-renderizan por morph
+                    // (nuevas ventanas, cierre de ventana abierta): re-aplicar.
+                    new MutationObserver(() => apply()).observe(card, { childList: true, subtree: true, characterData: true });
+                })();
+            </script>
 
             {{-- Configuracion --}}
             @if ($canManage)

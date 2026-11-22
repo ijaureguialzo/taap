@@ -543,3 +543,49 @@ body {
         min-height: 0;
     }
 }
+
+/* ===================================================================
+ * Burbujas del chat (web-chat-ux D1): superficies y texto desde los
+ * tokens de marca. La caja del chat usa bg-body (slate-50 / slate-950);
+ * la burbuja de usuario = aqua-600 con blanco (4.8:1, AA); la del agente
+ * = slate-100 / slate-800 con texto de cuerpo. Sin colores Bootstrap
+ * ad-hoc ni blanco horneado.
+ * =================================================================== */
+.bubble {
+    max-width: 78%;
+    padding: 0.5rem 0.75rem;
+    border-radius: 0.9rem;
+}
+
+.bubble .message-content {
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.bubble-user {
+    background: var(--taap-aqua-600);
+    color: #fff;
+}
+
+.bubble-user .small {
+    color: #fff; /* 4.8:1 sobre aqua-600 (AA) */
+    opacity: 0.92;
+}
+
+.bubble-agent {
+    background: var(--taap-slate-100);
+    color: var(--taap-slate-900);
+}
+
+.bubble-agent .small {
+    color: var(--taap-slate-600); /* 5.4:1 sobre slate-100 (AA) */
+}
+
+[data-bs-theme="dark"] .bubble-agent {
+    background: var(--taap-slate-800);
+    color: var(--taap-slate-100);
+}
+
+[data-bs-theme="dark"] .bubble-agent .small {
+    color: var(--taap-slate-300); /* 7.8:1 sobre slate-800 (AA) */
+}
