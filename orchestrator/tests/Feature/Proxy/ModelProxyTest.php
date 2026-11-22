@@ -175,6 +175,69 @@ class ModelProxyTest extends TestCase
         $this->assertSame($sse, $res->content(), 'el stream nativo se rellea sin transformar');
     }
 
+    public function test_anthropic_tool_schemas_with_empty_properties_are_normalized(): void
+    {
+        Http::fake([
+            '*' => Http::response([
+                'id' => 'msg_1',
+                'type' => 'message',
+                'role' => 'assistant',
+                'model' => 'claude-test-1',
+                'content' => [['type' => 'text', 'text' => 'ok']],
+                'stop_reason' => 'end_turn',
+                'usage' => ['input_tokens' => 10, 'output_tokens' => 1],
+            ], 200),
+        ]);
+
+        $this->messages('/v1/messages', [
+            'model' => 'claude-test-1',
+            'max_tokens' => 1024,
+            'messages' => [['role' => 'user', 'content' => 'hola']],
+            'tools' => [
+                [
+                    'name' => 'CronList',
+                    'description' => 'List cron jobs',
+                    'input_schema' => [
+                        'type' => 'object',
+                        'properties' => [],
+                        'additionalProperties' => false,
+                    ],
+                ],
+                [
+                    'name' => 'EnterPlanMode',
+                    'description' => 'Enter plan mode',
+                    'input_schema' => [
+                        'type' => 'object',
+                        'properties' => null,
+                        'additionalProperties' => false,
+                    ],
+                ],
+                [
+                    'name' => 'Read',
+                    'description' => 'Read a file',
+                    'input_schema' => [
+                        'type' => 'object',
+                        'properties' => [
+                            'path' => ['type' => 'string'],
+                        ],
+                        'required' => ['path'],
+                        'additionalProperties' => false,
+                    ],
+                ],
+            ],
+        ], [
+            'x-api-key' => $this->token,
+            'anthropic-version' => '2023-06-01',
+        ]);
+
+        [$request] = Http::recorded(fn ($request) => str_contains($request->url(), 'upstream-anthropic'))->first();
+        $tools = $request->data()['tools'];
+
+        $this->assertInstanceOf(\stdClass::class, $tools[0]['input_schema']['properties']);
+        $this->assertInstanceOf(\stdClass::class, $tools[1]['input_schema']['properties']);
+        $this->assertSame(['path' => ['type' => 'string']], $tools[2]['input_schema']['properties']);
+    }
+
     public function test_anthropic_tool_use_block_streams_as_input_json_delta(): void
     {
         Http::fake(['*' => Http::response([

@@ -59,6 +59,9 @@ class ModelProxyController extends Controller
         // string: el CLI llama con ?beta=true y la API real rechaza campos
         // top-level ajenos). OpenAI: el comportamiento v1.0 (all()).
         $body = $isAnthropic ? ($request->json()->all() ?? []) : $request->all();
+        if ($isAnthropic) {
+            $body = $this->normalizeAnthropicToolSchemas($body);
+        }
         // Anthropic: el upstream NATIVO sabe SSE y el CLI consume su formato
         // tal cual: relay transparente (sin re-sintetizar). El resto de
         // clientes (OpenAI v1.0) va en no-stream: el proxy sintetiza el SSE.
@@ -555,5 +558,32 @@ class ModelProxyController extends Controller
         }
 
         return $headers;
+    }
+
+    /**
+     * @param  array<string, mixed>  $body
+     * @return array<string, mixed>
+     */
+    protected function normalizeAnthropicToolSchemas(array $body): array
+    {
+        if (! is_array($body['tools'] ?? null)) {
+            return $body;
+        }
+
+        foreach ($body['tools'] as &$tool) {
+            if (! is_array($tool) || ! is_array($tool['input_schema'] ?? null)) {
+                continue;
+            }
+
+            if (array_key_exists('properties', $tool['input_schema'])
+                && (! is_array($tool['input_schema']['properties'])
+                    || $tool['input_schema']['properties'] === []
+                    || $tool['input_schema']['properties'] === null)) {
+                $tool['input_schema']['properties'] = new \stdClass;
+            }
+        }
+        unset($tool);
+
+        return $body;
     }
 }
