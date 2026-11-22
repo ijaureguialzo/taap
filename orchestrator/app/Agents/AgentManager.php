@@ -87,21 +87,13 @@ class AgentManager
             'name' => (string) config('taap.agents.network_internal'),
             'ip' => $agent->ip,
         ]];
-        if ($agent->internet_enabled) {
-            $networks[] = [
-                'name' => (string) config('taap.agents.network_egress'),
-                'ip' => null,
-            ];
-        }
-        // Modo test: Docker ignora `-p` con una sola red user-defined, asi
-        // que se adjunta la red de egress como segunda (el -p se une a ella;
-        // el squid no da ACL al agente sin Internet: sin cambio de conducta).
-        if ($this->testApiPort($agent) !== null && ! $agent->internet_enabled) {
-            $networks[] = [
-                'name' => (string) config('taap.agents.network_egress'),
-                'ip' => null,
-            ];
-        }
+        // Siempre adjunta la red de egress: en local dev da ruta al host
+        // (host.docker.internal) y en produccion los servidores MCP
+        // HTTP requieren salida. El proxy squid filtra por allowlist.
+        $networks[] = [
+            'name' => (string) config('taap.agents.network_egress'),
+            'ip' => null,
+        ];
 
         $spec = [
             'agent_id' => $agent->id,
