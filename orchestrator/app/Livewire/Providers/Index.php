@@ -5,6 +5,7 @@ namespace App\Livewire\Providers;
 use App\Models\Agent;
 use App\Models\Model;
 use App\Models\ModelProvider;
+use App\Support\UpstreamIdentity;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Http;
@@ -203,6 +204,14 @@ class Index extends Component
     protected function probe(ModelProvider $provider, ?string $apiKey): array
     {
         $headers = $apiKey ? ['Authorization' => 'Bearer '.$apiKey] : [];
+        // Misma identidad upstream que el proxy (agent-runtime-reliability
+        // D1): los gateways que validan Host (llama.cpp, uvicorn...) solo
+        // lo aceptan por 127.0.0.1; sin el mapeo el probe cae en 403 aunque
+        // el gateway sirva el trafico de agentes.
+        if ($host = UpstreamIdentity::hostFor($provider->base_url)) {
+            $headers['Host'] = $host;
+        }
+
         $url = rtrim($provider->base_url, '/').($provider->type === 'anthropic' ? '/v1/models' : '/models');
 
         try {

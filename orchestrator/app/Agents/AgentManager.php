@@ -54,7 +54,17 @@ class AgentManager
         // 1. IP fija en taap-internal (la pide el contenedor; el ACL del
         //    proxy squid la lista cuando sea necesario)
         if (empty($agent->ip)) {
-            $agent->ip = $this->docker->allocateIp(config('taap.agents.network_internal'));
+            // La DB es la fuente de verdad de las reservas (D2): un
+            // contenedor Created no aparece en la red, pero su IP ya no
+            // es libre para otro agente.
+            $reserved = Agent::whereKeyNot($agent->id)
+                ->whereNotNull('ip')
+                ->pluck('ip')
+                ->all();
+            $agent->ip = $this->docker->allocateIp(
+                (string) config('taap.agents.network_internal'),
+                $reserved,
+            );
         }
 
         // 2. Token del agente (Model Proxy + MCP bridge) - se guarda ANTES
@@ -323,6 +333,24 @@ class AgentManager
                     } catch (DockerException $e) {
                         $agent->status = AgentStatus::Error;
                         Log::warning("reconcile: re-arranque falló {$agent->id}: {$e->getMessage()}");
+                    }
+                    $agent->save();
+                } else {
+                    $agent->status = AgentStatus::Offline;
+                    $agent->save();
+                }
+            }
+
+            if ($state === 'created') {
+                // agent-runtime-reliability D3: creado sin arrancar (p. ej.
+                // colision de IP en el arranque): misma politica que un crash.
+                if ($agent->auto_restart) {
+                    try {
+                        $this->docker->start($agent->container_name);
+                        $agent->status = AgentStatus::Starting;
+                    } catch (DockerException $e) {
+                        $agent->status = AgentStatus::Error;
+                        Log::warning("reconcile: arranque del contenedor creado falló {$agent->id}: {$e->getMessage()}");
                     }
                     $agent->save();
                 } else {

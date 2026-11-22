@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Proxy;
 
 use App\Http\Controllers\Controller;
 use App\Models\Agent;
+use App\Support\UpstreamIdentity;
 use App\Models\AgentToken;
 use App\Models\ModelProvider;
 use Illuminate\Http\JsonResponse;
@@ -48,14 +49,11 @@ class ModelProxyController extends Controller
         $isAnthropic = $provider->type === 'anthropic';
         $upstream = rtrim($provider->base_url, '/').$this->upstreamPath($request, $agent, $provider->type);
         // El proxy debe presentar el Host del upstream (algunos servidores,
-        // p. ej. uvicorn con --allowed-hosts, rechazan otro Host).
+        // p. ej. uvicorn con --allowed-hosts, rechazan otro Host). La
+        // convension (host.docker.internal -> 127.0.0.1) la comparte con el
+        // sondeo de salud: UpstreamIdentity (agent-runtime-reliability D1).
         $host = parse_url($upstream, PHP_URL_HOST) ?: '';
-        $port = parse_url($upstream, PHP_URL_PORT);
-        // `host.docker.internal` es solo una forma de llegar al host desde el
-        // contenedor; el servidor upstream se ve a si mismo por 127.0.0.1
-        // (algunos validadores de Host lo exigen asi).
-        $host = $host === 'host.docker.internal' ? '127.0.0.1' : $host;
-        $this->upstreamHost = $host.($port ? ':'.$port : '');
+        $this->upstreamHost = UpstreamIdentity::hostFor($upstream) ?? '';
 
         // Anthropic: el body se toma del JSON crudo (sin mezclar la query
         // string: el CLI llama con ?beta=true y la API real rechaza campos
@@ -187,9 +185,7 @@ class ModelProxyController extends Controller
 
         $upstream = rtrim($provider->base_url, '/').$this->upstreamPath($request, $agent, $provider->type);
         $host = parse_url($upstream, PHP_URL_HOST) ?: '';
-        $port = parse_url($upstream, PHP_URL_PORT);
-        $host = $host === 'host.docker.internal' ? '127.0.0.1' : $host;
-        $this->upstreamHost = $host.($port ? ':'.$port : '');
+        $this->upstreamHost = UpstreamIdentity::hostFor($upstream) ?? '';
 
         // Codex llama con stream=true y consume el SSE del upstream tal cual.
         $body = $request->json()->all() ?? [];

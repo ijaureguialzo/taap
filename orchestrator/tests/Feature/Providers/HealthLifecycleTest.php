@@ -143,6 +143,25 @@ class HealthLifecycleTest extends TestCase
         );
     }
 
+    /**
+     * Gateway con validacion de Host (llama.cpp --allowed-host, agent-runtime-
+     * reliability D1): el base_url usa host.docker.internal; el probe debe
+     * presentar Host 127.0.0.1:puerto (como el proxy) y marcarlo sano,
+     * aunque el gateway solo acepte 127.0.0.1.
+     */
+    public function test_probe_presents_loopback_host_for_docker_internal_url(): void
+    {
+        $this->actingAs($this->admin);
+        $p = $this->provider('http://host.docker.internal:9999/v1');
+
+        Http::fake(['*models' => Http::response(['data' => []], 200)]);
+        Livewire::test(ProvidersIndex::class)->call('check', $p->id);
+
+        Http::assertSent(fn ($request) => ($request->header('Host')[0] ?? '') === '127.0.0.1:9999',
+            'el probe debe presentar el Host 127.0.0.1, no el alias host.docker.internal');
+        $this->assertSame(ModelProvider::STATUS_OK, $p->fresh()->status);
+    }
+
     /** Provider sano: el chat fluye y el proxy relaya el 200 del upstream. */
     public function test_chat_flow_with_healthy_provider(): void
     {

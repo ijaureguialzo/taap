@@ -472,7 +472,16 @@ SH;
      * IP libre dentro de una red (inspecciona la red y elige la primera libre
      * a partir de la base de la subnet configurada).
      */
-    public function allocateIp(string $networkName): ?string
+    /**
+     * Direccionamiento unico y estable (agent-runtime-reliability D2): el
+     * barrido excluye las IPs en vivo de la red y, ademas, `$reserved` —
+     * direcciones ya asignadas en la base de datos a otros agentes, cuyos
+     * contenedores pueden estar `Created` (sin apegar) y por tanto no
+     * aparecen en `docker network inspect`.
+     *
+     * @param list<string> $reserved
+     */
+    public function allocateIp(string $networkName, array $reserved = []): ?string
     {
         $info = $this->run([
             'network', 'inspect', $networkName,
@@ -496,9 +505,11 @@ SH;
 
         for ($i = 2; $i < $count; $i++) {
             $candidate = "{$prefix}.".($last + $i);
-            if (! in_array($candidate, $inUse, true)) {
-                return $candidate;
+            if (in_array($candidate, $inUse, true) || in_array($candidate, $reserved, true)) {
+                continue;
             }
+
+            return $candidate;
         }
 
         return null;
