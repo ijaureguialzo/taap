@@ -10,14 +10,14 @@
             @if ($msg['author'] === 'user')
                 <div class="d-flex justify-content-end mb-3">
                     <div class="bubble bubble-user">
-                        <div class="small mb-1">{{ __('chat.you') }} · <time class="chat-time" data-time="{{ $msg['at'] }}">{{ $msg['at'] }}</time></div>
+                        <div class="small mb-1">{{ __('chat.you') }} · <time wire:ignore class="chat-time" data-time="{{ $msg['at'] }}">{{ $msg['at'] }}</time></div>
                         <div class="message-content">{{ $msg['content'] }}</div>
                     </div>
                 </div>
             @else
                 <div class="d-flex mb-3">
                     <div class="bubble bubble-agent">
-                        <div class="small mb-1">{{ $agent->name }} · <time class="chat-time" data-time="{{ $msg['at'] }}">{{ $msg['at'] }}</time></div>
+                        <div class="small mb-1">{{ $agent->name }} · <time wire:ignore class="chat-time" data-time="{{ $msg['at'] }}">{{ $msg['at'] }}</time></div>
                         <div class="message-content">{{ $msg['content'] }}</div>
                     </div>
                 </div>
@@ -142,7 +142,14 @@
                 return isNaN(d) ? null : d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
             };
             const formatTimes = (scope) => {
-                (scope || currentRoot()).querySelectorAll('time.chat-time[data-time]').forEach((el) => {
+                const root = scope || currentRoot();
+                if (!root || root.nodeType !== 1) return;
+                // querySelectorAll solo coincide con descendientes: si el scope ES un
+                // <time> (el hook morph.updated pasa el nodo directamente)
+                // hay que añadirlo a los objetivos o se perdería el formato.
+                const targets = new Set(root.querySelectorAll('time.chat-time[data-time]'));
+                if (root.matches('time.chat-time')) targets.add(root);
+                targets.forEach((el) => {
                     const t = fmtLocal(el.getAttribute('data-time'));
                     if (t !== null) el.textContent = t;
                 });
@@ -305,6 +312,16 @@
                     // (el estado del botón re-renderizado por el servidor puede ir
                     // desfasado respecto al texto en el input).
                     if (window.Livewire && typeof window.Livewire.hook === 'function') {
+                        // ¿El nodo ES o CONTIENE el chat de este agente?
+                        const touchesOurChat = (el) => {
+                            if (!el || el.nodeType !== 1) return false;
+                            const sel = '.agent-chat[data-agent-id="' + agentId + '"]';
+                            return el.matches(sel) || (el.querySelector ? !!el.querySelector(sel) : false);
+                        };
+                        // Re-formatea TODAS las horas del chat tras un morph
+                        // completo (scope = root de este agentId).
+                        const reformatChat = (el) => { if (touchesOurChat(el)) formatTimes(); };
+
                         window.Livewire.hook('morph.updated', (arg) => {
                             const el = arg && arg.el ? arg.el : null;
                             if (!el || el.nodeType !== 1) return;
@@ -313,6 +330,24 @@
                                 refreshSend();
                                 if (el.matches('time.chat-time') || el.querySelector('time.chat-time')) formatTimes(el);
                             }
+                        });
+
+                        // El hook `updated` dispara ANTES de parchear los nodos
+                        // de texto (morph: updated -> patchChildren): reformatear
+                        // alli se sobreescribia en el mismo morph con el ISO que
+                        // envia el servidor (así se veia ISO al teclear en la caja
+                        // de texto: wire:model.live.400ms -> update -> morph).
+                        // `morphed`/`island.morphed` disparan cuando el morph ya
+                        // termino: ahi la re-aplicacion de la hora local es
+                        // definitiva (y es donde se formatea un mensaje nuevo).
+                        window.Livewire.hook('morphed', (arg) => reformatChat(arg && arg.el));
+                        window.Livewire.hook('island.morphed', (arg) => reformatChat(arg && arg.component && arg.component.el));
+                        // Mensajes nuevos: al añadirse con el ISO visible,
+                        // formatearlos en cuanto aparecen en el DOM.
+                        window.Livewire.hook('morph.added', (arg) => {
+                            const el = arg && arg.el;
+                            if (el && (el.matches('time.chat-time') ||
+                                (el.querySelector && el.querySelector('time.chat-time')))) formatTimes(el);
                         });
                     }
                     document.addEventListener('livewire:initialized', () => refreshSend());
