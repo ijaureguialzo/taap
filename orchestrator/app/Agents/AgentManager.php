@@ -134,6 +134,13 @@ class AgentManager
                 'taap.owner' => (string) $agent->owner_id,
                 'taap.instance' => (string) config('taap.instance', 'default'),
             ],
+            // Redes custom (taap-internal) no tienen ruta al host; se
+            // añade un alias extra para que los agentes alcancen el proxy
+            // y el orquestador (design D2: host.docker.internal en Docker
+            // Desktop solo funciona en la red bridge por defecto).
+            'extraHosts' => [
+                'host.docker.internal:host-gateway',
+            ],
         ];
 
         if (! $this->docker->imageExists($agent->image)) {

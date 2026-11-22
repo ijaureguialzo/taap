@@ -85,6 +85,12 @@ class DockerClient
             $args[] = "{$key}={$value}";
         }
 
+        // Extra hosts (p. ej. host.docker.internal en redes custom):
+        foreach ($spec['extraHosts'] ?? [] as $host) {
+            $args[] = '--add-host';
+            $args[] = $host;
+        }
+
         if (! empty($spec['openStdin'])) {
             $args[] = '--interactive';
         }
