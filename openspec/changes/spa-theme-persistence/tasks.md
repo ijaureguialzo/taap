@@ -15,4 +15,4 @@
 
 - [x] 3.1 Test de feature: con `withCookie('taap-theme', 'dark')` una página web renderiza el atributo en `<html>`; sin cookie no lo renderiza; suite PHP sin fallos nuevos vs. la línea base
 - [x] 3.2 En vivo (8011): con dark guardado, click en la lista de agentes → página destino en dark sin flash; el control de tema responde tras la navegación; igual con elección «claro» y en un layout de guest (login)
-- [ ] 3.3 Commit con el trailer de autoría
+- [x] 3.3 Commit con el trailer de autoría
