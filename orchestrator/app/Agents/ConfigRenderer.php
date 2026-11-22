@@ -113,8 +113,8 @@ class ConfigRenderer
         $models = $model ? [[
             'id' => $model->model_id,
             'name' => $model->name,
-            'contextWindow' => $model->context_window,
-            'maxTokens' => $model->max_tokens,
+            'contextWindow' => $model->context_window ?? 131072,
+            'maxTokens' => $model->max_tokens ?? 8192,
         ]] : [];
         $modelsJson = [
             'providers' => [

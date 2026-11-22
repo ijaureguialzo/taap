@@ -5,19 +5,37 @@
 # La configuracion llega en /config/agent.env como variables shell (el
 # orquestador lo escribe con valores ya exportables):
 #   SESSION_ID      id de la sesion (reanudable; por defecto: marca de tiempo)
-#   PROVIDER        provider registrado en models.json (por defecto: taap)
+#   PROVIDER        provider registrado en models.json (por defecto: splash)
 #   MODEL           id de modelo
 #   API_KEY         token de agente del Model Proxy
 #   SYSTEM_PROMPT   prompt de sistema opcional
+#
+# El provider se registra en ~/.pi/agent/models.json para que pi lo resuelva
+# (no se pasa por --provider: pi solo conoce providers integrados como
+# openai, anthropic, ollama; los custom viven en models.json).
+#
+# La config (models.json, mcp.json) se monta en ~/.pi/agent/ (bind mount
+# writable desde el host). Pi lee de ~/.pi/agent/.
+# La extension taap-approval se copia a ~/.pi/agent/ (tambien writable).
 set -e
 [ -f /config/agent.env ] && . /config/agent.env
+
+# Asegurar que los subdirectorios de ~/.pi/agent/ existen. El bind mount
+# reemplaza el contenido de ~/.pi/agent/ pero no garantiza que todos los
+# subdirectorios existan (sessions y extensions pueden no estar en el host).
+mkdir -p "$HOME/.pi/agent/sessions"
+mkdir -p "$HOME/.pi/agent/extensions"
+
+# Copiar extension taap-approval si existe en el config mount
+if [ -f /config/taap-approval.ts ]; then
+    cp /config/taap-approval.ts "$HOME/.pi/agent/extensions/taap-approval.ts"
+fi
 
 SESSION_ID="${SESSION_ID:-$(date +%s)}"
 set -- --mode rpc \
        --session-dir /home/agent/.pi/agent/sessions \
        --session-id "$SESSION_ID"
-[ -n "${MODEL:-}" ] && set -- "$@" --provider "${PROVIDER:-taap}" --model "$MODEL"
-[ -n "${API_KEY:-}" ] && set -- "$@" --api-key "$API_KEY"
+[ -n "${MODEL:-}" ] && set -- "$@" --model "taap/${MODEL}"
 [ -n "${SYSTEM_PROMPT:-}" ] && set -- "$@" --system-prompt "$SYSTEM_PROMPT"
 
 # Entrada RPC por FIFO: pi lee de /rpc/in en vez de del stdin del

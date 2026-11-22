@@ -12,7 +12,7 @@
 # `docker restart`: pi se re-inicia y reanuda la misma sesion (--session-id).
 FROM node:24-bookworm
 
-ARG PI_VERSION=1.5.2
+ARG PI_VERSION=1.6.0
 
 # python3 para servers MCP stdio; curl para healthchecks
 RUN apt-get update \
