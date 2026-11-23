@@ -8,18 +8,18 @@
 
 > Requiere: Docker activo, bridge en ejecución, UI web abierta.
 
-- [ ] 2.1 Arrancar el bridge (si no está corriendo): `php artisan taap:bridge` y verificar que no hay errores en consola durante los primeros 60 segundos
-- [ ] 2.2 Guardar la configuración de un agente Pi en la UI (cambiar el system prompt y hacer clic en Save): verificar que la página responde en <2 segundos y no muestra mensajes de error
-- [ ] 2.3 Comprobar que el agente se reinicia y vuelve a `idle` en <30 segundos tras el guardado
-- [ ] 2.4 Verificar que no se acumulan procesos `php` huérfanos tras múltiples guardados: `ps aux | grep "php artisan"` antes y después de 3 guardados consecutivos — la cuenta no debe crecer
+- [x] 2.1 Arrancar el bridge (si no está corriendo): `php artisan taap:bridge` y verificar que no hay errores en consola durante los primeros 60 segundos
+- [x] 2.2 Guardar la configuración de un agente Pi en la UI (cambiar el system prompt y hacer clic en Save): verificar que la página responde en <2 segundos y no muestra mensajes de error
+- [x] 2.3 Comprobar que el agente se reinicia y vuelve a `idle` en <30 segundos tras el guardado
+- [x] 2.4 Verificar que no se acumulan procesos `php` huérfanos tras múltiples guardados: `ps aux | grep "php artisan"` antes y después de 3 guardados consecutivos — la cuenta no debe crecer
 
 ## 3. Verificación de no regresión
 
 > Requiere: Docker activo, al menos un agente Pi corriendo.
 
-- [ ] 3.1 Enviar un mensaje a un agente Pi activo: verificar que la conversación responde con normalidad
-- [ ] 3.2 Cambiar el modelo de un agente Pi: verificar que se aplica tras el reinicio sin pérdida de historial
-- [ ] 3.3 Detener y arrancar manualmente un agente Pi: verificar que la reconexión IPC funciona correctamente
+- [x] 3.1 Enviar un mensaje a un agente Pi activo: verificar que la conversación responde con normalidad
+- [x] 3.2 Cambiar el modelo de un agente Pi: verificar que se aplica tras el reinicio sin pérdida de historial
+- [x] 3.3 Detener y arrancar manualmente un agente Pi: verificar que la reconexión IPC funciona correctamente
 
 ## Workflow follow-up
 
