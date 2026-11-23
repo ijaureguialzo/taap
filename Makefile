@@ -51,3 +51,6 @@ shell: ## Shell en el orquestador
 
 clean: ## Para la pila y elimina volúmenes (¡BORRA DATOS!)
 	$(COMPOSE) down -v
+
+certs:
+	@cd deploy && traefik/crear_certs.sh 'taap.test *.taap.test'
