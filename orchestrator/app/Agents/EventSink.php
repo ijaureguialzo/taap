@@ -31,23 +31,23 @@ class EventSink
         ]);
 
         // Spec (agent-chat): los deltas no se persisten, solo el final
-        if ($event->type !== 'message.delta') {
+        // (el razonamiento viaja en `meta.thinking` del final, design D1).
+        if ($event->type !== 'message.delta' && $event->type !== 'thinking.delta') {
             $row->save();
         }
 
         $this->applySideEffects($agent, $row);
 
         // En cola: el broadcast no debe bloquear el bucle del bridge.
-        // v1: los deltas no se difunden por cola (volumen); la Web recibe
-        // final/status. La difusion token-a-token llega en v1.1.
-        if ($event->type !== 'message.delta') {
-            Bus::dispatch(new BroadcastEvent(new AgentEventBroadcast(
-                $agent->id,
-                $event->type,
-                $event->payload,
-                $event->at->format('c'),
-            )));
-        }
+        // Los deltas SÍ se difunden por el canal (interactive-agent-chat D1/
+        // D2): la web los aplica localmente sin round-trip por token; los
+        // suscriptores por canal son pocos (dueño/admin).
+        Bus::dispatch(new BroadcastEvent(new AgentEventBroadcast(
+            $agent->id,
+            $event->type,
+            $event->payload,
+            $event->at->format('c'),
+        )));
     }
 
     protected function applySideEffects(Agent $agent, AgentEventRow $row): void
@@ -57,6 +57,7 @@ class EventSink
         switch ($row->type) {
             case 'run.start':
             case 'message.delta':
+            case 'thinking.delta':
                 if (! $agent->status->isRunning() || $agent->status !== AgentStatus::Working) {
                     $this->setStatus($agent, AgentStatus::Working);
                 }
@@ -87,21 +88,23 @@ class EventSink
 
             case 'message.final':
                 // Anti-duplicidad: pi reemite message_end del historial al
-                // re-adjuntar/probar. Se deduplica por (run_id, contenido):
-                // si el ultimo final es identico, se omite.
+                // re-adjuntar/probar. Se deduplica por (run_id, contenido,
+                // razonamiento): si el ultimo final es identico, se omite.
                 $content = (string) ($payload['content'] ?? '');
+                $thinking = (string) ($payload['thinking'] ?? '');
                 $runId = $payload['run_id'] ?? null;
                 $last = ChatMessage::where('agent_id', $agent->id)
                     ->where('author', 'agent')
                     ->latest('id')
                     ->first();
                 if (! ($last && $last->content === $content
-                    && ($last->meta['run_id'] ?? null) === $runId)) {
+                    && ($last->meta['run_id'] ?? null) === $runId
+                    && ($last->meta['thinking'] ?? '') === $thinking)) {
                     ChatMessage::create([
                         'agent_id' => $agent->id,
                         'author' => 'agent',
                         'content' => $content,
-                        'meta' => ['run_id' => $runId],
+                        'meta' => ['run_id' => $runId, 'thinking' => $thinking],
                     ]);
                     $agent->forceFill(['last_active_at' => $row->occurred_at])->save();
                 }

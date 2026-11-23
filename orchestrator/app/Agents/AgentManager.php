@@ -150,6 +150,10 @@ class AgentManager
         $agent->save();
         $this->docker->start($name);
 
+        // Paridad con start()/stop() (spec agent-lifecycle): los clientes
+        // ven la transición starting sin recargar (badge de index/detalle).
+        app(EventSink::class)->dispatch($agent, AgentEvent::statusChange(AgentStatus::Starting->value));
+
         // Puerto publicado en modo test (el adapter lo usa como base URL).
         if ($port = $this->testApiPort($agent)) {
             $published = $this->docker->publishedPort($name, $port);
@@ -218,6 +222,13 @@ class AgentManager
         $agent->started_at = now();
         $agent->save();
         $this->docker->start($agent->container_name);
+
+        // Paridad con stop() (spec agent-lifecycle): el sistema produce la
+        // transición, así que la notifica por el canal. EventSink::setStatus
+        // no la re-emitirá (el estado ya es el que el evento declara):
+        // una sola fila/broadcast por arranque. El bridge la cerrará con
+        // ready->idle cuando el runtime responda.
+        app(EventSink::class)->dispatch($agent, AgentEvent::statusChange(AgentStatus::Starting->value));
 
         return $agent;
     }

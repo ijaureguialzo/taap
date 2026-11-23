@@ -2,9 +2,9 @@
 
 ## 1. Contrato de eventos y EventSink
 
-- [ ] 1.1 `AgentEvent`: nueva factoría `thinkingDelta(?string $runId, string $content)` (tipo `thinking.delta`, payload `{run_id, content}`) y `messageFinal` con campo `thinking` opcional (default `''`); actualizar la cabecera de tipos de la clase. Verificación: test unitario de las factorías (shape exacto de payload) en la suite existente de adapters.
-- [ ] 1.2 `EventSink`: difundir `message.delta` y `thinking.delta` por Reverb (retirar la exclusión y su comentario de «v1.1»); en `message.final`, persistir `meta.thinking` en `chat_messages` (junto a `meta.run_id` actual); los deltas siguen sin persistirse como fila. Verificación: test Feature — dispatch de delta → `BroadcastEvent` al canal `agent.{id}`; dispatch de final con thinking → fila en `chat_messages` con `meta.thinking` y contenido separado.
-- [ ] 1.3 `AgentManager`: `start()` y `provision()` emiten `statusChange('starting')` vía `EventSink` (paridad con `stop()`). Verificación: test — arrancar un agente produce fila `agent_events` tipo `status.change` (`starting`) y broadcast; sin duplicar la emisión que ya hace `EventSink::setStatus`.
+- [x] 1.1 `AgentEvent`: nueva factoría `thinkingDelta(?string $runId, string $content)` (tipo `thinking.delta`, payload `{run_id, content}`) y `messageFinal` con campo `thinking` opcional (default `''`); actualizar la cabecera de tipos de la clase. Verificación: test unitario de las factorías (shape exacto de payload) en la suite existente de adapters.
+- [x] 1.2 `EventSink`: difundir `message.delta` y `thinking.delta` por Reverb (retirar la exclusión y su comentario de «v1.1»); en `message.final`, persistir `meta.thinking` en `chat_messages` (junto a `meta.run_id` actual); los deltas siguen sin persistirse como fila. Verificación: test Feature — dispatch de delta → `BroadcastEvent` al canal `agent.{id}`; dispatch de final con thinking → fila en `chat_messages` con `meta.thinking` y contenido separado.
+- [x] 1.3 `AgentManager`: `start()` y `provision()` emiten `statusChange('starting')` vía `EventSink` (paridad con `stop()`). Verificación: test — arrancar un agente produce fila `agent_events` tipo `status.change` (`starting`) y broadcast; sin duplicar la emisión que ya hace `EventSink::setStatus`.
 
 ## 2. Mapeo de razonamiento por runtime (5 adaptadores + sidecar)
 

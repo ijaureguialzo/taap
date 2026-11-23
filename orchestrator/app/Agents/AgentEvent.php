@@ -8,7 +8,8 @@ namespace App\Agents;
  *
  * Tipos:
  *  - message.delta         payload: {run_id, content}
- *  - message.final         payload: {run_id, content}
+ *  - thinking.delta        payload: {run_id, content}
+ *  - message.final         payload: {run_id, content, thinking}
  *  - tool.start            payload: {run_id, tool, args}
  *  - tool.result           payload: {run_id, tool, ok, summary}
  *  - approval.request      payload: {run_id, id, prompt, options}
@@ -36,9 +37,17 @@ class AgentEvent
         return new self('message.delta', ['run_id' => $runId, 'content' => $content]);
     }
 
-    public static function messageFinal(?string $runId, string $content): self
+    public static function thinkingDelta(?string $runId, string $content): self
     {
-        return new self('message.final', ['run_id' => $runId, 'content' => $content]);
+        return new self('thinking.delta', ['run_id' => $runId, 'content' => $content]);
+    }
+
+    public static function messageFinal(?string $runId, string $content, string $thinking = ''): self
+    {
+        // `thinking`: el razonamiento completo del turno, SEPARADO de
+        // `content` (spec agent-runtimes: nunca fundido con el texto). Puede
+        // ser vacío (runtimes/modelos sin razonamiento: el contrato lo permite).
+        return new self('message.final', ['run_id' => $runId, 'content' => $content, 'thinking' => $thinking]);
     }
 
     /**

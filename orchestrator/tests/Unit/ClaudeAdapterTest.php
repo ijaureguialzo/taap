@@ -175,10 +175,11 @@ class ClaudeAdapterTest extends TestCase
             array_map(fn (AgentEvent $e) => $e->type, $events),
         );
 
-        // shape exacto de AgentEvent (el cliente web lo consume)
+        // shape exacto de AgentEvent (el cliente web lo consume): el final
+        // lleva `thinking` (vacío aquí: el sidecar de este flujo no lo emite).
         $final = $events[7]->toArray();
         $this->assertSame('message.final', $final['type']);
-        $this->assertSame(['run_id' => 'r1', 'content' => 'Hay 3 ficheros.'], $final['payload']);
+        $this->assertSame(['run_id' => 'r1', 'content' => 'Hay 3 ficheros.', 'thinking' => ''], $final['payload']);
         $this->assertArrayHasKey('at', $final);
 
         // el sink aplico los efectos de estado: el agente queda idle

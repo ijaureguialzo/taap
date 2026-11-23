@@ -149,7 +149,7 @@ class ClaudeAdapter extends StdioRpcAdapter
 
         $factory = match ($type) {
             'message.delta' => AgentEvent::messageDelta($runId, (string) ($p['content'] ?? '')),
-            'message.final' => AgentEvent::messageFinal($runId, (string) ($p['content'] ?? '')),
+            'message.final' => AgentEvent::messageFinal($runId, (string) ($p['content'] ?? ''), (string) ($p['thinking'] ?? '')),
             'tool.start' => AgentEvent::toolStart($runId, (string) ($p['tool'] ?? 'tool'), (array) ($p['args'] ?? [])),
             'tool.result' => AgentEvent::toolResult($runId, (string) ($p['tool'] ?? 'tool'), (bool) ($p['ok'] ?? true), (string) ($p['summary'] ?? '')),
             'approval.request' => AgentEvent::approvalRequest($runId, (string) ($p['id'] ?? ''), (string) ($p['prompt'] ?? ''), (array) ($p['options'] ?? [])),
