@@ -31,8 +31,17 @@ services:
       - "traefik.http.routers.${COMPOSE_PROJECT_NAME}-lamb.rule=Host(`${FQDN_TAAP:-taap.test}`)"
       - "traefik.http.routers.${COMPOSE_PROJECT_NAME}-lamb.entrypoints=websecure"
       - "traefik.http.routers.${COMPOSE_PROJECT_NAME}-lamb.tls=true"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME}-lamb.service=${COMPOSE_PROJECT_NAME}-lamb"
       - "traefik.http.services.${COMPOSE_PROJECT_NAME}-lamb.loadbalancer.server.port=8000"
       - "traefik.http.services.${COMPOSE_PROJECT_NAME}-lamb.loadbalancer.server.scheme=http"
+      # Host del websocket (Reverb :8080 interno, TLS termina en Traefik).
+      # FQDN_WS configurable para apuntar el endpoint a otro despliegue.
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME}-ws.rule=Host(`${FQDN_WS:-ws.taap.test}`)"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME}-ws.entrypoints=websecure"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME}-ws.tls=true"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME}-ws.service=${COMPOSE_PROJECT_NAME}-ws"
+      - "traefik.http.services.${COMPOSE_PROJECT_NAME}-ws.loadbalancer.server.port=8080"
+      - "traefik.http.services.${COMPOSE_PROJECT_NAME}-ws.loadbalancer.server.scheme=http"
 
 networks:
   default:

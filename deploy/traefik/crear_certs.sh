@@ -1,6 +1,6 @@
 #!/bin/bash
 
-DOMINIOS="$1"
+DOMINIOS="$*"
 
 mkdir -p traefik/certs
 cd traefik/certs || exit

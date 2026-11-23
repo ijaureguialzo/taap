@@ -4,7 +4,7 @@
 COMPOSE = docker compose -f deploy/compose.yaml -f deploy/compose.traefik.yaml
 DEPLOY_ENV = deploy/.env
 
-.PHONY: help env build up seed down ps logs test lint images shell clean
+.PHONY: help env build up seed down ps logs test lint images shell clean certs
 
 help: ## Muestra esta ayuda
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-10s\033[0m %s\n", $$1, $$2}'
@@ -53,4 +53,4 @@ clean: ## Para la pila y elimina volúmenes (¡BORRA DATOS!)
 	$(COMPOSE) down -v
 
 certs:
-	@cd deploy && traefik/crear_certs.sh 'taap.test *.taap.test'
+	@cd deploy && traefik/crear_certs.sh "$${DOMAINS:-taap.test *.taap.test}"
