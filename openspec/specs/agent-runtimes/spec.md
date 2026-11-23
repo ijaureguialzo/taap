@@ -14,7 +14,7 @@ El sistema SHALL mantener un registro de runtimes de agente disponibles para cre
 - **THEN** la selección de runtime ofrece exactamente los runtimes del registro (Pi, Hermes, Claude Code, Codex y OpenCode)
 
 ### Requirement: Pi adapter
-El sistema SHALL integrar el runtime Pi a través de su interfaz RPC de larga vida (JSON sobre stdin/stdout), conduciendo el proceso del agente dentro del contenedor: entregar mensajes del usuario, recibir eventos normalizados y reanudar la sesión persistida del agente tras reinicios del contenedor.
+El sistema SHALL integrar el runtime Pi a través de su interfaz RPC de larga vida (JSON sobre stdin/stdout), conduciendo el proceso del agente dentro del contenedor: entregar mensajes del usuario, recibir eventos normalizados y reanudar la sesión persistida del agente tras reinicios del contenedor. La reconexión IPC tras un reinicio la gestiona el daemon `TaapBridgeCommand`, no el adapter.
 
 #### Scenario: Message via Pi
 - **WHEN** un mensaje del usuario se entrega a un agente Pi
@@ -76,7 +76,7 @@ Todos los runtimes SHALL exponerse a la pipeline de chat a través de un modelo 
 - **THEN** la pipeline de chat recibe eventos de los mismos tipos normalizados y la interfaz los renderiza de forma idéntica
 
 ### Requirement: Per-runtime configuration delivery
-El sistema SHALL renderizar la configuración nativa de cada runtime (endpoint de modelo, servidores MCP, credenciales) en el directorio persistente del agente y aplicar los cambios de configuración por el mecanismo que el runtime soporte, sin perder el estado de la sesión del agente.
+El sistema SHALL renderizar la configuración nativa de cada runtime (endpoint de modelo, servidores MCP, credenciales) en el directorio persistente del agente y aplicar los cambios de configuración por el mecanismo que el runtime soporte, sin perder el estado de la sesión del agente. Para el runtime Pi, la aplicación de configuración consiste exclusivamente en re-renderizar la config nativa y reanudar la sesión: la reconexión IPC es responsabilidad del daemon bridge.
 
 #### Scenario: Model change without session loss
 - **WHEN** un usuario cambia el modelo de un agente
