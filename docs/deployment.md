@@ -17,8 +17,9 @@ Guía de instalación y operación de la pila completa en un host con Docker.
 
 - **Docker Engine** con el daemon accesible (el orquestador gestiona agentes a
   través del socket; se monta `docker.sock` en el contenedor orquestador).
-- **Puertos libres** en el host: `8011` (web/API; configurable con
-  `TAAP_PORT`) y `8081` (WSS de Reverb; `TAAP_WS_PORT`).
+- **Puertos libres** en el host: `80`/`443` (Traefik; siempre en la pila),
+  `8011` (web/API; configurable con
+  `TAAP_PORT`) y `8081` (WSS de Reverb; `TAAP_WS_PORT`, solo acceso directo).
 - **~8 GB de RAM** libres para los contenedores (Postgres + orquestador +
   agentes) y **~10 GB de disco** (imágenes + datos de agentes).
 - Dos directorios de datos (se crean solos, pero conviene preverlos):
@@ -68,7 +69,45 @@ make ps           # todos healthy/running
 curl -s localhost:8011/up   # 200
 ```
 
-Abre `http://localhost:8011`, entra con el admin y ve el dashboard.
+Abre `https://taap.test` (o `http://localhost:8011`), entra con el admin y ve
+el dashboard.
+
+## Endpoints públicos (FQDN y websocket)
+
+La pila expone dos hosts por Traefik (FQDN configurables en `deploy/.env`):
+
+| Variable | Para qué | Defecto |
+|---|---|---|
+| `FQDN_TAAP` | Frontend + API del orquestador (router `lamb`, :8000 interno) | `taap.test` |
+| `FQDN_WS` | Servidor de eventos Reverb (router `ws`, :8080 interno, TLS :443) | `ws.taap.test` |
+
+Los clientes (web e iOS) no configuran el websocket a mano: el orquestador
+se lo comunica con el endpoint público (`TAAP_PUBLIC_HOST`,
+`TAAP_PUBLIC_SCHEME`, `TAAP_REVERB_PUBLIC_PORT`; la web lo inyecta en el
+layout y la app lo pide a `GET /api/v1/reverb-config`). Con los defectos,
+ambos conectan a `wss://ws.taap.test` (443) a través de Traefik; el
+navegador bloquearía un `ws://` directo desde la página HTTPS.
+
+**Desplegar en otro dominio** (p. ej. producción en `itlent.eus`): sin
+tocar código, en el `.env` del host,
+
+```
+FQDN_TAAP=taap.itlent.eus
+FQDN_WS=ws.taap.itlent.eus
+TAAP_PUBLIC_HOST=ws.taap.itlent.eus
+```
+
+(esquema `https` y puerto `443` se mantienen) y regenera el certificado
+para los dos dominios:
+
+```sh
+make certs DOMAINS="taap.itlent.eus ws.taap.itlent.eus"
+make build && make up
+```
+
+**Solo LAN / sin Traefik** (p. ej. la app iOS apuntando a la IP del host):
+`TAAP_PUBLIC_HOST=<IP del host>`, `TAAP_PUBLIC_SCHEME=http` y
+`TAAP_REVERB_PUBLIC_PORT=<TAAP_WS_PORT>`.
 
 ## Primer modelo (endpoint propio)
 
@@ -113,7 +152,9 @@ Notas de operación:
 
 - Apertura: `mobile/ios/regenerate.sh` (XcodeGen) y abrir `Taap.xcodeproj`.
 - En ajustes: base URL del orquestador (p. ej. `http://192.168.x.y:8011`),
-  login y token. El canal WSS (`ws://…:8081`) se deriva del base URL.
+  login y token. El canal WSS no se deriva del base URL: la app lo pide al
+  orquestador (`GET /api/v1/reverb-config`) y conecta al endpoint público
+  configurado (por defecto `wss://ws.taap.test`; ver «Endpoints públicos»).
 
 ## Verificación
 
@@ -130,8 +171,12 @@ cd orchestrator && vendor/bin/phpstan analyse --memory-limit=2G
 ```sh
 git pull
 make build && make images
-docker compose -f deploy/compose.yaml up -d --force-recreate orchestrator queue
+docker compose -f deploy/compose.yaml -f deploy/compose.traefik.yaml up -d --force-recreate orchestrator queue
 ```
+
+Si has editado `deploy/.env` (el `env_file` se carga en la creación del
+contenedor) o `deploy/compose.traefik.yaml` (labels de Traefik), usa el mismo
+`up` con ambos ficheros —o directamente `make up`— para que surta efecto.
 
 Los agentes no necesitan recrearse (el puente `taap:bridge` se re-adjunta
 solo); si cambias el modelo/MCP de uno, usa **Reiniciar** en su ficha.
@@ -143,5 +188,5 @@ solo); si cambias el modelo/MCP de uno, usa **Reiniciar** en su ficha.
 | Agente `offline` tras `docker compose down/up` | Normal los primeros 30 s: el bridge re-adjunta solo. Si persiste, `make logs` |
 | El modelo no responde desde un agente | Comprueba el endpoint: `curl <url>/models` desde el host; para routers locales, la URL debe ser `host.docker.internal` |
 | Egress 403 para un host | El host no está en la allowlist de squid (solo hosts de modelos) |
-| WSS no conecta desde iOS | El móvil debe ver el host en la LAN y el puerto WSS abierto; verifica `TAAP_WS_PORT` |
+| WSS no conecta (web o iOS) | Comprueba que el host resuelve `ws.taap.test` (o el `FQDN_WS` configurado), que el certificado lo cubre y que `TAAP_PUBLIC_HOST`/`TAAP_PUBLIC_SCHEME`/`TAAP_REVERB_PUBLIC_PORT` apuntan a donde debe; en solo LAN usa la IP + `http` + `TAAP_WS_PORT` (ver «Endpoints públicos») |
 | Aprobación nunca aparece | El modelo no invocó la herramienta (modelos pequeños dudan): reenvía el mensaje |
