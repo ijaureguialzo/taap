@@ -138,7 +138,13 @@ services:
       REVERB_APP_KEY: ${REVERB_APP_KEY:-taap-local}
       REVERB_APP_SECRET: ${REVERB_APP_SECRET:-taap-local}
       SQUID_HOST: egress
+      # Socket de Docker: los jobs de la cola default pueden tocar el
+      # runtime (BridgeApplyConfig -> restart del contenedor en Pi/Hermes).
+      # Sin el socket, restart() ve status null, cae en start() y el
+      # imagePull falla ("Cannot connect to the Docker daemon").
+      DOCKER_HOST: unix:///var/run/docker.sock
     volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
       - ${TAAP_SQUID_DIR:-/var/lib/taap/squid}:/etc/squid/taap
       - ${TAAP_AGENT_DATA_DIR:-/var/lib/taap/agents}:/data/agents
     depends_on:

@@ -97,10 +97,15 @@ class PiAdapter extends StdioRpcAdapter
 
     public function applyConfig(Agent $agent): void
     {
-        // No-op: BridgeApplyConfig ya re-renderizo la config nativa antes
-        // de invocar este metodo. El daemon TaapBridgeCommand detecta el
-        // restart del contenedor y re-adjunta la sesion IPC en su proximo
-        // ciclo de status-poll (~30s). No spawnea coprocesos locales (D2).
+        // Pi lee agent.env (MODEL, SYSTEM_PROMPT) y models.json solo en el
+        // arranque del proceso: el cambio exige REINICIO del contenedor
+        // (la sesion se reanuda con --session-id; diseño en agents/pi/
+        // Dockerfile). Sin restart, el proceso vivo sigue usando el modelo
+        // anterior (peticion 404 silenciosa: el usuario no veia respuesta).
+        // Sin attach() aqui: el daemon TaapBridgeCommand re-adjunta el IPC
+        // en su proximo ciclo (el attach desde el job de cola dejo
+        // coprocesos huérfanos - d71bcef).
+        app(AgentManager::class)->restart($agent);
     }
 
     /**
