@@ -16,12 +16,24 @@ services:
       - "traefik.http.routers.${COMPOSE_PROJECT_NAME}-dashboard_redirect.middlewares=${COMPOSE_PROJECT_NAME}-dashboard-redirect"
       - "traefik.http.routers.${COMPOSE_PROJECT_NAME}-dashboard_redirect.entrypoints=websecure"
       - "traefik.http.routers.${COMPOSE_PROJECT_NAME}-dashboard_redirect.tls=true"
+    networks:
+      - default
+      - taap-internal
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - ./traefik/traefik.yml:/etc/traefik/traefik.yml:ro
       - ./traefik/tls.yml:/etc/traefik/dynamic/tls.yml:ro
       - ./traefik/certs:/certs:ro
 
+  orchestrator:
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME}-lamb.rule=Host(`${FQDN_TAAP:-taap.test}`)"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME}-lamb.entrypoints=websecure"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME}-lamb.tls=true"
+      - "traefik.http.services.${COMPOSE_PROJECT_NAME}-lamb.loadbalancer.server.port=8000"
+      - "traefik.http.services.${COMPOSE_PROJECT_NAME}-lamb.loadbalancer.server.scheme=http"
+
 networks:
   default:
-    name: ${NETWORK_NAME:-traefik}
+    name: ${TRAEFIK_NETWORK_NAME:-traefik}

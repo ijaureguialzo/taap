@@ -1,7 +1,7 @@
 # TAAP - The Agentic AI Playground
 # Uso: make <objetivo>  (desde la raíz del repo)
 
-COMPOSE = docker compose -f deploy/compose.yaml
+COMPOSE = docker compose -f deploy/compose.yaml -f deploy/compose.traefik.yaml
 DEPLOY_ENV = deploy/.env
 
 .PHONY: help env build up seed down ps logs test lint images shell clean
