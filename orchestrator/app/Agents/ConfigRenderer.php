@@ -322,6 +322,12 @@ class ConfigRenderer
         $args = [
             '-c', 'approval_policy='.($this->codexStr($agent, 'approval_policy') ?? 'on-request'),
             '-c', 'sandbox_mode='.($this->codexStr($agent, 'sandbox_mode') ?? 'workspace-write'),
+            // Web search (spike 2.1): el binary 0.171 incluye SIEMPRE la
+            // tool `web_search` en el request /v1/responses; un upstream que
+            // no la soporta (orcarouter: 400) cae el turno entero. Desactivada
+            // por defecto (los agentes TAAP no dependen de ella); un admin la
+            // reactiva en config (`web_search`: live/indexed/cached).
+            '-c', 'web_search='.($this->codexStr($agent, 'web_search') ?? 'disabled'),
         ];
 
         if ($model?->model_id) {

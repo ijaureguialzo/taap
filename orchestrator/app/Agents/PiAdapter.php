@@ -16,7 +16,8 @@ use Illuminate\Support\Str;
  *   agent_start            -> run.start
  *   agent_settled{aborted}-> run.end
  *   message_update (delta) -> message.delta
- *   message_end (assistant)-> message.final
+ *   message_update (thinking_delta) -> thinking.delta
+ *   message_end (assistant)-> message.final (con bloques thinking en `thinking`)
  *   tool_execution_start   -> tool.start
  *   tool_execution_end     -> tool.result
  *   extension_ui_request   -> approval.request (dialogos)
@@ -150,8 +151,14 @@ class PiAdapter extends StdioRpcAdapter
 
             case 'message_update':
                 $inner = $event['assistantMessageEvent'] ?? [];
-                if (($inner['type'] ?? '') === 'text_delta') {
+                $innerType = ($inner['type'] ?? '');
+                if ($innerType === 'text_delta') {
                     $out[] = AgentEvent::messageDelta($runId, (string) ($inner['delta'] ?? ''));
+                } elseif ($innerType === 'thinking_delta') {
+                    // El bloque de razonamiento tiene su propio evento (json.md:
+                    // thinking_start/thinking_delta/thinking_end): antes caía en
+                    // el elseif genérico y se fundía en message.delta.
+                    $out[] = AgentEvent::thinkingDelta($runId, (string) ($inner['delta'] ?? ''));
                 } elseif (isset($inner['delta'])) {
                     $out[] = AgentEvent::messageDelta($runId, (string) $inner['delta']);
                 }
@@ -162,7 +169,11 @@ class PiAdapter extends StdioRpcAdapter
                 if (($message['role'] ?? '') === 'assistant') {
                     $content = $this->assistantText($message);
                     if ($content !== '') {
-                        $out[] = AgentEvent::messageFinal($runId, $content);
+                        // Bloques thinking del mensaje -> `thinking` del final
+                        // (antes se descartaban). Mensajes sin texto (p. ej.
+                        // solo toolcall) siguen sin emitir final: el razonamiento
+                        // de esos pasos ya se vio en vivo por thinking.delta.
+                        $out[] = AgentEvent::messageFinal($runId, $content, $this->assistantThinking($message));
                     }
                 }
                 break;
@@ -228,6 +239,29 @@ class PiAdapter extends StdioRpcAdapter
         foreach ((array) $content as $block) {
             if (is_array($block) && isset($block['text'])) {
                 $parts[] = $block['text'];
+            }
+        }
+
+        return implode('', $parts);
+    }
+
+    /**
+     * Bloques de razonamiento del mensaje final (ThinkingContent de
+     * message-types.md: {type:"thinking", thinking, thinkingSignature?}).
+     *
+     * @param array<string, mixed> $message
+     */
+    protected function assistantThinking(array $message): string
+    {
+        $content = $message['content'] ?? '';
+        if (! is_array($content)) {
+            return '';
+        }
+
+        $parts = [];
+        foreach ($content as $block) {
+            if (is_array($block) && ($block['type'] ?? '') === 'thinking' && isset($block['thinking'])) {
+                $parts[] = (string) $block['thinking'];
             }
         }
 

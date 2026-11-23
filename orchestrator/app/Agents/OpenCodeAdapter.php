@@ -84,6 +84,14 @@ class OpenCodeAdapter extends StdioRpcAdapter
             // texto acumulado por parte (partID => texto), solo partes de
             // mensajes ASISTENT (los roles se aprenden en message.updated)
             'parts' => [],
+            // razonamiento acumulado por parte (partID => texto), SEPARADO
+            // del contenido (interactive-agent-chat 2.5: el binary 1.19.6
+            // streamea las partes reasoning con field "text", igual que el
+            // texto: el tipo se aprende en message.part.updated)
+            'thinking_parts' => [],
+            // tipo de cada parte vista (partID => type): para saber a qué
+            // flujo va cada delta cuando el updated de arranque se perdió
+            'part_types' => [],
             'msg_roles' => [],
             'tool_seen' => [],
             // ultimo status emitido (dedupe: el stream repite busy por paso)
@@ -582,8 +590,20 @@ class OpenCodeAdapter extends StdioRpcAdapter
                 if ($delta !== '' && ($params['field'] ?? 'text') === 'text'
                     && ($session['msg_roles'][$messageID] ?? 'assistant') === 'assistant') {
                     $partId = (string) ($params['partID'] ?? '');
-                    $session['parts'][$partId] = ($session['parts'][$partId] ?? '').$delta;
-                    $out[] = AgentEvent::messageDelta($runId, $delta);
+                    // Razonamiento (interactive-agent-chat 2.5): el binary
+                    // streamea las partes reasoning con field "text" (ver
+                    // binario 1.19.6: reasoning-delta -> updatePartDelta
+                    // field:text). El tipo se aprende del
+                    // message.part.updated; sin tipo conocido (se perdió el
+                    // updated de arranque) se trata como texto y el updated
+                    // de fin de parte lo mueve si resulta ser reasoning.
+                    if (($session['part_types'][$partId] ?? null) === 'reasoning') {
+                        $session['thinking_parts'][$partId] = ($session['thinking_parts'][$partId] ?? '').$delta;
+                        $out[] = AgentEvent::thinkingDelta($runId, $delta);
+                    } else {
+                        $session['parts'][$partId] = ($session['parts'][$partId] ?? '').$delta;
+                        $out[] = AgentEvent::messageDelta($runId, $delta);
+                    }
                 }
                 break;
 
@@ -591,13 +611,28 @@ class OpenCodeAdapter extends StdioRpcAdapter
                 $part = (array) ($params['part'] ?? []);
                 $partType = $part['type'] ?? null;
                 $messageID = (string) ($part['messageID'] ?? '');
+                $partId = (string) ($part['id'] ?? $messageID);
+                if (is_string($partType) && $partId !== '') {
+                    $session['part_types'][$partId] = $partType;
+                }
                 if ($partType === 'text') {
                     // La actualización lleva el texto COMPLETO de la parte:
                     // reemplaza (los deltas ya emitieron los incrementos).
                     // Solo partes de asistente: el texto final del turno no
                     // puede incluir el mensaje del usuario.
                     if (($session['msg_roles'][$messageID] ?? 'assistant') === 'assistant' && isset($part['text'])) {
-                        $session['parts'][(string) ($part['id'] ?? $messageID)] = (string) $part['text'];
+                        $session['parts'][$partId] = (string) $part['text'];
+                        // Si su stream (tipo aún desconocido) se había
+                        // acumulado en razonamiento, se descarta esa copia.
+                        unset($session['thinking_parts'][$partId]);
+                    }
+                } elseif ($partType === 'reasoning') {
+                    // Parte de razonamiento COMPLETA: reemplaza los deltas
+                    // acumulados y se mueve al flujo thinking (corrige la
+                    // fusión con el contenido del final).
+                    if (($session['msg_roles'][$messageID] ?? 'assistant') === 'assistant' && isset($part['text'])) {
+                        $session['thinking_parts'][$partId] = (string) $part['text'];
+                        unset($session['parts'][$partId]);
                     }
                 } elseif ($partType === 'tool') {
                     $state = (array) ($part['state'] ?? []);
@@ -714,7 +749,10 @@ class OpenCodeAdapter extends StdioRpcAdapter
         $session['run_id'] = null;
 
         $final = implode('', array_filter($session['parts'] ?? []));
+        $thinking = trim(implode("\n", array_filter($session['thinking_parts'] ?? [])));
         $session['parts'] = [];
+        $session['thinking_parts'] = [];
+        $session['part_types'] = [];
         $session['msg_roles'] = [];
         $session['tool_seen'] = [];
 
@@ -731,7 +769,12 @@ class OpenCodeAdapter extends StdioRpcAdapter
         }
 
         if ($final !== '') {
-            $out[] = AgentEvent::messageFinal($runId, $final);
+            $out[] = AgentEvent::messageFinal($runId, $final, $thinking);
+        } elseif ($thinking !== '') {
+            // El modelo solo pensó (sin texto visible): el razonamiento se
+            // deja como contenido (ultima linea de defensa, igual que el
+            // Model Proxy con reasoning_content): no se pierde el turno.
+            $out[] = AgentEvent::messageFinal($runId, $thinking, '');
         }
         $out[] = AgentEvent::runEnd($runId, ok: true);
         $ev = $this->emitStatus($session, 'idle');

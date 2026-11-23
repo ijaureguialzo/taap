@@ -23,6 +23,17 @@ use Illuminate\Support\Str;
  *     Model Proxy); el campo `model` de la petición es siempre
  *     `hermes-agent`.
  *
+ * Razonamiento (spike 2.5, verificado contra la cadena real
+ * gateway->Model Proxy->orcarouter->Qwen3): el gateway relays el SSE del
+ * Model Proxy, que expone el razonamiento en `delta.reasoning_content`
+ * (convencion DeepSeek/Qwen) ANTES del `delta.content`, y ademas emite
+ * eventos propios `hermes.tool.progress` del loop de tools. Mapeo:
+ *   delta.reasoning_content  -> thinking.delta (y `thinking` del final)
+ *   delta.content            -> message.delta
+ *   hermes.tool.progress     -> tool.start / tool.result
+ * El Model Proxy fusiona reasoning en content si el modelo solo penso
+ * (mergeReasoning): en ese caso el final deduplica y deja el texto.
+ *
  * No hay conexion persistente: cada turno = una peticion HTTP que el
  * bridge consume en streaming y traduce a eventos normalizados.
  */
@@ -34,6 +45,14 @@ class HermesAdapter implements AgentRuntimeAdapter
      * @var array<int, string>
      */
     protected array $buffers = [];
+
+    /**
+     * Razonamiento acumulado del turno en curso (reasoning_content),
+     * SEPARADO del contenido (spike 2.5).
+     *
+     * @var array<int, string>
+     */
+    protected array $thinking = [];
 
     public function __construct(
         protected DockerClient $docker,
@@ -54,7 +73,7 @@ class HermesAdapter implements AgentRuntimeAdapter
 
     public function detach(Agent $agent): void
     {
-        unset($this->buffers[$agent->id]);
+        unset($this->buffers[$agent->id], $this->thinking[$agent->id]);
     }
 
     public function isAttached(Agent $agent): bool
@@ -107,6 +126,7 @@ class HermesAdapter implements AgentRuntimeAdapter
     public function sendUserMessage(Agent $agent, string $content, ?int $userId = null): void
     {
         $this->buffers[$agent->id] = '';
+        $this->thinking[$agent->id] = '';
         $runId = (string) Str::uuid();
 
         $this->sink->dispatch($agent, AgentEvent::runStart($runId));
@@ -141,6 +161,15 @@ class HermesAdapter implements AgentRuntimeAdapter
             }
 
             $final = trim((string) ($this->buffers[$agent->id] ?? ''));
+            $thinking = trim((string) ($this->thinking[$agent->id] ?? ''));
+
+            // El Model Proxy fusiona el razonamiento en `content` cuando el
+            // modelo solo pensó (mergeReasoning): el mismo texto llego por
+            // `content` y por `reasoning_content`. Se deja solo en el texto
+            // (si se repitiese en la seccion Reasoning se veria dos veces).
+            if ($final !== '' && $final === $thinking) {
+                $thinking = '';
+            }
 
             if ($response->failed()) {
                 $this->sink->dispatch($agent, AgentEvent::error(
@@ -153,7 +182,7 @@ class HermesAdapter implements AgentRuntimeAdapter
             }
 
             if ($final !== '') {
-                $this->sink->dispatch($agent, AgentEvent::messageFinal($runId, $final));
+                $this->sink->dispatch($agent, AgentEvent::messageFinal($runId, $final, $thinking));
             }
 
             $this->sink->dispatch($agent, AgentEvent::runEnd($runId, true));
@@ -174,8 +203,12 @@ class HermesAdapter implements AgentRuntimeAdapter
     /**
      * Callback del stream SSE.
      *
-     * Acumula los deltas de contenido; el final completo se emite como
-     * message.final al cerrar la respuesta (el EventSink lo deduplica).
+     * Frames `data:` con choices: acumula `delta.content` (message.delta) y
+     * `delta.reasoning_content` (thinking.delta, SEPARADO). Frames con
+     * `event: hermes.tool.progress`: tool.start / tool.result del loop de
+     * tools del gateway (spike 2.5). El final completo (con su `thinking`)
+     * se emite como message.final al cerrar la respuesta (el EventSink lo
+     * deduplica).
      *
      * @param  string  $chunk  fragmento de cuerpo (SSE: "data: {...}\n\n")
      */
@@ -185,17 +218,45 @@ class HermesAdapter implements AgentRuntimeAdapter
 
         foreach ($frames as $frame) {
             $frame = trim($frame);
-            if ($frame === '' || ! str_starts_with($frame, 'data:')) {
+            if ($frame === '') {
                 continue;
             }
 
-            $data = trim(substr($frame, 5));
+            // Un frame SSE puede llevar "event: <nombre>" y/o "data: <json>"
+            // (los tool.progress del gateway van con event:).
+            $eventName = null;
+            $data = null;
+            foreach (explode("\n", $frame) as $line) {
+                if (str_starts_with($line, 'event:')) {
+                    $eventName = trim(substr($line, 6));
+                } elseif (str_starts_with($line, 'data:')) {
+                    $data = trim(substr($line, 5));
+                }
+            }
+            if ($data === null) {
+                continue;
+            }
             if ($data === '[DONE]') {
                 continue;
             }
 
             $json = json_decode($data, true);
             if (! is_array($json)) {
+                continue;
+            }
+
+            // Loop de tools del gateway (extension propia del SSE de Hermes,
+            // verificada en el spike 2.5): dos frames por llamada
+            // (running/completed) con el mismo toolCallId.
+            if ($eventName === 'hermes.tool.progress') {
+                $tool = (string) ($json['tool'] ?? 'tool');
+                $label = (string) ($json['label'] ?? '');
+                $status = (string) ($json['status'] ?? '');
+                if ($status === 'running') {
+                    $this->sink->dispatch($agent, AgentEvent::toolStart($runId, $tool, ['label' => $label]));
+                } elseif ($status !== 'running') {
+                    $this->sink->dispatch($agent, AgentEvent::toolResult($runId, $tool, $status === 'completed', $label));
+                }
                 continue;
             }
 
@@ -210,13 +271,15 @@ class HermesAdapter implements AgentRuntimeAdapter
                 $this->sink->dispatch($agent, AgentEvent::messageDelta($runId, (string) $delta));
             }
 
-            // Modelos de razonamiento: el gateway emite reasoning_content
-            // aparte; lo acumulamos como ultima linea de defensa para que
-            // un turno que solo piense (content vacio) deje rastro.
+            // Modelos de razonamiento: el upstream (vía Model Proxy) expone
+            // `reasoning_content` en el delta (Qwen3/DeepSeek): se emite en
+            // el flujo thinking, SEPARADO del texto (antes solo se
+            // acumulaba como ultima linea de defensa cuando el content era
+            // vacío).
             $reasoning = $choice['delta']['reasoning_content'] ?? null;
-            if ($reasoning !== null && $reasoning !== ''
-                && ($this->buffers[$agent->id] ?? '') === '') {
-                $this->buffers[$agent->id] .= $reasoning;
+            if ($reasoning !== null && $reasoning !== '') {
+                $this->thinking[$agent->id] = ($this->thinking[$agent->id] ?? '').$reasoning;
+                $this->sink->dispatch($agent, AgentEvent::thinkingDelta($runId, (string) $reasoning));
             }
         }
     }
@@ -280,6 +343,6 @@ class HermesAdapter implements AgentRuntimeAdapter
 
     public function destroy(Agent $agent): void
     {
-        unset($this->buffers[$agent->id]);
+        unset($this->buffers[$agent->id], $this->thinking[$agent->id]);
     }
 }

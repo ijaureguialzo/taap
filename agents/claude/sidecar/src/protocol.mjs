@@ -7,6 +7,7 @@ export const PROTOCOL_VERSION = 1;
 const COMMAND_TYPES = Object.freeze(['prompt', 'approval_response', 'get_state']);
 const EVENT_TYPES = Object.freeze([
   'message.delta',
+  'thinking.delta',
   'message.final',
   'tool.start',
   'tool.result',

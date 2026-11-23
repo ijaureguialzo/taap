@@ -77,6 +77,60 @@ test('prompt: emite la secuencia exacta de AgentEvent (run->delta->tool->final->
   assert.equal(JSON.parse(fs.readFileSync(s.state, 'utf8')).session_id, 'S-1');
 });
 
+test('razonamiento: bloques thinking -> thinking.delta y thinking en el final', async (t) => {
+  const s = scratch('taap-sidecar-cfg-');
+  const query = function ({ options }) {
+    return {
+      async *[Symbol.asyncIterator]() {
+        yield { type: 'system', subtype: 'init', session_id: 'S-T', model: options.model, tools: [] };
+        yield assistantMsg([{ type: 'thinking', thinking: 'Tengo que analizar la peticion. ' }]);
+        yield assistantMsg([
+          { type: 'thinking', thinking: 'Parece una suma simple.' },
+          { type: 'text', text: '2+2=4.' },
+        ]);
+        yield resultMsg('2+2=4.', { sessionId: 'S-T' });
+      },
+    };
+  };
+
+  const side = bootSidecar({ query, configPath: s.cfg, stateFile: s.state });
+  side.sendLine(cmd({ id: 'c1', type: 'prompt', message: 'suma' }));
+  await waitFor(side, (e) => e.type === 'run.end');
+
+  // El razonamiento viaja como flujo SEPARADO (dos bloques, en orden)
+  const td = ofType(side, 'thinking.delta');
+  assert.equal(td.length, 2);
+  assert.equal(td[0].payload.content, 'Tengo que analizar la peticion. ');
+  assert.equal(td[1].payload.content, 'Parece una suma simple.');
+  assert.equal(td[0].payload.run_id, ofType(side, 'run.start')[0].payload.run_id);
+
+  // El final lleva el razonamiento acumulado, separado del contenido
+  const fin = ofType(side, 'message.final')[0];
+  assert.equal(fin.payload.content, '2+2=4.');
+  assert.equal(fin.payload.thinking, 'Tengo que analizar la peticion. Parece una suma simple.');
+});
+
+test('sin razonamiento: el final lleva thinking vacio', async (t) => {
+  const s = scratch('taap-sidecar-cfg-');
+  const query = function () {
+    return {
+      async *[Symbol.asyncIterator]() {
+        yield assistantMsg([{ type: 'text', text: 'Ok.' }]);
+        yield resultMsg('Ok.', { sessionId: 'S-N' });
+      },
+    };
+  };
+
+  const side = bootSidecar({ query, configPath: s.cfg, stateFile: s.state });
+  side.sendLine(cmd({ id: 'c1', type: 'prompt', message: 'ok' }));
+  await waitFor(side, (e) => e.type === 'run.end');
+
+  assert.equal(ofType(side, 'thinking.delta').length, 0);
+  const fin = ofType(side, 'message.final')[0];
+  assert.equal(fin.payload.content, 'Ok.');
+  assert.equal(fin.payload.thinking, '');
+});
+
 test('get_state: responde ready', async (t) => {
   const s = scratch('taap-sidecar-cfg-');
   const query = function () {

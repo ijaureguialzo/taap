@@ -150,6 +150,25 @@ class ClaudeAdapterTest extends TestCase
         $this->assertSame([], $adapter->drain($agent));
     }
 
+    /** thinking.delta (v1 del protocolo extendido) pasa al contrato normalizado. */
+    public function test_thinking_delta_is_passed_through(): void
+    {
+        $agent = $this->agent();
+        $adapter = $this->makeAdapter($agent);
+        $adapter->attach($agent);
+
+        $at = now()->toIso8601String();
+        $this->out(['protocol' => 1, 'type' => 'thinking.delta', 'payload' => ['run_id' => 'r1', 'content' => 'muy interesante...'], 'at' => $at]);
+        $this->out(['protocol' => 1, 'type' => 'message.final', 'payload' => ['run_id' => 'r1', 'content' => 'Listo.', 'thinking' => 'muy interesante...'], 'at' => $at]);
+
+        $events = $this->pump($adapter, $agent, $this->sink);
+
+        $this->assertSame(['thinking.delta', 'message.final'], array_map(fn (AgentEvent $e) => $e->type, $events));
+        $this->assertSame(['run_id' => 'r1', 'content' => 'muy interesante...'], $events[0]->payload);
+        // el final conserva el razonamiento tal cual lo emite el sidecar
+        $this->assertSame(['run_id' => 'r1', 'content' => 'Listo.', 'thinking' => 'muy interesante...'], $events[1]->payload);
+    }
+
     public function test_full_turn_streams_normalized_agentevents(): void
     {
         $agent = $this->agent();

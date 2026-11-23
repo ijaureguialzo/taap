@@ -15,7 +15,7 @@ import { PROTOCOL_VERSION, encodeEvent } from './protocol.mjs';
 
 /**
  * @typedef {{runId: string, sessionId: string|null, emit: (line: string) => void,
- *            now: () => Date}} Ctx
+ *            now: () => Date, thinking: string, toolNames: Map<string, string>}} Ctx
  */
 
 /**
@@ -29,6 +29,11 @@ export function mapSdkMessage(msg, ctx) {
   const { runId, emit, now } = ctx;
   const lines = [];
   const push = (type, payload) => lines.push(encodeEvent(type, payload, now()));
+  // El buffer de razonamiento es del ctx (el turno, design D1): los bloques
+  // `thinking` del SDK se emiten en vivo y se acumulan para el `result`.
+  if (typeof ctx.thinking !== 'string') {
+    ctx.thinking = '';
+  }
 
   if (!msg || typeof msg !== 'object') {
     return lines;
@@ -53,9 +58,13 @@ export function mapSdkMessage(msg, ctx) {
             tool: String(block.name ?? 'tool'),
             args: isObject(block.input) ? block.input : {},
           });
+        } else if (block.type === 'thinking' && typeof block.thinking === 'string' && block.thinking !== '') {
+          // Razonamiento del SDK (extended thinking): se emite como flujo
+          // SEPARADO del texto (antes se descartaba: «no va a la UI») y se
+          // acumula para el `message.final` del result.
+          push('thinking.delta', { run_id: runId, content: block.thinking });
+          ctx.thinking += block.thinking;
         }
-        // thinking: no va a la UI (la respuesta final cubre el contenido);
-        // se descarta deliberadamente para no doblar el texto visible.
       }
       return lines;
     }
@@ -89,7 +98,9 @@ export function mapSdkMessage(msg, ctx) {
     case 'result': {
       const text = typeof msg.result === 'string' ? msg.result : '';
       if (text !== '') {
-        push('message.final', { run_id: runId, content: text });
+        // El razonamiento completo del turno viaja SEPARADO del contenido
+        // (puede ser vacío: modelo/sin extended thinking).
+        push('message.final', { run_id: runId, content: text, thinking: ctx.thinking });
       }
       if (msg.is_error) {
         push('error', {

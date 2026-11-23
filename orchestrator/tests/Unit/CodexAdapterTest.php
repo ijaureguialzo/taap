@@ -358,4 +358,84 @@ class CodexAdapterTest extends TestCase
 
         $this->assertSame([], $this->pump($adapter, $agent));
     }
+
+    /**
+     * Fixture REAL del spike 2.1 (stream completo de `codex app-server` 0.171
+     * con razonamiento, `fixtures/spike-codex-reasoning.jsonl`): los deltas de
+     * razonamiento -> `thinking.delta` SEPARADOS del texto, y el razonamiento
+     * acumulado viaja como `thinking` en el `message.final` (no fundido).
+     * El fixture muestra solo deltas de MUESTREO por parte (los intermedios
+     * estan marcados con `_sampled`); el item/completed lleva el texto
+     * completo oficial, que es el que debe terminar en el final.
+     */
+    public function test_spike_fixture_reasoning_maps_to_separated_thinking(): void
+    {
+        $agent = $this->agent();
+        $adapter = $this->makeAdapter($agent);
+        $adapter->attach($agent);
+
+        $fixture = base_path('../openspec/changes/interactive-agent-chat/fixtures/spike-codex-reasoning.jsonl');
+        $this->assertFileExists($fixture);
+
+        // Texto OFICIAL de cada razonamiento completado ANTES del agentMessage
+        // (el que debe ir en el final): se calcula del fixture, no se hardcodea.
+        $expectedThinking = [];
+        foreach (array_map('trim', file($fixture, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES)) as $line) {
+            $o = json_decode($line, true);
+            $it = $o['params']['item'] ?? null;
+            if (($o['method'] ?? '') === 'item/completed' && is_array($it)) {
+                if (($it['type'] ?? '') === 'reasoning') {
+                    $parts = array_filter((array) ($it['summary'] ?? []), fn ($p) => is_string($p) && $p !== '');
+                    if ($parts !== []) {
+                        $expectedThinking[] = implode('', $parts);
+                    }
+                } elseif (($it['type'] ?? '') === 'agentMessage') {
+                    break; // los razonamientos siguientes no van en ESTE final
+                }
+            }
+        }
+
+        // El stream capturado no incluye turn/started (empieza a mitad de
+        // turno); todas las lineas llevan turnId, que los eventos heredan.
+        foreach (file($fixture, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) as $line) {
+            $this->out(trim($line));
+        }
+
+        $events = $this->pump($adapter, $agent);
+        $types = array_map(fn (AgentEvent $e) => $e->type, $events);
+
+        // 1) Razonamiento en streaming: 25 deltas de muestra, SEPARADOS
+        $tdeltas = collect($events)->filter(fn ($e) => $e->type === 'thinking.delta');
+        $this->assertCount(25, $tdeltas, 'los summaryTextDelta pasan como thinking.delta');
+        // y el texto de razonamiento NO aparece en el flujo de mensaje
+        $mdeltas = collect($events)->filter(fn ($e) => $e->type === 'message.delta')
+            ->map(fn ($e) => $e->payload['content'])->implode('');
+        $this->assertSame("Sandbox hiccup — retrying the listing.\n\n", $mdeltas);
+        $this->assertStringNotContainsString("user's requests", $mdeltas, 'el thinking no se funde en el texto');
+
+        // 2) Un solo final: el agentMessage; su `thinking` = los resúmenes
+        //    completos de los razonamientos que lo precedieron
+        $finals = collect($events)->filter(fn ($e) => $e->type === 'message.final');
+        $this->assertCount(1, $finals);
+        $final = $finals->first();
+        $this->assertSame('Sandbox hiccup — retrying the listing.', $final->payload['content']);
+        $this->assertSame(trim(implode("\n", $expectedThinking)), $final->payload['thinking']);
+        $this->assertStringContainsString("user's requests", $final->payload['thinking']);
+        $this->assertStringNotContainsString('bwrap keeps failing', $final->payload['thinking'],
+            'los razonamientos POSTERIORES al mensaje no van en su final');
+
+        // 3) El resto del stream se normaliza como antes (los 4 `ls` del
+        //    fixture fallaron con exit 1: el sandbox bwrap no podia crear
+        //    namespaces en ese host — era parte del turno del spike)
+        $this->assertCount(4, array_keys($types, 'tool.start'));
+        $this->assertCount(4, array_keys($types, 'tool.result'));
+        $this->assertNotContains('run.start', $types, 'el fixture no trae turn/started');
+        $this->assertNotContains('run.end', $types);
+
+        // 4) El sink asento el final con su razonamiento en la meta
+        $row = \App\Models\ChatMessage::where('agent_id', $agent->id)->latest('id')->first();
+        $this->assertNotNull($row);
+        $this->assertSame('Sandbox hiccup — retrying the listing.', $row->content);
+        $this->assertSame($final->payload['thinking'], $row->meta['thinking'] ?? null);
+    }
 }

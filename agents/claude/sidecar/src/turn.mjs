@@ -41,6 +41,9 @@ export async function runTurn(deps, message) {
     emit: push,
     now,
     toolNames: new Map(),
+    // Razonamiento acumulado del turno (mapping.mjs lo llena; el result
+    // lo emite en el message.final como `thinking`, design D1).
+    thinking: '',
   };
 
   push('run.start', { run_id: runId });

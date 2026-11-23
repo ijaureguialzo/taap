@@ -21,6 +21,8 @@ use Illuminate\Support\Facades\Log;
  *   c->s  thread/settings/update {threadId, model}        (sync de modelo)
  *   c->s  turn/start {threadId, input:[{type:text}]}     (mensaje; se cola)
  *   s->c  turn/started|completed, item/*, thread/status/changed, ...
+ *   s->c  item/reasoning/summaryTextDelta -> thinking.delta (spike 2.1);
+ *          el razonamiento acumulado viaja como `thinking` en el final
  *   s->c  item/commandExecution/requestApproval (REQUEST, id N) -> decision
  *
  * `normalize()` diferencia por la forma JSON-RPC: `method` + `id===null` =
@@ -76,6 +78,10 @@ class CodexAdapter extends StdioRpcAdapter
             'thread_established' => false,
             'approvals' => [],
             'pending_turns' => [],
+            // Razonamiento acumulado del turno: itemId -> texto (los deltas
+            // van sumando; el item/completed lo reemplaza por el texto
+            // completo oficial, sin doble conteo).
+            'thinking' => [],
             'agent' => $agent,
         ];
     }
@@ -378,6 +384,7 @@ class CodexAdapter extends StdioRpcAdapter
             case 'turn/started':
                 $runId = $params['turn']['id'] ?? $runId;
                 $this->sessions[$agentId]['run_id'] = $runId;
+                $this->sessions[$agentId]['thinking'] = [];
                 $out[] = AgentEvent::runStart((string) ($runId ?? 'run'));
                 $out[] = AgentEvent::statusChange('working');
                 break;
@@ -386,6 +393,12 @@ class CodexAdapter extends StdioRpcAdapter
                 $turn = (array) ($params['turn'] ?? []);
                 $runId = $turn['id'] ?? $runId;
                 $error = $turn['error'] ?? null;
+                // Razonamiento residual tras el ULTIMO mensaje del turno
+                // (el que no se adjunto a ningun final): se emite como final
+                // sin contenido para que no se pierda en la historia.
+                if (($thinking = $this->flushThinking($agentId)) !== '') {
+                    $out[] = AgentEvent::messageFinal($runId, '', $thinking);
+                }
                 $out[] = AgentEvent::runEnd((string) ($runId ?? 'run'), $error === null);
                 if ($error !== null) {
                     $out[] = AgentEvent::error(is_string($error) ? $error : json_encode($error));
@@ -416,13 +429,40 @@ class CodexAdapter extends StdioRpcAdapter
                 }
                 break;
 
+            case 'item/reasoning/summaryTextDelta':
+                // Flujo de razonamiento (spike 2.1): delta SEPARADO del
+                // texto. Se acumula por itemId para el final.
+                $delta = (string) ($params['delta'] ?? '');
+                if ($delta !== '') {
+                    $out[] = AgentEvent::thinkingDelta($runId, $delta);
+                    $itemId = (string) ($params['itemId'] ?? '');
+                    if ($itemId !== '') {
+                        $session = &$this->sessions[$agentId];
+                        $session['thinking'][$itemId] = ($session['thinking'][$itemId] ?? '').$delta;
+                    }
+                }
+                break;
+
             case 'item/completed':
                 $item = (array) ($params['item'] ?? []);
                 $type = (string) ($item['type'] ?? '');
                 if ($type === 'agentMessage') {
                     $text = trim((string) ($item['text'] ?? ''));
                     if ($text !== '') {
-                        $out[] = AgentEvent::messageFinal($runId, $text);
+                        // El razonamiento acumulado ANTES de este mensaje
+                        // viaja como su `thinking` (separado del contenido);
+                        // los bloques del item NO se funden en el texto.
+                        $out[] = AgentEvent::messageFinal($runId, $text, $this->flushThinking($agentId));
+                    }
+                } elseif ($type === 'reasoning') {
+                    // El item completado lleva el texto OFICIAL (supra de los
+                    // deltas): se reemplaza, no se suma (idempotente ante un
+                    // re-attach que vio los deltas pero no el completed).
+                    $itemId = (string) ($item['id'] ?? '');
+                    $full = $this->reasoningText($item);
+                    if ($itemId !== '' && $full !== '') {
+                        $session = &$this->sessions[$agentId];
+                        $session['thinking'][$itemId] = $full;
                     }
                 } elseif ($type === 'commandExecution') {
                     $ok = (($item['exitCode'] ?? null) ?? 0) === 0;
@@ -459,6 +499,46 @@ class CodexAdapter extends StdioRpcAdapter
         }
 
         return $out;
+    }
+
+    /**
+     * Texto completo de razonamiento de un item `reasoning`: los partes de
+     * `summary` (el resumen legible que expone el app-server; arrays de
+     * strings, spike 2.1) y, si no hay summary, los de `content`.
+     *
+     * @param  array<string, mixed>  $item
+     */
+    protected function reasoningText(array $item): string
+    {
+        foreach (['summary', 'content'] as $field) {
+            $parts = [];
+            foreach ((array) ($item[$field] ?? []) as $part) {
+                if (is_string($part) && $part !== '') {
+                    $parts[] = $part;
+                } elseif (is_array($part) && isset($part['text']) && (string) $part['text'] !== '') {
+                    $parts[] = (string) $part['text'];
+                }
+            }
+            if ($parts !== []) {
+                return implode('', $parts);
+            }
+        }
+
+        return '';
+    }
+
+    /**
+     * Razonamiento acumulado del turno (por parte, en orden de llegada):
+     * se concatena y se limpia el buffer. Cada agentMessage lleva el que le
+     * precede; el cola final del turn/completed el que queda.
+     */
+    protected function flushThinking(int $agentId): string
+    {
+        $session = &$this->sessions[$agentId];
+        $thinking = trim(implode("\n", array_values($session['thinking'] ?? [])));
+        $session['thinking'] = [];
+
+        return $thinking;
     }
 
     /**

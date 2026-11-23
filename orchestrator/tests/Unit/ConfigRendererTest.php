@@ -215,14 +215,19 @@ class ConfigRendererTest extends TestCase
         // dials del form (config JSON) con defaults razonables
         $this->assertContains('approval_policy=on-request', $args);
         $this->assertContains('sandbox_mode=read-only', $args, 'el dial del agente gana sobre el default');
+        // web_search desactivada por defecto: el binary 0.171 la incluye
+        // SIEMPRE en el request /v1/responses y un upstream que no la
+        // soporta (orcarouter: 400) cae el turno entero (spike 2.1)
+        $this->assertContains('web_search=disabled', $args, 'default del spike 2.1');
         // MCP http por la puerta del orquestador con el token
         $this->assertContains('mcp_servers.web.http_headers.Authorization="Bearer '.$token->token.'"', $args);
 
-        // re-render con el dial quitado: vuelve el default
-        $agent->forceFill(['config' => []])->save();
+        // re-render con web_search reactivado y el dial de sandbox quitado:
+        // cada uno independiente (el dial gana; el default vuelve)
+        $agent->forceFill(['config' => ['web_search' => 'live']])->save();
         (new ConfigRenderer($base))->render($agent->fresh());
-        $args2 = array_values(array_filter(explode('
-', (string) file_get_contents($base.'/'.$agent->id.'/config/codex-args.env'))));
+        $args2 = array_values(array_filter(explode("\n", (string) file_get_contents($base.'/'.$agent->id.'/config/codex-args.env'))));
+        $this->assertContains('web_search=live', $args2, 'el admin puede reactivarla');
         $this->assertContains('sandbox_mode=workspace-write', $args2);
     }
 

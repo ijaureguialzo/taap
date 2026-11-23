@@ -25,9 +25,9 @@ class ClaudeAdapter extends StdioRpcAdapter
     /** Protocolo TAAP v1 (debe coincidir con el sidecar). */
     protected const PROTOCOL = 1;
 
-    /** Tipos de evento del protocolo v1 (los diez de AgentEvent). */
+    /** Tipos de evento del protocolo v1 (los de AgentEvent). */
     protected const EVENT_TYPES = [
-        'message.delta', 'message.final', 'tool.start', 'tool.result',
+        'message.delta', 'thinking.delta', 'message.final', 'tool.start', 'tool.result',
         'approval.request', 'approval.resolved', 'status.change',
         'run.start', 'run.end', 'error',
     ];
@@ -149,6 +149,7 @@ class ClaudeAdapter extends StdioRpcAdapter
 
         $factory = match ($type) {
             'message.delta' => AgentEvent::messageDelta($runId, (string) ($p['content'] ?? '')),
+            'thinking.delta' => AgentEvent::thinkingDelta($runId, (string) ($p['content'] ?? '')),
             'message.final' => AgentEvent::messageFinal($runId, (string) ($p['content'] ?? ''), (string) ($p['thinking'] ?? '')),
             'tool.start' => AgentEvent::toolStart($runId, (string) ($p['tool'] ?? 'tool'), (array) ($p['args'] ?? [])),
             'tool.result' => AgentEvent::toolResult($runId, (string) ($p['tool'] ?? 'tool'), (bool) ($p['ok'] ?? true), (string) ($p['summary'] ?? '')),

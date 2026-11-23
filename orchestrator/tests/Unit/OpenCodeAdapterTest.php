@@ -402,4 +402,175 @@ class OpenCodeAdapterTest extends TestCase
     {
         return array_values(array_filter($this->sinkEvents(), fn (array $e) => $e['type'] === $type));
     }
+    /* ── 2.5 razonamiento (interactive-agent-chat) ──
+
+    El binary 1.19.6 streamea las partes `reasoning` con field "text"
+    (verificado en el binario: reasoning-delta -> updatePartDelta
+    field:"text"); el tipo se aprende de `message.part.updated`. Los shapes
+    de los eventos son los REALES de la API (openapi.json del spike). */
+
+    protected function turnWithReasoning(): void
+    {
+        // 1 asistente: razona, luego responde
+        $this->stream(['id' => 'evt_1', 'type' => 'message.updated', 'properties' => [
+            'sessionID' => self::SID, 'info' => ['id' => 'msg_1', 'role' => 'assistant'],
+        ]]);
+        // 2 parte reasoning de ARRANQUE (texto vacio): aqui se aprende el tipo
+        $this->stream(['id' => 'evt_2', 'type' => 'message.part.updated', 'properties' => [
+            'sessionID' => self::SID, 'part' => [
+                'id' => 'prt_r1', 'sessionID' => self::SID, 'messageID' => 'msg_1',
+                'type' => 'reasoning', 'text' => '', 'time' => ['start' => 1],
+            ],
+        ]]);
+        // 3 deltas de la parte reasoning (field "text", como el texto)
+        $this->stream(['id' => 'evt_3', 'type' => 'message.part.delta', 'properties' => [
+            'sessionID' => self::SID, 'messageID' => 'msg_1', 'partID' => 'prt_r1', 'field' => 'text', 'delta' => 'Pienso en la peticion. ',
+        ]]);
+        $this->stream(['id' => 'evt_4', 'type' => 'message.part.delta', 'properties' => [
+            'sessionID' => self::SID, 'messageID' => 'msg_1', 'partID' => 'prt_r1', 'field' => 'text', 'delta' => 'Es una suma.',
+        ]]);
+        // 4 parte reasoning COMPLETA (texto oficial)
+        $this->stream(['id' => 'evt_5', 'type' => 'message.part.updated', 'properties' => [
+            'sessionID' => self::SID, 'part' => [
+                'id' => 'prt_r1', 'sessionID' => self::SID, 'messageID' => 'msg_1',
+                'type' => 'reasoning', 'text' => 'Pienso en la peticion. Es una suma.', 'time' => ['start' => 1, 'end' => 2],
+            ],
+        ]]);
+        // 5 parte de texto: arranque + deltas + completa
+        $this->stream(['id' => 'evt_6', 'type' => 'message.part.updated', 'properties' => [
+            'sessionID' => self::SID, 'part' => [
+                'id' => 'prt_t1', 'sessionID' => self::SID, 'messageID' => 'msg_1',
+                'type' => 'text', 'text' => '', 'time' => ['start' => 2],
+            ],
+        ]]);
+        $this->stream(['id' => 'evt_7', 'type' => 'message.part.delta', 'properties' => [
+            'sessionID' => self::SID, 'messageID' => 'msg_1', 'partID' => 'prt_t1', 'field' => 'text', 'delta' => '2+2=',
+        ]]);
+        $this->stream(['id' => 'evt_8', 'type' => 'message.part.delta', 'properties' => [
+            'sessionID' => self::SID, 'messageID' => 'msg_1', 'partID' => 'prt_t1', 'field' => 'text', 'delta' => ' 4.',
+        ]]);
+        $this->stream(['id' => 'evt_9', 'type' => 'message.part.updated', 'properties' => [
+            'sessionID' => self::SID, 'part' => [
+                'id' => 'prt_t1', 'sessionID' => self::SID, 'messageID' => 'msg_1',
+                'type' => 'text', 'text' => '2+2= 4.', 'time' => ['start' => 2, 'end' => 3],
+            ],
+        ]]);
+        // 6 fin del turno
+        $this->stream(['id' => 'evt_10', 'type' => 'session.status', 'properties' => [
+            'sessionID' => self::SID, 'status' => ['type' => 'idle'],
+        ]]);
+    }
+
+    public function test_reasoning_part_streams_thinking_separate_from_text(): void
+    {
+        $agent = $this->agent(['session_id' => self::SID]);
+        $adapter = $this->makeAdapter($agent);
+        $this->fakeServer();
+        $adapter->attach($agent);
+        $adapter->writeMessage($agent, 'suma 2+2');
+
+        $this->turnWithReasoning();
+        $events = $this->pump($adapter, $agent);
+
+        // 1) el reasoning fluye como thinking.delta (los deltas NO caen en
+        //    message.delta: el tipo se aprendio del part.updated de arranque)
+        $thinking = collect($events)->filter(fn ($e) => $e->type === 'thinking.delta')
+            ->map(fn ($e) => $e->payload['content'])->implode('');
+        $this->assertSame('Pienso en la peticion. Es una suma.', $thinking);
+
+        $content = collect($events)->filter(fn ($e) => $e->type === 'message.delta')
+            ->map(fn ($e) => $e->payload['content'])->implode('');
+        $this->assertSame('2+2= 4.', $content, 'el razonamiento no se funde en el flujo de texto');
+
+        // 2) el final: contenido y razonamiento SEPARADOS
+        $final = collect($events)->first(fn ($e) => $e->type === 'message.final');
+        $this->assertNotNull($final);
+        $this->assertSame('2+2= 4.', $final->payload['content']);
+        $this->assertSame('Pienso en la peticion. Es una suma.', $final->payload['thinking']);
+    }
+
+    /**
+     * Re-attach a mitad de parte (se perdio el updated de ARRANQUE): los
+     * deltas llegan con tipo desconocido y caen en texto; el updated de FIN
+     * de parte (reasoning, texto completo) lo mueve al razonamiento.
+     */
+    public function test_reasoning_part_learned_at_completion_is_moved_from_text(): void
+    {
+        $agent = $this->agent(['session_id' => self::SID]);
+        $adapter = $this->makeAdapter($agent);
+        $this->fakeServer();
+        $adapter->attach($agent);
+        $adapter->writeMessage($agent, 'hola');
+
+        $this->stream(['id' => 'evt_1', 'type' => 'message.updated', 'properties' => [
+            'sessionID' => self::SID, 'info' => ['id' => 'msg_2', 'role' => 'assistant'],
+        ]]);
+        // deltas SIN el updated de arranque: tipo desconocido -> texto
+        $this->stream(['id' => 'evt_2', 'type' => 'message.part.delta', 'properties' => [
+            'sessionID' => self::SID, 'messageID' => 'msg_2', 'partID' => 'prt_r2', 'field' => 'text', 'delta' => 'Mira el ',
+        ]]);
+        $this->stream(['id' => 'evt_3', 'type' => 'message.part.delta', 'properties' => [
+            'sessionID' => self::SID, 'messageID' => 'msg_2', 'partID' => 'prt_r2', 'field' => 'text', 'delta' => 'fichero.',
+        ]]);
+        // parte COMPLETA: resulta ser reasoning -> se mueve
+        $this->stream(['id' => 'evt_4', 'type' => 'message.part.updated', 'properties' => [
+            'sessionID' => self::SID, 'part' => [
+                'id' => 'prt_r2', 'sessionID' => self::SID, 'messageID' => 'msg_2',
+                'type' => 'reasoning', 'text' => 'Mira el fichero.', 'time' => ['start' => 1, 'end' => 2],
+            ],
+        ]]);
+        $this->stream(['id' => 'evt_5', 'type' => 'session.status', 'properties' => [
+            'sessionID' => self::SID, 'status' => ['type' => 'idle'],
+        ]]);
+
+        $events = $this->pump($adapter, $agent);
+        $final = collect($events)->first(fn ($e) => $e->type === 'message.final');
+        $this->assertNotNull($final);
+        // El turno no tuvo parte de texto: el "texto" (que era razonamiento)
+        // queda como contenido y no se duplica en thinking.
+        $this->assertSame('Mira el fichero.', $final->payload['content'], 'el "texto" era razonamiento: no debe caer en thinking aparte');
+        $this->assertSame('', $final->payload['thinking']);
+    }
+
+    /**
+     * Turno que SOLO penso (sin parte de texto): el razonamiento se deja
+     * como contenido (ultima linea de defensa, como el Model Proxy) para
+     * que el turno no desaparezca de la historia.
+     */
+    public function test_turn_that_only_thought_survives_as_content(): void
+    {
+        $agent = $this->agent(['session_id' => self::SID]);
+        $adapter = $this->makeAdapter($agent);
+        $this->fakeServer();
+        $adapter->attach($agent);
+        $adapter->writeMessage($agent, 'piensa');
+
+        $this->stream(['id' => 'evt_1', 'type' => 'message.updated', 'properties' => [
+            'sessionID' => self::SID, 'info' => ['id' => 'msg_3', 'role' => 'assistant'],
+        ]]);
+        $this->stream(['id' => 'evt_2', 'type' => 'message.part.updated', 'properties' => [
+            'sessionID' => self::SID, 'part' => [
+                'id' => 'prt_r3', 'sessionID' => self::SID, 'messageID' => 'msg_3',
+                'type' => 'reasoning', 'text' => '', 'time' => ['start' => 1],
+            ],
+        ]]);
+        $this->stream(['id' => 'evt_3', 'type' => 'message.part.delta', 'properties' => [
+            'sessionID' => self::SID, 'messageID' => 'msg_3', 'partID' => 'prt_r3', 'field' => 'text', 'delta' => 'Solo pense esto.',
+        ]]);
+        $this->stream(['id' => 'evt_4', 'type' => 'message.part.updated', 'properties' => [
+            'sessionID' => self::SID, 'part' => [
+                'id' => 'prt_r3', 'sessionID' => self::SID, 'messageID' => 'msg_3',
+                'type' => 'reasoning', 'text' => 'Solo pense esto.', 'time' => ['start' => 1, 'end' => 2],
+            ],
+        ]]);
+        $this->stream(['id' => 'evt_5', 'type' => 'session.status', 'properties' => [
+            'sessionID' => self::SID, 'status' => ['type' => 'idle'],
+        ]]);
+
+        $events = $this->pump($adapter, $agent);
+        $final = collect($events)->first(fn ($e) => $e->type === 'message.final');
+        $this->assertNotNull($final);
+        $this->assertSame('Solo pense esto.', $final->payload['content']);
+        $this->assertSame('', $final->payload['thinking'], 'el razonamiento ya esta en el contenido: no se duplica');
+    }
 }
