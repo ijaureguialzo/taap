@@ -63,6 +63,10 @@ El objetivo `certs` del Makefile pasa a aceptar dominios como argumento (`make c
 
 `allowed_origins: ['*']` en `reverb.php` admite `taap.test` y `taap.itlent.eus` sin configuración por entorno (no se modifica). El router `lamb` (`FQDN_TAAP`) queda intacto: el orquestador sigue en `taap.test`.
 
+### D6. Red upstream fijada con `traefik.docker.network`
+
+El contenedor del orquestador va en dos redes (`taap-egress` + `taap-internal`) y Traefik solo comparte `taap-internal`. Con puertos publicados, Traefik usa el binding del host (determinista) y no mira la IP; **sin puertos publicados** elige la primera IP del map de redes del contenedor (orden aleatorio en Go) y a veces apunta a `taap-egress` (10.163.4.x, inalcanzable desde Traefik) → 504 intermitente en `taap.test`. La etiqueta `traefik.docker.network=taap-internal` fija la red de la que se toma la IP (verificado en el código `getIPAddress` de Traefik 3.7: con la etiqueta, `Networks[label].Addr`; el binding sigue teniendo prioridad si existe). Sin la etiqueta, el arranque de cada contenedor sería una moneda al aire.
+
 ## Risks / Trade-offs
 
 - **[La etiqueta `transport.websockets` no existe en Traefik v3]** → comprobado con el binario 3.7.19 (`field not found, node: transport`: el provider docker descarta el contenedor y desaparecen hasta los routers existentes): el upgrade de websocket va por el manejo HTTP estándar de Traefik, sin etiqueta. Si un día se necesitara control fino del transporte, la opción correspondiente no existe en v3 y habría que evaluar otro mecanismo.

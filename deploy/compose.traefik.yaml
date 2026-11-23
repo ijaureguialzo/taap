@@ -28,6 +28,11 @@ services:
   orchestrator:
     labels:
       - "traefik.enable=true"
+      # Red fija para la IP upstream: sin ella, con el contenedor en varias
+      # redes y sin puerto publicado, Traefik elige la primera del map de
+      # redes (orden aleatorio) y puede apuntar a taap-egress (inalcanzable
+      # desde traefik) -> 504 intermitente en taap.test.
+      - "traefik.docker.network=taap-internal"
       - "traefik.http.routers.${COMPOSE_PROJECT_NAME}-lamb.rule=Host(`${FQDN_TAAP:-taap.test}`)"
       - "traefik.http.routers.${COMPOSE_PROJECT_NAME}-lamb.entrypoints=websecure"
       - "traefik.http.routers.${COMPOSE_PROJECT_NAME}-lamb.tls=true"

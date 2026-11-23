@@ -4,6 +4,7 @@
 
 - [x] 1.1 Añadir al servicio `orchestrator` de `deploy/compose.traefik.yaml` un router `taap-ws` (rule `Host(\`${FQDN_WS:-ws.taap.test}\`)`, entrypoint `websecure`, `tls=true`) y su servicio `taap-ws` (loadbalancer → puerto `8080`, esquema `http`), siguiendo el patrón del router `lamb` existente (el upgrade de websocket lo gestiona Traefik de forma nativa; la etiqueta `transport.websockets` no existe en v3 y haría rechazar el contenedor). Verificación: `docker compose -f deploy/compose.yaml -f deploy/compose.traefik.yaml config` renderiza los labels y `make up` deja el contenedor healthy sin errores de config en `docker compose ... logs traefik`
 - [x] 1.2 Parametrizar el objetivo `certs` del `Makefile` para aceptar dominios (`make certs DOMAINS="…"`), conservando el defecto `taap.test *.taap.test`. Verificación: `make certs DOMAINS='taap.itlent.eus ws.taap.itlent.eus'` genera `deploy/traefik/certs/cert.crt` con esos dos nombres en `subjectAltName` (`openssl x509 -in deploy/traefik/certs/cert.crt -noout -ext subjectAltName`) y `make certs` sin argumentos vuelve a generar el certificado local
+- [x] 1.3 Fijar la red upstream en el orquestador con la etiqueta `traefik.docker.network=taap-internal` en `deploy/compose.traefik.yaml` (el contenedor va en taap-egress + taap-internal; sin la etiqueta y sin puertos publicados, Traefik elige al azar la primera IP del map de redes y puede apuntar a taap-egress, inalcanzable, → 504 intermitente en taap.test). Verificación: con el orquestador recreado sin puertos publicados, los upstreams `taap-lamb`/`taap-ws` (API de Traefik) apuntan siempre a la IP taap-internal y `https://taap.test/up` responde 200 tras varias recreaciones
 
 ## 2. Endpoint público por variables de entorno
 
@@ -19,6 +20,7 @@
 - [x] 3.4 Streaming en iOS: con la app apuntando al orquestador, comprobar en `taap-ws.log` (DEBUG) o por estado de conexión que la socket se establece a `wss://ws.taap.test` y recibe `pusher:subscription_succeeded` + eventos
 - [x] 3.5 Regresión del orquestador: `curl -s https://taap.test/up` responde 200 y el login + dashboard web funcionan como antes (el router `lamb` no ha cambiado)
 - [x] 3.6 `cd orchestrator && php artisan test` y `make lint` sin fallos (la pila no ha cambiado código PHP/JS, solo despliegue; guarda contra regresiones)
+- [x] 3.7 Determinismo del upstream sin puertos publicados: comentar temporalmente el bloque `ports` del orquestador, `make up` × 3 recreaciones y comprobar tras cada una que `https://taap.test/up` → 200 y el upstream de `taap-lamb`/`taap-ws` es la IP taap-internal (API de Traefik); al terminar, restaurar los `ports` y verificar de nuevo 200 + handshake WSS
 
 ## Workflow follow-up
 
