@@ -290,7 +290,11 @@ class DockerClient
         // hereda y la redirección `>> $dir/out` moria al spawn).
         $process = new ProcessStreams([
             'sh', '-c',
-            'trap "kill $(jobs -p)" TERM INT; '.$inner.' >> '.escapeshellarg($dir.'/out').' 2>> '.escapeshellarg($dir.'/err').' & wait',
+            // El job se spawnea ANTES de registrar la trampa con `$!` (su PID
+            // ya conocido): `$(jobs -p)` en la trampa no encaja en dash y el
+            // `kill` sin argumento dejaba `docker logs -f` huérfano (verificado
+            // 3/3 en el contenedor; fix-bridge-stale-attach-loop).
+            $inner.' >> '.escapeshellarg($dir.'/out').' 2>> '.escapeshellarg($dir.'/err').' & trap "kill $!" TERM INT; wait',
         ]);
         file_put_contents($dir.'/reader.pid', (string) $process->pid);
 
@@ -323,7 +327,7 @@ done
 SH;
         $process = new ProcessStreams([
             'sh', '-c',
-            'trap "kill \$(jobs -p)" TERM INT; '.$script.' & wait',
+            $script.' & trap "kill $!" TERM INT; wait',
         ]);
         file_put_contents($dir.'/writer.pid', (string) $process->pid);
 
@@ -335,7 +339,7 @@ SH;
      * Mata el coproceso registrado en `{dir}/{which}.pid` (y cualquier
      * huérfano cuyo cmdline mencione la carpeta).
      */
-    public function killCoprocess(string $dir, string $which): void
+    public function killCoprocess(string $dir, string $which, ?string $containerName = null): void
     {
         $file = $dir.'/'.$which.'.pid';
         if (is_file($file)) {
@@ -354,7 +358,7 @@ SH;
             }
             @unlink($file);
         }
-        $this->killOrphans($dir);
+        $this->killOrphans($dir, $containerName);
     }
 
     /**
@@ -368,16 +372,24 @@ SH;
     /**
      * Huérfanos: procesos cuyo cmdline menciona la carpeta rpc del agente
      * (writers/lectores no registrados en el .pid, por reinicios a mitad de
-     * ciclo, etc.).
+     * ciclo, etc.) o el nombre del contenedor: los hijos re-adoptados por
+     * PID 1 (p. ej. `docker logs -f --tail 0 <nombre>`) no llevan $dir en el
+     * cmdline (la redirección vive en el wrapper), así que la firma por
+     * nombre es la que los recoge (fix-bridge-stale-attach-loop).
      */
-    protected function killOrphans(string $dir): void
+    protected function killOrphans(string $dir, ?string $containerName = null): void
     {
         if (! extension_loaded('posix') || ! is_dir('/proc')) {
             return;
         }
         foreach (glob('/proc/[0-9]*') ?: [] as $proc) {
             $cmd = str_replace("\0", ' ', (string) @file_get_contents($proc.'/cmdline'));
-            if ($cmd !== '' && str_contains($cmd, $dir)) {
+            if ($cmd === '') {
+                continue;
+            }
+            $match = str_contains($cmd, $dir)
+                || ($containerName !== null && $containerName !== '' && str_contains($cmd, $containerName));
+            if ($match) {
                 @posix_kill((int) basename($proc), SIGKILL);
             }
         }

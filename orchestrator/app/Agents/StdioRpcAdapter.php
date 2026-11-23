@@ -100,7 +100,6 @@ abstract class StdioRpcAdapter implements AgentRuntimeAdapter
 
         Log::info(static::class.': IPC establecido con '.$agent->container_name);
     }
-
     public function detach(Agent $agent): void
     {
         $session = $this->sessions[$agent->id] ?? null;
@@ -108,9 +107,11 @@ abstract class StdioRpcAdapter implements AgentRuntimeAdapter
             // Lo que lanzamos nosotros en este proceso...
             $session['reader']?->stop(3);
             $session['writer']?->stop(3);
-            // ...y los que puedan quedar registrados en .pid (huérfanos)
-            $this->docker->killCoprocess($session['dir'], 'reader');
-            $this->docker->killCoprocess($session['dir'], 'writer');
+            // ...y los que puedan quedar registrados en .pid (huérfanos);
+            // el nombre del contenedor encaja también a los hijos
+            // re-adoptados (fix-bridge-stale-attach-loop).
+            $this->docker->killCoprocess($session['dir'], 'reader', $agent->container_name);
+            $this->docker->killCoprocess($session['dir'], 'writer', $agent->container_name);
             unset($this->sessions[$agent->id]);
         }
     }
@@ -181,16 +182,16 @@ abstract class StdioRpcAdapter implements AgentRuntimeAdapter
      */
     protected function spawnCoprocesses(string $containerName, array &$session): void
     {
-        $this->docker->killCoprocess($session['dir'], 'reader');
-        $this->docker->killCoprocess($session['dir'], 'writer');
+        $this->docker->killCoprocess($session['dir'], 'reader', $containerName);
+        $this->docker->killCoprocess($session['dir'], 'writer', $containerName);
         $session['reader'] = $this->docker->attachReader($containerName, $session['dir']);
         $session['writer'] = $this->docker->startWriter($containerName, $session['dir']);
     }
 
-    protected function detachForDir(string $dir): void
+    protected function detachForDir(string $dir, ?string $containerName = null): void
     {
-        $this->docker->killCoprocess($dir, 'reader');
-        $this->docker->killCoprocess($dir, 'writer');
+        $this->docker->killCoprocess($dir, 'reader', $containerName);
+        $this->docker->killCoprocess($dir, 'writer', $containerName);
     }
 
     /**
@@ -208,7 +209,24 @@ abstract class StdioRpcAdapter implements AgentRuntimeAdapter
         }
 
         $inSize = (int) (@filesize($session['dir'].'/in') ?: 0);
-        $inOff = (int) (@filesize($session['dir'].'/in.off') ?: 0);
+        // El valor del offset, no el tamaño del fichero: `in.off` guarda el
+        // número en texto ("52\n" = 3 bytes) y filesize() lo leía como 3,
+        // por lo que `in > inOff` era siempre cierto y el stale disparaba
+        // cada 60 s por agente (bucle de re-adjuntado; fix-bridge-stale-attach-loop).
+        $inOff = (int) (@file_get_contents($session['dir'].'/in.off') ?: 0);
+
+        // [fix-bridge-stale-attach-loop 1.1/1.2] Diagnostico del disparo
+        // (a debug: no debe producir churn en producción).
+        Log::debug(static::class.': stale-check', [
+            'agent' => $agent->id,
+            'age_s' => round(microtime(true) - ($session['lastOutChange'] ?? microtime(true))),
+            'in' => $inSize,
+            'in_off' => $inOff,
+            'in_off_exists' => file_exists($session['dir'].'/in.off'),
+            'mem_status' => $agent->status->value,
+            'db_status' => $agent->fresh()->status->value,
+            'writer_alive' => $session['writer'] === null || $this->docker->coprocessAlive($session['dir'], 'writer', $session['dir']),
+        ]);
 
         return $inSize > $inOff
             || $agent->status === AgentStatus::Working
@@ -258,7 +276,7 @@ abstract class StdioRpcAdapter implements AgentRuntimeAdapter
             $containerName = $agent->container_name;
             $dir = $session['dir'];
             unset($this->sessions[$idx]);
-            $this->detachForDir($dir);
+            $this->detachForDir($dir, $containerName);
             if ($this->docker->status($containerName) === 'running') {
                 $fresh = $this->newSessionState($agent, $dir, (int) (@filesize("$dir/out") ?: 0));
                 $this->sessions[$agentId] = $fresh;

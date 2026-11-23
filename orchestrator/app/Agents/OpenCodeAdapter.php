@@ -102,8 +102,8 @@ class OpenCodeAdapter extends StdioRpcAdapter
      */
     protected function spawnCoprocesses(string $containerName, array &$session): void
     {
-        $this->docker->killCoprocess($session['dir'], 'reader');
-        $this->docker->killCoprocess($session['dir'], 'writer');
+        $this->docker->killCoprocess($session['dir'], 'reader', $containerName);
+        $this->docker->killCoprocess($session['dir'], 'writer', $containerName);
 
         $port = $this->port($session);
         // `sed` suelta el prefijo `data: ` del SSE: el drain de la base

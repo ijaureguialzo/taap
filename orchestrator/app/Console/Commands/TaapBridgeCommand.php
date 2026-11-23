@@ -237,8 +237,9 @@ class TaapBridgeCommand extends Command
         // Barrido final: no dejar bucles writer/lector huérfanos
         foreach ($this->sessions as $id => $session) {
             $dir = $session['dir'] ?? app(DockerClient::class)->rpcDir($id);
-            app(DockerClient::class)->killCoprocess($dir, 'reader');
-            app(DockerClient::class)->killCoprocess($dir, 'writer');
+            $name = $session['agent']->container_name ?? null;
+            app(DockerClient::class)->killCoprocess($dir, 'reader', $name);
+            app(DockerClient::class)->killCoprocess($dir, 'writer', $name);
         }
 
         return self::SUCCESS;
