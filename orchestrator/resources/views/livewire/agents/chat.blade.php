@@ -151,7 +151,10 @@
                 if (root.matches('time.chat-time')) targets.add(root);
                 targets.forEach((el) => {
                     const t = fmtLocal(el.getAttribute('data-time'));
-                    if (t !== null) el.textContent = t;
+                    // Mismo patrón idempotente que la linea de tiempo: no
+                    // reasignar un texto igual (reemplaza el nodo y, si algun
+                    // dia un observer lo observa, volveria a disparar esto).
+                    if (t !== null && el.textContent !== t) el.textContent = t;
                 });
             };
 

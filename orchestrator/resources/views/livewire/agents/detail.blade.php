@@ -121,7 +121,16 @@
                     const apply = (scope) => {
                         (scope || card).querySelectorAll('time.tl-time[data-time]').forEach((el) => {
                             const d = new Date(el.getAttribute('data-time'));
-                            if (!isNaN(d)) el.textContent = fmt.format(d);
+                            if (isNaN(d)) return;
+                            const out = fmt.format(d);
+                            // IDEMPOTENTE: solo asignar si cambia. `el.textContent = x`
+                            // reemplaza el nodo de texto incluso si x es identico y eso
+                            // dispara el MutationObserver de abajo, que vuelve a llamar a
+                            // apply()... bucle infinito (CPU al 100% y OOM de la pestana,
+                            // el navegador la mataba al pulsar Guardar: el morph de cada
+                            // update reescribe las horas en UTC del servidor y el
+                            // reformateo local nunca convergia).
+                            if (el.textContent !== out) el.textContent = out;
                         });
                     };
                     apply();
@@ -178,33 +187,76 @@
         (() => {
             const root = document.querySelector('.agent-detail');
             if (!root) return;
-            // El script se re-ejecuta en cada update: flag anti-duplicados.
-            if (root.dataset.detailReady) return;
-            root.dataset.detailReady = '1';
-            const wire = Livewire.find(root.id);
-            if (!wire || !window.TaapEcho || !window.TaapPusher) return;
-
-            const id = root.dataset.agentId;
-            const labels = {};
-            root.querySelectorAll('[data-status-label]').forEach(n => {
-                labels[n.dataset.statusValue] = n.textContent;
-            });
-
-            const channel = window.TaapEcho.channel(`agent.${id}`);
-            channel.listen('agent-event', (payload) => {
-                wire.agentEvent(payload);
-                if (payload.type === 'status.change') {
-                    const s = payload.payload?.status;
-                    const badge = root.querySelector('[data-status-label]');
-                    if (s && labels[s] && badge) badge.textContent = labels[s];
+            // Flag a nivel de window (NO en el nodo): el morph de Livewire
+            // re-sincroniza los atributos del nodo raiz con el HTML del
+            // servidor y BORRA cualquier data-attr client-only; un flag en
+            // el nodo se perdia en el primer update y el setup se re-
+            // ejecutaba (o moria) sin control.
+            const agentId = root.dataset.agentId;
+            const FLAG = '__taapDetailSetup_' + agentId;
+            // Este <script> inline corre ANTES que los modulos (app.js y
+            // livewire.js): si las dependencias aun no existen, reintenta
+            // (el flag a nivel window indica exito, no solo "se intento").
+            const ready = () =>
+                window.TaapEcho && window.TaapPusher && window.Livewire;
+            const currentRoot = () =>
+                document.querySelector('.agent-detail[data-agent-id="' + agentId + '"]') || root;
+            // Resuelve la INSTANCIA actual en cada evento. (En Livewire 4
+            // `find()` espera el wire:id como string y devuelve el proxy
+            // `$wire`; capturar la instancia una sola vez dejaba el
+            // listener apuntando a la instancia muerta y los updates
+            // morian en silencio. `root.id` (DOM) esta vacio y `find(root.id)`
+            // devolvia siempre undefined: el canal nunca se suscribia.)
+            const currentWire = () => {
+                const el = currentRoot();
+                return el ? window.Livewire.find(el.getAttribute('wire:id')) : null;
+            };
+            const setup = () => {
+                if (window[FLAG]) return; // idempotente (re-ejecuciones del script)
+                // Se marca ANTES del trabajo: si algo lanza, el retry sigue.
+                window[FLAG] = true;
+                try {
+                    const labels = {};
+                    currentRoot().querySelectorAll('[data-status-label]').forEach(n => {
+                        labels[n.dataset.statusValue] = n.textContent;
+                    });
+                    window.TaapEcho
+                        .channel('agent.' + agentId)
+                        .listen('agent-event', (payload) => {
+                            const wire = currentWire();
+                            if (wire) wire.agentEvent(payload);
+                            if (payload.type === 'status.change') {
+                                const s = payload.payload?.status;
+                                const badge = currentRoot().querySelector('[data-status-label]');
+                                if (s && labels[s] && badge) badge.textContent = labels[s];
+                            }
+                        });
+                } catch (e) {
+                    window[FLAG] = false; // permitir retry
+                    console.warn('taap: detail setup', e);
                 }
-            });
-
-            root.querySelectorAll('[data-confirm]').forEach(btn => {
-                btn.addEventListener('click', (e) => {
+            };
+            if (ready()) {
+                setup();
+            } else {
+                let tries = 0;
+                const timer = setInterval(() => {
+                    if (ready()) setup();
+                    if (window[FLAG] || ++tries > 200) clearInterval(timer); // ~10s
+                }, 50);
+            }
+            // Confirm de borrado por DELEGACION en `document` (sobrevive a
+            // cualquier morph; un listener unido al nodo moria si el botón
+            // se reemplaza). Un solo listener para toda la vida de la pagina.
+            if (!window['__taapDetailConfirm_' + agentId]) {
+                window['__taapDetailConfirm_' + agentId] = true;
+                document.addEventListener('click', (e) => {
+                    const btn = e.target && e.target.closest ? e.target.closest('[data-confirm]') : null;
+                    if (!btn) return;
+                    if (!btn.closest('.agent-detail[data-agent-id="' + agentId + '"]')) return;
                     if (!window.confirm(btn.dataset.confirm)) e.preventDefault();
                 });
-            });
+            }
         })();
     </script>
 </div>
