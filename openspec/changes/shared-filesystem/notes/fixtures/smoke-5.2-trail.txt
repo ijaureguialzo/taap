@@ -1,0 +1,31 @@
+# Humo manual 5.2 — trazas de verificación (agent-browser, app Docker en marcha)
+
+Usuario ana@taap.test (password secret) + admin@taap.local (password secret), app
+http://127.0.0.1:8011 (contenedor taap-orchestrator, imagen con el codigo de 5.2).
+
+[ana]
+1. Login -> redirige a /files (tras fix de forceHttps; antes daba https y ERR_CONNECTION_CLOSED).
+2. Vista propia: raiz "/" con breadcrumbs "Inicio", tabla vacia, accion bar (nueva carpeta / subir).
+3. Crear carpeta "proba/notas" (ruta anidada) -> aparece "proba" en la tabla.
+4. Navegar a /proba -> aparece "notas".
+5. Subir /tmp/taap-smoke-hola.txt (input file + boton Subir) -> fila "taap-smoke-hola.txt 14 B"
+   con botones Renombrar/Descargar/Borrar.
+6. Renombrar en modal (prellenado, Guardar) -> "hola-renombrado.txt".
+7. Borrar fichero normal -> se elimina sin modal (por diseno: solo recursivo/home piden confirm).
+8. Borrar carpeta "notas" -> modal "Confirmar borrado ... TODO su contenido (recursivo)"
+   -> "Si, borrar" -> desaparece de la tabla y de /data/fs/ana/proba.
+9. Subir /tmp/taap-smoke-notas.txt -> enlace de descarga aparece:
+   /files/download?path=%2Fproba%2Ftaap-smoke-notas.txt
+10. curl con cookie de sesion:
+    - fichero  -> 200 text/plain; charset=utf-8, contenido "segundo" (8 B).
+    - carpeta  -> 200 application/zip, zip valido con "taap-smoke-notas.txt" dentro.
+
+[admin]
+11. Vista /files = raiz fisica: carpetas "administrador" y "ana"; "ana" muestra badge de dueo "Ana"
+    (el propio "administrador" no lleva badge).
+12. Renombrar "ana" (home de usuario) -> 422 "Los directorios de usuario no se pueden renombrar".
+13. Borrar "ana" -> modal con mensaje reforzado "Se borrara el directorio del usuario /ana.
+    Esta accion no se puede deshacer." (nuevo deleteIsUserHome + confirm_delete_user) -> Cancelar.
+
+Nota: las capturas PNG de agent-browser fallaron en este host (daemon CDP, os error 35);
+se adjunta el snapshot de acceso como fixture (smoke-5.2-admin-view.txt).

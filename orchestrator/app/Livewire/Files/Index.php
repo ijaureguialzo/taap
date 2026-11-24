@@ -35,6 +35,9 @@ class Index extends Component
 
     public ?string $deleteTarget = null;
 
+    /** @var bool Si el borrado pendiente es un home de usuario (vista admin). */
+    public bool $deleteIsUserHome = false;
+
     /** @var int % de progreso de la subida actual (0-100) */
     public int $uploadProgress = 0;
 
@@ -218,7 +221,8 @@ class Index extends Component
         }
 
         $recursive = is_dir($physical) && ! is_link($physical);
-        if ($recursive || app(FilesystemService::class)->isUserHome(auth()->user(), $target)) {
+        $this->deleteIsUserHome = app(FilesystemService::class)->isUserHome(auth()->user(), $target);
+        if ($recursive || $this->deleteIsUserHome) {
             $this->deleteTarget = $target;
 
             return;
@@ -230,12 +234,14 @@ class Index extends Component
     public function cancelDelete(): void
     {
         $this->deleteTarget = null;
+        $this->deleteIsUserHome = false;
     }
 
     public function confirmDelete(): void
     {
         $target = $this->deleteTarget;
         $this->deleteTarget = null;
+        $this->deleteIsUserHome = false;
 
         if ($target) {
             $this->performDelete($target, confirm: true);

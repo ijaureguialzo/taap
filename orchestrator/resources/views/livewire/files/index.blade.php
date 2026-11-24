@@ -142,7 +142,11 @@
                         <button type="button" class="btn-close" data-bs-dismiss="modal" wire:click="cancelDelete"></button>
                     </div>
                     <div class="modal-body">
-                        {{ str_replace(':target', '<code>'.e($deleteTarget).'</code>', __('files.confirm_delete_msg')) }}
+                        @if ($deleteIsUserHome)
+                            {{ str_replace(':owner', e($deleteTarget), __('files.confirm_delete_user')) }}
+                        @else
+                            {{ str_replace(':target', '<code>'.e($deleteTarget).'</code>', __('files.confirm_delete_msg')) }}
+                        @endif
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-outline-secondary" wire:click="cancelDelete" data-bs-dismiss="modal">{{ __('actions.cancel') }}</button>

@@ -1,0 +1,85 @@
+# Humo manual 5.2 — vista admin (agent-browser, fs-smoke-9e44f32640f0)
+martes, 24 de noviembre de 2026, 23:26:30 CET
+
+## Snapshot de acceso de /files (admin)
+- navigation
+  - link "TAAP" [ref=e180]
+    - StaticText "TAAP"
+  - generic
+    - list
+      - listitem [level=1]
+        - link "Agentes" [ref=e199]
+          - StaticText "Agentes"
+      - listitem [level=1]
+        - link "Modelos" [ref=e200]
+          - StaticText "Modelos"
+      - listitem [level=1]
+        - link "Proveedores" [ref=e201]
+          - StaticText "Proveedores"
+      - listitem [level=1]
+        - link "MCP" [ref=e202]
+          - StaticText "MCP"
+      - listitem [level=1]
+        - link "Archivos" [ref=e203]
+          - StaticText "Archivos"
+      - listitem [level=1]
+        - link "Usuarios" [ref=e204]
+          - StaticText "Usuarios"
+    - StaticText "admin"
+    - list
+      - listitem [level=1]
+        - link "Administrador " [ref=e205]
+          - StaticText "Administrador "
+- main
+  - heading "Archivos" [level=1, ref=e181]
+    - StaticText "Archivos"
+  - generic
+    - StaticText "Ubicación física: <code>/Users/widemos/proyectos/taap/data/fs</code>"
+  - navigation "Archivos" [ref=e182]
+    - list
+      - listitem [level=1]
+        - StaticText "Inicio"
+  - generic
+    - textbox "carpeta o ruta/carpeta" [ref=e183]
+    - button "Nueva carpeta" [ref=e184]
+      - StaticText "Nueva carpeta"
+  - generic
+    - button "Seleccionar archivo" [ref=e185]: Ningún archivo seleccionado
+    - button "Subir" [ref=e186]
+      - StaticText "Subir"
+  - table
+    - rowgroup
+      - row
+        - columnheader "Nombre" [ref=e206]
+        - columnheader "Tipo" [ref=e207]
+        - columnheader "Tamaño" [ref=e208]
+        - columnheader "Modificado" [ref=e209]
+        - columnheader "Propietario" [ref=e210]
+        - columnheader "Acciones" [ref=e211]
+    - row
+      - cell "administrador" [ref=e187]
+        - link "administrador" [ref=e212]
+          - StaticText "administrador"
+      - cell "Carpeta" [ref=e188]
+      - cell [ref=e189]
+      - cell "2026-11-24 18:46" [ref=e190]
+      - cell [ref=e191]
+      - cell "Renombrar Descargar (.zip) Borrar" [ref=e192]
+        - button "Renombrar" [ref=e213] hint="icon:bi-pencil; in:administrador Carpeta 2026-11-24 18:46"
+        - link "Descargar (.zip)" [ref=e214] hint="icon:bi-file-earmark-zip; in:administrador Carpeta 2026-11-24 18:46"
+        - button "Borrar" [ref=e215] hint="icon:bi-trash; in:administrador Carpeta 2026-11-24 18:46"
+    - row
+      - cell "ana" [ref=e193]
+        - link "ana" [ref=e216]
+          - StaticText "ana"
+      - cell "Carpeta" [ref=e194]
+      - cell [ref=e195]
+      - cell "2026-11-24 22:14" [ref=e196]
+      - cell "Ana" [ref=e197]
+        - StaticText "Ana"
+      - cell "Renombrar Descargar (.zip) Borrar" [ref=e198]
+        - button "Renombrar" [ref=e217] hint="icon:bi-pencil; in:ana Carpeta 2026-11-24 22:14 Ana"
+        - link "Descargar (.zip)" [ref=e218] hint="icon:bi-file-earmark-zip; in:ana Carpeta 2026-11-24 22:14 Ana"
+        - button "Borrar" [ref=e219] hint="icon:bi-trash; in:ana Carpeta 2026-11-24 22:14 Ana"
+- contentinfo
+  - StaticText "TAAP · Tu campo de juegos de agentes de IA en tu propio hardware"
