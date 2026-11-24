@@ -175,7 +175,9 @@ class CodexAdapter extends StdioRpcAdapter
 
     /**
      * Variante sin adjuntar (worker de cola): el bridge es el unico que
-     * spawnea coprocesos; aqui solo se asegura el area IPC.
+     * spawnea coprocesos; aqui solo se asegura el area IPC y se usa estado
+     * DURABLE (config + cola `turns`): el worker no tiene sesion en memoria
+     * y `writeTurn` la exigia ("Undefined array key" en PHP 8).
      */
     public function writeMessage(Agent $agent, string $content, ?int $userId = null): void
     {
@@ -184,6 +186,22 @@ class CodexAdapter extends StdioRpcAdapter
             if (! is_dir($dir)) {
                 throw new \RuntimeException('No hay area RPC para el agente');
             }
+
+            // Hilo conocido (lo persistio rememberThread): turn/start directo
+            // en `in` (el writer del bridge lo entrega al app-server).
+            $threadId = $agent->config['thread_id'] ?? null;
+            if ($threadId !== null) {
+                $this->write($agent, $this->turnPayload($agent, (string) $threadId, $content));
+
+                return;
+            }
+
+            // Hilo todavia por establecer (arranque): cola durable que el
+            // bridge emite cuando el hilo exista (fix-bridge-cross-process-
+            // seams: el pending_turns en memoria era invisible entre procesos).
+            $this->docker->turnsAppend($agent->id, json_encode(['kind' => 'turn', 'content' => $content]));
+
+            return;
         }
 
         $this->writeTurn($agent, $content);
@@ -310,6 +328,11 @@ class CodexAdapter extends StdioRpcAdapter
             }
         }
 
+        // Cola durable: un mensaje encolado por el worker cuando el hilo no
+        // existia (y el result del hilo ya se proceso) se emite ahora.
+        // (fix-bridge-cross-process-seams: exactly-once, consume-y-trunca.)
+        $this->flushDurableTurns($agent, $agent->id);
+
         return $events;
     }
 
@@ -328,6 +351,8 @@ class CodexAdapter extends StdioRpcAdapter
         // ── Respuesta de NUESTROS requests: {"id", "result"|"error"} ──
         if ($method === null) {
             if (isset($event['error'])) {
+                $this->recoverFromThreadError($agentId, $id);
+
                 return $this->normalizeError($agentId, $id, (array) $event['error']);
             }
 
@@ -601,6 +626,78 @@ class CodexAdapter extends StdioRpcAdapter
     }
 
     /**
+     * El app-server rechazo una operacion de hilo (p. ej. "no rollout found"
+     * en un hilo creado sin turnos): el hilo es inutilizable — se descarta
+     * (memoria y config, para que el worker cue durable) y se re-ejecuta la
+     * secuencia de arranque, que abre uno nuevo (fix-bridge-cross-process-
+     * seams D3: sin esto el bridge re-resumeaba el mismo cadáver en cada
+     * attach y ningun turno llegaba al app-server). El error de la operacion
+     * se traduce como siempre (normalizeError).
+     */
+    protected function recoverFromThreadError(int $agentId, mixed $id): void
+    {
+        if (! is_string($id) || ! str_starts_with($id, 'taap-thread-')) {
+            return;
+        }
+        if (! isset($this->sessions[$agentId])) {
+            return;
+        }
+
+        $session = &$this->sessions[$agentId];
+        $session['thread_id'] = null;
+        $session['thread_established'] = false;
+
+        $agent = $session['agent'] ?? null;
+        if (! $agent instanceof Agent) {
+            return;
+        }
+        if (($agent->config['thread_id'] ?? null) !== null) {
+            $config = $agent->config;
+            $config['thread_id'] = null;
+            $agent->config = $config;
+            $agent->saveQuietly();
+        }
+
+        // Re-secuencia: initialize + initialized + thread/start nuevo.
+        // (Mismo patron que el re-init de remoteControl/status/changed.)
+        $this->attach($agent);
+    }
+
+    /** Id del request de hilo (taap-thread-<agente>). */
+    protected function isThreadId(mixed $id): bool
+    {
+        return is_string($id) && str_starts_with($id, 'taap-thread-');
+    }
+
+    /**
+     * Drenado de la cola durable de turnos (fix-bridge-cross-process-seams):
+     * los mensajes que el worker de cola encoló cuando el hilo no existía se
+     * emiten como turn/start ahora que sí (exactly-once: consume-y-trunca;
+     * en orden FIFO: la cola lo garantiza).
+     */
+    protected function flushDurableTurns(Agent $agent, int $agentId): void
+    {
+        $session = $this->sessions[$agentId] ?? null;
+        $threadId = is_array($session) ? ($session['thread_id'] ?? null) : null;
+        if ($threadId === null) {
+            return; // sin hilo: sigue en la cola hasta que haya
+        }
+
+        foreach ($this->docker->turnsTake($agentId) as $line) {
+            $entry = json_decode($line, true);
+            if (! is_array($entry) || ($entry['kind'] ?? '') !== 'turn') {
+                Log::debug(static::class.': linea extraña en la cola de turnos: '.substr($line, 0, 120));
+                continue;
+            }
+            $content = (string) ($entry['content'] ?? '');
+            if ($content === '') {
+                continue;
+            }
+            $this->write($agent, $this->turnPayload($agent, (string) $threadId, $content));
+        }
+    }
+
+    /**
      * Guarda el id del hilo en el estado de sesion, lo persiste en el config
      * y emite los turnos encolados a la espera de este id (primer mensaje).
      */
@@ -618,6 +715,9 @@ class CodexAdapter extends StdioRpcAdapter
             $this->write($agent, $this->turnPayload($agent, $threadId, $content));
         }
         $session['pending_turns'] = [];
+
+        // Y los que el worker de cola coló de forma durable (otro proceso).
+        $this->flushDurableTurns($agent, $agentId);
 
         $model = $session['agent'] ?? null;
         if (! $model instanceof Agent) {

@@ -218,7 +218,7 @@ class ReasoningParityTest extends TestCase
         $adapter = new CodexAdapter($this->dockerMock(), $this->sink);
         $adapter->attach($agent);
 
-        $fixture = base_path('../openspec/changes/interactive-agent-chat/fixtures/spike-codex-reasoning.jsonl');
+        $fixture = base_path('../openspec/changes/archive/2026-11-24-interactive-agent-chat/fixtures/spike-codex-reasoning.jsonl');
         $this->assertFileExists($fixture);
         foreach (file($fixture, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) as $line) {
             $this->out(trim($line));

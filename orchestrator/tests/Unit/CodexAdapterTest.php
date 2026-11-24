@@ -30,6 +30,8 @@ class CodexAdapterTest extends TestCase
 
     protected EventSink $sink;
 
+    protected DockerClient $realDocker;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -38,6 +40,16 @@ class CodexAdapterTest extends TestCase
         $this->dir = sys_get_temp_dir().'/taap-codex-'.uniqid();
         mkdir($this->dir.'/rpc', 0777, true);
         $this->sink = new EventSink;
+        $this->realDocker = new class ($this->dir.'/rpc') extends DockerClient {
+            public function __construct(private string $d) {
+                parent::__construct('docker-fake');
+            }
+
+            public function rpcDir(int $agentId): string
+            {
+                return $this->d;
+            }
+        };
     }
 
     protected function tearDown(): void
@@ -63,6 +75,12 @@ class CodexAdapterTest extends TestCase
         $docker->method('attachReader')->willReturn($streams);
         $docker->method('startWriter')->willReturn($streams);
         $docker->method('killCoprocess');
+        // La cola durable `turns` se delega a un DockerClient REAL (la misma
+        // area de ficheros que el mock): los tests de costura usan la logica
+        // de ficheros, no un mock en memoria (que es justo lo que rompio).
+        $docker->method('turnsAppend')->willReturnCallback(fn ($id, $line) => $this->realDocker->turnsAppend($id, $line));
+        $docker->method('turnsNext')->willReturnCallback(fn ($id) => $this->realDocker->turnsNext($id));
+        $docker->method('turnsTake')->willReturnCallback(fn ($id) => $this->realDocker->turnsTake($id));
 
         return new CodexAdapter($docker, $this->sink);
     }
@@ -105,6 +123,14 @@ class CodexAdapterTest extends TestCase
         }
 
         return $events;
+    }
+
+    /** @return list<string> lineas de la cola durable `turns` (crudas) */
+    protected function turns(): array
+    {
+        $raw = (string) @file_get_contents($this->dir.'/rpc/turns');
+
+        return array_values(array_filter(array_map('trim', preg_split('/\R/', $raw) ?: [])));
     }
 
     /**
@@ -322,6 +348,143 @@ class CodexAdapterTest extends TestCase
         );
     }
 
+    /* ── entrega desde el worker sin sesion en memoria (fix-bridge-cross-process-seams) ──
+
+    Un adapter recienv construido = el worker de cola: $sessions vacio.
+    El Docker esta simulado, pero la cola `turns` es de ficheros reales,
+    igual que en la costura de procesos.
+    */
+
+    /**
+     * El fallo de produccion: worker sin sesion + hilo persistido en el
+     * config. Antes de este fix, `writeTurn` leia `$sessions[$id]` vacio y
+     * PHP 8 lanzaba *Undefined array key* ("No se pudo entregar el
+     * mensaje: Undefined array key 2" en Codex).
+     */
+    public function test_write_message_from_worker_uses_persisted_thread(): void
+    {
+        $agent = $this->agent(['thread_id' => '01a1f7d2-7dc3-7752-94e1-3b46a3329c70'], 'idle');
+        $adapter = $this->makeAdapter($agent); // sin attach: worker
+        $this->assertFalse($adapter->isAttached($agent));
+
+        $adapter->writeMessage($agent, 'Ejecuta en bash: echo ping');
+
+        $cmds = $this->in();
+        $this->assertCount(1, $cmds, 'turn/start directo en `in` (el writer del bridge lo entrega)');
+        $this->assertSame('turn/start', $cmds[0]['method']);
+        $this->assertSame('01a1f7d2-7dc3-7752-94e1-3b46a3329c70', $cmds[0]['params']['threadId']);
+        $this->assertSame([['type' => 'text', 'text' => 'Ejecuta en bash: echo ping']], $cmds[0]['params']['input']);
+        $this->assertSame([], $this->turns(), 'con hilo conocido no se usa la cola durable');
+    }
+
+    /**
+     * Worker sin sesion y sin hilo persistido (primer mensaje, arranque):
+     * el contenido va a la cola durable, no se pierde con el proceso.
+     */
+    public function test_write_message_from_worker_without_thread_queues_durable(): void
+    {
+        $agent = $this->agent([], 'starting');
+        $adapter = $this->makeAdapter($agent);
+
+        $adapter->writeMessage($agent, 'Responde solo con OK');
+
+        $this->assertSame([], $this->in(), 'sin hilo: nada hacia el app-server todavia');
+        $lines = $this->turns();
+        $this->assertCount(1, $lines);
+        $entry = json_decode($lines[0], true);
+        $this->assertSame('turn', $entry['kind']);
+        $this->assertSame('Responde solo con OK', $entry['content']);
+    }
+
+    /** Worker sin area RPC: mismo error de siempre. */
+    public function test_write_message_from_worker_without_ipc_area_throws(): void
+    {
+        $agent = $this->agent([], 'idle');
+        $docker = $this->createMock(DockerClient::class);
+        $docker->method('rpcDir')->willReturn($this->dir.'/no-existe');
+        $adapter = new CodexAdapter($docker, $this->sink);
+
+        $this->expectException(\RuntimeException::class);
+        $adapter->writeMessage($agent, 'x');
+    }
+
+    /**
+     * El bridge emite la cola durable al establecer el hilo (el result del
+     * thread/start llega y el pendiente de otro proceso viaja ya).
+     */
+    public function test_bridge_emits_durable_turns_when_thread_established(): void
+    {
+        $agent = $this->agent(); // sin thread_id: arranca con thread/start
+        $adapter = $this->makeAdapter($agent);
+        $adapter->attach($agent);
+
+        // "Otro proceso" (worker) encola mientras el hilo no existe.
+        $worker = $this->makeAdapter($agent);
+        $worker->writeMessage($agent, 'Responde solo con OK');
+        $this->assertCount(1, $this->turns());
+
+        $this->out([
+            'jsonrpc' => '2.0',
+            'id' => 'taap-thread-'.$agent->id,
+            'result' => ['thread' => ['id' => '01a1f7d5-ce21-7d13-a75c-96e04381493a']],
+        ]);
+
+        $this->pump($adapter, $agent);
+
+        $cmds = $this->in();
+        $turn = end($cmds);
+        $this->assertSame('turn/start', $turn['method']);
+        $this->assertSame('01a1f7d5-ce21-7d13-a75c-96e04381493a', $turn['params']['threadId']);
+        $this->assertSame([['type' => 'text', 'text' => 'Responde solo con OK']], $turn['params']['input']);
+        $this->assertSame([], $this->turns(), 'exactly-once: la cola quedo vacia');
+        $this->assertSame('01a1f7d5-ce21-7d13-a75c-96e04381493a', $agent->refresh()->config['thread_id']);
+
+        // Un segundo pump no re-emite el turno.
+        $this->pump($adapter, $agent->refresh());
+        $this->assertCount(4, $this->in(), 'initialize + initialized + start + turn (una sola vez)');
+    }
+
+    /**
+     * D3: `thread/resume` fallido ("no rollout found", hilo sin turnos):
+     * se descarta el hilo (memoria + config) y la secuencia abre uno nuevo.
+     */
+    public function test_failed_resume_recovers_with_new_thread(): void
+    {
+        $agent = $this->agent(['thread_id' => '01a1f7d2-7dc3-7752-94e1-3b46a3329c70']);
+        $adapter = $this->makeAdapter($agent);
+        $adapter->attach($agent);
+
+        $this->assertCount(3, $this->in(), 'initialize + initialized + resume (sin sync: sin modelo en el test)');
+
+        $this->out([
+            'jsonrpc' => '2.0',
+            'id' => 'taap-thread-'.$agent->id,
+            'error' => ['code' => -32600, 'message' => 'no rollout found for thread id 01a1f7d2-7dc3-7752-94e1-3b46a3329c70'],
+        ]);
+
+        $events = $this->pump($adapter, $agent);
+        $this->assertContains('error', array_map(fn ($e) => $e->type, $events));
+
+        // Re-secuencia: initialized + thread/start NUEVO (el hilo muerto se descart).
+        $cmds = $this->in();
+        $this->assertCount(5, $cmds, 'la re-secuencia añade initialized + thread/start');
+        $this->assertSame('initialized', $cmds[3]['method']);
+        $this->assertSame('thread/start', $cmds[4]['method']);
+        $this->assertNull($agent->refresh()->config['thread_id'], 'el hilo muerto ya no esta en el config');
+
+        // El result del nuevo start lo recuerda y lo persiste.
+        $this->out(['jsonrpc' => '2.0', 'id' => 'taap-thread-'.$agent->id, 'result' => ['thread' => ['id' => '01a1f7d6-new-thread-id-1234']]]);
+        $this->pump($adapter, $agent->refresh());
+        $this->assertSame('01a1f7d6-new-thread-id-1234', $agent->refresh()->config['thread_id']);
+
+        // Y el siguiente mensaje (worker) va al hilo vivo.
+        $worker = $this->makeAdapter($agent->refresh());
+        $worker->writeMessage($agent->refresh(), 'Responde solo con OK');
+        $cmds = $this->in();
+        $turn = $cmds[count($cmds) - 1];
+        $this->assertSame('01a1f7d6-new-thread-id-1234', $turn['params']['threadId']);
+    }
+
     /** Aprobacion: once -> "accept", denegado -> "cancel". */
     public function test_resolve_approval_decision_mapping(): void
     {
@@ -374,7 +537,7 @@ class CodexAdapterTest extends TestCase
         $adapter = $this->makeAdapter($agent);
         $adapter->attach($agent);
 
-        $fixture = base_path('../openspec/changes/interactive-agent-chat/fixtures/spike-codex-reasoning.jsonl');
+        $fixture = base_path('../openspec/changes/archive/2026-11-24-interactive-agent-chat/fixtures/spike-codex-reasoning.jsonl');
         $this->assertFileExists($fixture);
 
         // Texto OFICIAL de cada razonamiento completado ANTES del agentMessage
