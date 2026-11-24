@@ -3,6 +3,7 @@
 namespace App\Agents;
 
 use App\Enums\AgentRuntime;
+use App\Enums\FsMountMode;
 use App\Models\Agent;
 use App\Models\Model;
 use Illuminate\Support\Facades\File;
@@ -22,12 +23,21 @@ class ConfigRenderer
     /** Ruta visible para el demonio Docker (puede ser distinta: binds). */
     protected ?string $bindBase = null;
 
+    /** Raiz del FS compartido, via proceso (orquestador/cola, design D9). */
+    protected ?string $fsBase = null;
+
+    /** Raiz del FS compartido, via demonio Docker (binds de agentes, D9). */
+    protected ?string $fsHostBase = null;
+
     public function __construct(
         protected ?string $base = null,
+        ?string $fsBase = null,
     ) {
         $this->base ??= (string) config('taap.agents.data_base', '/var/lib/taap/agents');
         $this->writeBase = $this->base;
         $this->bindBase = (string) config('taap.agents.data_host_base', $this->base);
+        $this->fsBase = $fsBase ?? (string) config('taap.fs.fs_base', '/data/fs');
+        $this->fsHostBase = (string) config('taap.fs.fs_host_base', $this->fsBase);
     }
 
     /** Raiz del agente donde se escribe (rutas visibles para el proceso). */
@@ -38,12 +48,15 @@ class ConfigRenderer
 
     /**
      * Convierte una ruta escrita en su par de bind `hostDaemon:destino`.
+     * Con modo, anade el sufijo (`ro`/`rw`) del bind (spike 1.1).
      */
-    protected function bind(string $hostDir, string $dest): string
+    protected function bind(string $hostDir, string $dest, ?string $mode = null): string
     {
         $rel = ltrim(str_replace($this->writeBase, '', $hostDir), '/');
 
-        return $this->bindBase.'/'.$rel.':'.$dest;
+        $bind = $this->bindBase.'/'.$rel.':'.$dest;
+
+        return $mode !== null ? $bind.':'.$mode : $bind;
     }
 
     /**
@@ -64,13 +77,95 @@ class ConfigRenderer
         $model = $agent->model ?? $agent->model()->first();
         $orchestrator = rtrim((string) config('taap.proxy.internal_url', 'http://taap-orchestrator:8000'), '/');
 
-        return match ($agent->runtime) {
+        $mounts = match ($agent->runtime) {
             AgentRuntime::Pi => $this->renderPi($agent, $dir, $token, $model, $orchestrator),
             AgentRuntime::Hermes => $this->renderHermes($agent, $dir, $token, $model, $orchestrator),
             AgentRuntime::Claude => $this->renderClaude($agent, $dir, $token, $model, $orchestrator),
             AgentRuntime::Codex => $this->renderCodex($agent, $dir, $token, $model, $orchestrator),
             AgentRuntime::OpenCode => $this->renderOpenCode($agent, $dir, $token, $model, $orchestrator),
         };
+
+        // FS compartido (design D2, forma B' del spike 1.1): arena siempre
+        // :ro + esqueleto precreado (C1/C3) para que runc encuentre todos
+        // los componentes de los destinos anidados. Los mounts van ANTES
+        // de los del runtime: el orden de --volume importa (la arena bajo,
+        // los paths sobre ella).
+        $this->ensureFsSkeleton($agent, $dir);
+
+        return array_merge($this->fsMounts($agent, $dir), $mounts);
+    }
+
+    /**
+     * Binds del FS compartido para el contenedor del agente (design D2,
+     * forma exacta validada en el spike 1.1, "B'"):
+     *
+     *   -v <arena_host>:/fs:ro                              (scratch, SIEMPRE ro)
+     *   -v <fs_host_base><path>:/fs<path>                  (modo read_write)
+     *   -v <fs_host_base><path>:/fs<path>:ro               (modo read_only)
+     *   modo disabled = sin montaje (invisible para el agente)
+     *
+     * La arena es la vista "/fs" del agente; cada path canónico se monta
+     * sobre `arena + path` (D2/D8). El orden importa: arena primero y los
+     * paths después (mounts anidados sobre ella).
+     *
+     * @return list<string>
+     */
+    public function fsMounts(Agent $agent, ?string $dir = null): array
+    {
+        $dir ??= $this->dir($agent);
+
+        $mounts = [
+            $this->bind($dir.'/fs-arena', '/fs', 'ro'),
+        ];
+
+        foreach ($agent->fsMounts()->exposed()->orderBy('path')->get() as $mount) {
+            $path = $this->canonicalPath($mount->path);
+            $suffix = $mount->mode === FsMountMode::ReadOnly ? ':ro' : '';
+
+            $mounts[] = $this->fsHostPath($path).':/fs'.$path.$suffix;
+        }
+
+        return $mounts;
+    }
+
+    /**
+     * Pre-crea lo que el daemon de Docker NO crea (hallazgos H1/H4 del
+     * spike 1.1): el esqueleto completo de cada destino dentro de la arena
+     * (C1: parents + destino; runc hace MkdirAll componente a componente
+     * y el primero ausente bajo la arena :ro = EROFS) y la existencia de
+     * los sources en el arbol fisico (C3: si el usuario borro la carpeta,
+     * el orquestador la recrea vacia).
+     */
+    public function ensureFsSkeleton(Agent $agent, ?string $dir = null): void
+    {
+        $dir ??= $this->dir($agent);
+        $arena = $dir.'/fs-arena';
+        File::ensureDirectoryExists($arena);
+
+        foreach ($agent->fsMounts()->exposed()->get() as $mount) {
+            $path = $this->canonicalPath($mount->path);
+            File::ensureDirectoryExists($this->fsHostPath($path));
+            File::ensureDirectoryExists($arena.$path);
+        }
+    }
+
+    /** Source fisico (via demonio) de un path canónico, sin barra doble. */
+    protected function fsHostPath(string $path): string
+    {
+        return (rtrim((string) $this->fsHostBase, '/') ?: '/').$path;
+    }
+
+    /**
+     * Path canónico (D3): con barra inicial, sin barra final, sin `..`.
+     */
+    public function canonicalPath(string $path): string
+    {
+        $path = '/'.ltrim(trim($path), '/');
+        if ($path !== '/') {
+            $path = rtrim($path, '/');
+        }
+
+        return $path;
     }
 
     /**
@@ -82,7 +177,7 @@ class ConfigRenderer
         $config = $agent->config ?? [];
         // El id de sesion es estable PERO: si el modelo/provider cambio, la
         // sesion reanudada arrastra la config antigua -> nueva sesion.
-        $providerName = $model->provider?->name;
+        $providerName = $model?->provider?->name;
         $modelKey = $model
             ? $model->id.'|'.($providerName ?? '')
             : 'none';

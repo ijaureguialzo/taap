@@ -30,7 +30,7 @@
 
 ## 6. Agente: montajes y permisos de runtime
 
-- [ ] 6.1 `ConfigRenderer`: render de la arena + binds por path (modo `disabled` = sin montaje; `read_only` = `:ro`; `read_write` = rw; destino = arena + path canónico) con la forma validada en el spike 1.1. Verificación: tests unitarios que afirman las cadenas `--volume` exactas para los tres modos y para un path externo.
+- [x] 6.1 `ConfigRenderer`: render de la arena + binds por path (modo `disabled` = sin montaje; `read_only` = `:ro`; `read_write` = rw; destino = arena + path canónico) con la forma validada en el spike 1.1. Verificación: tests unitarios que afirman las cadenas `--volume` exactas para los tres modos y para un path externo.
 - [ ] 6.2 `AgentManager::provision` consume los mounts nuevos (los agentes sin carpetas reciben solo la arena, sin efecto observable). Verificación: test de integración con `DockerClient` (doble en unitario; si el entorno lo permite, contenedor real con transcripción `docker inspect` como fixture).
 - [ ] 6.3 Bloque de FS compartido en la configuración nativa de cada runtime (design D8): system prompt con paths+modos y reglas de permiso por runtime (Pi, Claude `permissions`, Codex writable roots, OpenCode `permission`; Hermes solo kernel). Verificación: tests por adapter que afirman el contenido renderizado (fixtures por runtime, sin red).
 - [ ] 6.4 Extensión `taap-approval.ts` de Pi: auto-aprobar sin `approval.request` cuando el comando solo afecta paths conectados respetando el modo (ro = solo lecturas); fuera de ellos, flujo de aprobación actual. Verificación: test a través del adapter Pi: escritura en path rw no emite aprobación; escritura en path ro falla y se reporta en el chat; comando fuera emite `approval.request`.

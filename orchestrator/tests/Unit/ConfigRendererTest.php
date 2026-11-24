@@ -73,11 +73,12 @@ class ConfigRendererTest extends TestCase
         $base = $this->base();
         $mounts = (new ConfigRenderer($base))->render($agent);
 
-        // mounts: config + data + workspace (los del registro)
-        $this->assertCount(3, $mounts);
-        $dests = array_map(fn (string $m) => substr($m, (int) strrpos($m, ':') + 1), $mounts);
+        // mounts: arena (fs, siempre) + config + data + workspace (los del registro)
+        $this->assertCount(4, $mounts);
+        // el ultimo segmento despues de ':' (ignorando el sufijo de modo del bind)
+        $dests = array_map(fn (string $m) => (string) str($m)->replaceMatches('/:(ro|rw)$/', '')->afterLast(':'), $mounts);
         sort($dests);
-        $this->assertSame(['/config', '/data', '/workspace'], $dests);
+        $this->assertSame(['/config', '/data', '/fs', '/workspace'], $dests);
 
         // contenido del plano
         $raw = file_get_contents($base.'/'.$agent->id.'/config/claude.json');
@@ -188,9 +189,11 @@ class ConfigRendererTest extends TestCase
         $base = $this->base();
         $mounts = (new ConfigRenderer($base))->render($agent);
 
-        $dests = array_map(fn (string $m) => substr($m, (int) strrpos($m, ':') + 1), $mounts);
+        // mounts: arena (fs, siempre) + config + data + workspace (los del registro)
+        // el ultimo segmento despues de ':' (ignorando el sufijo de modo del bind)
+        $dests = array_map(fn (string $m) => (string) str($m)->replaceMatches('/:(ro|rw)$/', '')->afterLast(':'), $mounts);
         sort($dests);
-        $this->assertSame(['/config', '/data', '/workspace'], $dests);
+        $this->assertSame(['/config', '/data', '/fs', '/workspace'], $dests);
 
         // codex.env: token de agente + CODEX_HOME en el volumen
         $env = file_get_contents($base.'/'.$agent->id.'/config/codex.env');
