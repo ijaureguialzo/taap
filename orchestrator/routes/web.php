@@ -8,6 +8,8 @@ use App\Livewire\Mcp;
 use App\Livewire\Models;
 use App\Livewire\Providers;
 use App\Livewire\Users;
+use App\Services\FileSystemException;
+use App\Services\FilesystemService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -37,6 +39,24 @@ Route::middleware(['auth'])->group(function () {
 
     Route::get('files', Files\Index::class)->name('files.index');
 
+    // Descarga web (cookie): fichero -> stream; carpeta -> .zip (shared-filesystem 5.2).
+    Route::get('files/download', function (Request $request) {
+        $data = $request->validate(['path' => ['required', 'string', 'max:2048']]);
+        $fs = app(FilesystemService::class);
+        $user = $request->user();
+
+        try {
+            $physical = $fs->resolve($user, $data['path'], follow: true);
+
+            if (is_dir($physical)) {
+                return $fs->zip($user, $data['path']);
+            }
+
+            return $fs->download($user, $data['path']);
+        } catch (FileSystemException $e) {
+            abort($e->status);
+        }
+    })->name('files.download');
     Route::get('users', Users\Index::class)
         ->middleware('role:admin')->name('users.index');
 

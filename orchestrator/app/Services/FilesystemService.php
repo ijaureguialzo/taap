@@ -600,6 +600,21 @@ class FilesystemService
         }
     }
 
+    /**
+     * 3.4/5.2: `virtualPath` (vista de $user) apunta a la home de un
+     * usuario? El borrado/renombre de esas entradas lleva protecciones
+     * (confirmacion explicita / no renombrable).
+     */
+    public function isUserHome(User $user, string $virtualPath): bool
+    {
+        try {
+            $physical = $this->resolve($user, $virtualPath, follow: false);
+        } catch (FileSystemException) {
+            return false;
+        }
+
+        return $this->userHomeOf($user, $physical) !== null;
+    }
     /* ================= proteccion de homes de usuario (3.4) ================= */
 
     /**
