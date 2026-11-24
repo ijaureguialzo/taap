@@ -125,12 +125,40 @@ un orquestador más regulado por registro.
   construye Pi, Hermes, Claude, Codex y OpenCode;
   `TAAP_{PI,HERMES,CLAUDE,CODEX,OPENCODE}_IMAGE`).
 
+## Chat en vivo y razonamiento
+
+- **Razonamiento visible en todos los runtimes**: los cinco adaptadores
+  emiten el razonamiento del modelo SEPARADO del texto (nunca fundido):
+  `thinking.delta` durante el turno y `thinking` en `message.final`
+  (persistido en `chat_messages.meta`). En la web se muestra como seccion
+  colapsable «Razonamiento» (oculta por defecto) dentro de la burbuja.
+  - Pi: `thinking_delta` / bloques `thinking` del `message_end`.
+  - Claude: el sidecar acumula los bloques de thinking del SDK.
+  - Codex: resumen del item de razonamiento (`item/reasoning`) — se muestra
+    el RESUMEN, no el razonamiento crudo token a token.
+  - OpenCode: partes `reasoning` del stream.
+  - Hermes: `delta.reasoning_content` (convenio Qwen/DeepSeek) a traves
+    del Model Proxy.
+- **Chat web en tiempo real**: los deltas de texto/razonamiento y el feed
+  de actividad (herramientas en curso) se pintan en el cliente por el canal
+  `agent.{id}` sin round-trip por token; las secciones de la burbuja
+  asientada (Razonamiento + Actividad) se reconstruyen desde `meta` y
+  `agent_events` por run.
+- **Estado en vivo**: los badges de estado (lista, detalle y chat) se
+  actualian por canal sin recargar; la tarjeta de aprobacion aparece y se
+  limpia en vivo y la aprobacion se resuelve con un click (el agente
+  reanuda en el mismo turno).
+- **Codex**: por defecto se deshabilita `web_search` en la config renderizada
+  (`-c web_search=disabled`): el binario la include siempre y los upstreams
+  que no soportan la herramienta hacen fallar el turno entero (override
+  configurable por agente).
+
 ## No cambia
 
 - v1.0 intacto: Pi y Hermes se comportan exactamente igual; la web, la app
-  iOS, las aprobaciones y el chat funcionan como antes. (Los cambios
-  transversales —registro, base del adaptador, Model Proxy— son
-  aditivos: la suite completa sigue verde.)
+  iOS, las aprobaciones y el chat funcionan como antes (el contrato solo
+  crece: los tipos nuevos `thinking.delta` y el campo `thinking` del final
+  se ignoran en clientes antiguos).
 
 ## Detalles de implementación (interés técnico)
 
