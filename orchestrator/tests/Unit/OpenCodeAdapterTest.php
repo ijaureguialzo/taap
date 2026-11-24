@@ -88,6 +88,7 @@ class OpenCodeAdapterTest extends TestCase
         $docker->method('turnsAppend')->willReturnCallback(fn ($id, $line) => $this->realDocker->turnsAppend($id, $line));
         $docker->method('turnsNext')->willReturnCallback(fn ($id) => $this->realDocker->turnsNext($id));
         $docker->method('turnsTake')->willReturnCallback(fn ($id) => $this->realDocker->turnsTake($id));
+        $docker->method('turnsPeek')->willReturnCallback(fn ($id) => $this->realDocker->turnsPeek($id));
 
         return new OpenCodeAdapter($docker, $this->sink);
     }
@@ -753,6 +754,157 @@ class OpenCodeAdapterTest extends TestCase
         $final = collect($events)->first(fn ($e) => $e->type === 'message.final');
         $this->assertSame('run-dos', $final->payload['run_id']);
         $this->assertSame('A2', $final->payload['content'], 'los buffers no se mezclan entre turnos');
+        $this->assertSame([], $this->turns());
+    }
+
+    /* ── 4.3 batch de prompt_async en batería ──
+
+    Verificado contra el binario 1.19.6:
+    1) dos prompt_async seguidos = UN solo par busy→idle para el batch
+       (5 busy + 1 idle en la captura), no uno por turno;
+    2) un prompt con pasos de tool emite VARIOS mensajes de asistente
+       (uno por paso, cada uno con su `time.completed`).
+
+    Modelo resultante: el completed de un mensaje de asistente cierra el
+    run SOLO si hay otro prompt pendiente (cola durable no vacía o un user
+    nuevo durante el run); sin nada pendiente, el contenido queda en
+    buffers y el idle de sesion cierra el turno entero de golpe.
+    */
+
+    public function test_batch_two_prompts_single_idle_closes_both_runs_fifo(): void
+    {
+        $agent = $this->agent(['session_id' => self::SID]);
+        $bridge = $this->makeAdapter($agent);
+        $this->fakeServer();
+        $bridge->attach($agent);
+
+        // El worker encoló los dos run_ids (los dos prompt_async fueron aceptados).
+        $this->realDocker->turnsAppend($agent->id, json_encode(['kind' => 'run', 'run_id' => 'run-uno']));
+        $this->realDocker->turnsAppend($agent->id, json_encode(['kind' => 'run', 'run_id' => 'run-dos']));
+
+        // Shape real del stream: user1 se crea al aceptar el prompt 1 (antes
+        // del busy: no cuenta como batch), busy, m1 creado + contenido...
+        $this->stream(['type' => 'message.updated', 'properties' => ['sessionID' => self::SID, 'info' => ['id' => 'u1', 'role' => 'user', 'time' => ['created' => 1]]]]);
+        $this->stream(['type' => 'session.status', 'properties' => ['sessionID' => self::SID, 'status' => ['type' => 'busy']]]);
+        $this->stream(['type' => 'message.updated', 'properties' => ['sessionID' => self::SID, 'info' => ['id' => 'm1', 'role' => 'assistant', 'time' => ['created' => 2]]]]);
+        $this->stream(['type' => 'message.part.updated', 'properties' => ['sessionID' => self::SID, 'messageID' => 'm1', 'part' => ['id' => 'p1', 'messageID' => 'm1', 'type' => 'text', 'text' => 'Respuesta uno']]]);
+        $this->pump($bridge, $agent);
+        $this->assertSame('run-uno', $bridge->sessionRunId($agent->id), 'adopción FIFO en el primer busy');
+        $this->assertCount(1, $this->turns(), 'el segundo run sigue en cola durante el batch');
+
+        // El user del prompt 2 llega MIENTRAS el run 1 va en vuelo (el
+        // servidor crea el user al aceptar el prompt_async): marca batch.
+        $this->stream(['type' => 'message.updated', 'properties' => ['sessionID' => self::SID, 'info' => ['id' => 'u2', 'role' => 'user', 'time' => ['created' => 3]]]]);
+        // m1 COMPLETA: hay otro prompt pendiente -> cierra run-uno ya.
+        $this->stream(['type' => 'message.updated', 'properties' => ['sessionID' => self::SID, 'info' => ['id' => 'm1', 'role' => 'assistant', 'time' => ['created' => 2, 'completed' => 10]]]]);
+        $events = $this->pump($bridge, $agent->refresh());
+        $final = collect($events)->first(fn ($e) => $e->type === 'message.final');
+        $runEnd = collect($events)->first(fn ($e) => $e->type === 'run.end');
+        $this->assertNotNull($final, 'm1 cierra su run en su completed (batch marcado)');
+        $this->assertSame('run-uno', $final->payload['run_id']);
+        $this->assertSame('Respuesta uno', $final->payload['content']);
+        $this->assertSame('run-uno', $runEnd->payload['run_id'], 'm1 cierra run-uno dentro del batch');
+        $this->assertNull($bridge->sessionRunId($agent->id));
+
+        // El busy re-emitido adopta el siguiente id; m2 se crea y streamea.
+        $this->stream(['type' => 'session.status', 'properties' => ['sessionID' => self::SID, 'status' => ['type' => 'busy']]]);
+        $this->stream(['type' => 'message.updated', 'properties' => ['sessionID' => self::SID, 'info' => ['id' => 'm2', 'role' => 'assistant', 'time' => ['created' => 11]]]]);
+        $this->stream(['type' => 'message.part.updated', 'properties' => ['sessionID' => self::SID, 'messageID' => 'm2', 'part' => ['id' => 'p2', 'messageID' => 'm2', 'type' => 'text', 'text' => 'Respuesta dos']]]);
+        $this->pump($bridge, $agent->refresh());
+        $this->assertSame('run-dos', $bridge->sessionRunId($agent->id), 'el busy de m2 adopta el siguiente id (FIFO)');
+
+        // m2 completa (el stream lo reemite dos veces): es el ULTIMO prompt
+        // (cola vacía, sin user nuevo durante su run) -> NO cierra en el
+        // completed: el idle de sesion cierra el run agregando su contenido.
+        $this->stream(['type' => 'message.updated', 'properties' => ['sessionID' => self::SID, 'info' => ['id' => 'm2', 'role' => 'assistant', 'time' => ['created' => 11, 'completed' => 12]]]]);
+        $this->stream(['type' => 'message.updated', 'properties' => ['sessionID' => self::SID, 'info' => ['id' => 'm2', 'role' => 'assistant', 'time' => ['created' => 11, 'completed' => 12]]]]);
+        $events = $this->pump($bridge, $agent->refresh());
+        $this->assertNotContains('run.end', $this->types($events), 'el último prompt no cierra en su completed (espera el idle)');
+        $this->assertNotContains('message.final', $this->types($events));
+
+        // El par busy→idle del batch (el único que el servidor emite):
+        $this->stream(['type' => 'session.status', 'properties' => ['sessionID' => self::SID, 'status' => ['type' => 'busy']]]);
+        $this->stream(['type' => 'session.status', 'properties' => ['sessionID' => self::SID, 'status' => ['type' => 'idle']]]);
+        $events = $this->pump($bridge, $agent->refresh());
+        $finals = collect($events)->filter(fn ($e) => $e->type === 'message.final')->values();
+        $runEnds = collect($events)->filter(fn ($e) => $e->type === 'run.end')->values();
+        $this->assertCount(1, $finals);
+        $this->assertCount(1, $runEnds, 'run-dos cierra una única vez, en el idle');
+        $this->assertSame('run-dos', $finals[0]->payload['run_id'], 'FIFO: el segundo prompt cierra con su id');
+        $this->assertSame('Respuesta dos', $finals[0]->payload['content'], 'no se mezcla contenido del batch');
+        $this->assertSame([], $this->turns(), 'la cola quedó vacía: nada que contamine el siguiente turno');
+        $this->assertContains('status.change', $this->types($events), 'el idle del batch deja al agente en idle');
+    }
+
+    public function test_multistep_single_turn_closes_once_on_idle(): void
+    {
+        // Un prompt con pasos de tool = VARIOS mensajes de asistente (uno por
+        // paso, cada uno con su completed) dentro de UN SOLO run: el completed
+        // de cada paso NO cierra el run (no hay otro prompt pendiente) y el
+        // idle de sesion cierra el turno de golpe, con el contenido agregado.
+        $agent = $this->agent(['session_id' => self::SID]);
+        $bridge = $this->makeAdapter($agent);
+        $this->fakeServer();
+        $bridge->attach($agent);
+
+        $this->realDocker->turnsAppend($agent->id, json_encode(['kind' => 'run', 'run_id' => 'run-tool']));
+
+        $this->stream(['type' => 'message.updated', 'properties' => ['sessionID' => self::SID, 'info' => ['id' => 'u1', 'role' => 'user', 'time' => ['created' => 1]]]]);
+        $this->stream(['type' => 'session.status', 'properties' => ['sessionID' => self::SID, 'status' => ['type' => 'busy']]]);
+        $this->pump($bridge, $agent);
+        $this->assertSame('run-tool', $bridge->sessionRunId($agent->id));
+
+        // Paso 1: mensaje A (tool)...
+        $this->stream(['type' => 'message.updated', 'properties' => ['sessionID' => self::SID, 'info' => ['id' => 'mA', 'role' => 'assistant', 'time' => ['created' => 2]]]]);
+        $this->stream(['type' => 'message.part.updated', 'properties' => ['sessionID' => self::SID, 'messageID' => 'mA', 'part' => ['id' => 'pA', 'messageID' => 'mA', 'type' => 'text', 'text' => 'Voy a ejecutar la tool.']]]);
+        $this->stream(['type' => 'message.updated', 'properties' => ['sessionID' => self::SID, 'info' => ['id' => 'mA', 'role' => 'assistant', 'time' => ['created' => 2, 'completed' => 10]]]]);
+        $events = $this->pump($bridge, $agent->refresh());
+        $this->assertNotContains('run.end', $this->types($events), 'el completed del paso 1 no cierra el run (sin batch)');
+        $this->assertSame('run-tool', $bridge->sessionRunId($agent->id), 'el run sigue en vuelo tras el paso 1');
+
+        // ...y su tool (con permiso): el paso 2 abre un mensaje NUEVO (B).
+        $this->stream(['type' => 'message.updated', 'properties' => ['sessionID' => self::SID, 'info' => ['id' => 'mB', 'role' => 'assistant', 'time' => ['created' => 11]]]]);
+        $this->stream(['type' => 'message.part.updated', 'properties' => ['sessionID' => self::SID, 'messageID' => 'mB', 'part' => ['id' => 'pB', 'messageID' => 'mB', 'type' => 'text', 'text' => 'Tool ejecutada, aqui el resultado.']]]);
+        $this->stream(['type' => 'message.updated', 'properties' => ['sessionID' => self::SID, 'info' => ['id' => 'mB', 'role' => 'assistant', 'time' => ['created' => 11, 'completed' => 12]]]]);
+        $this->pump($bridge, $agent->refresh());
+        $this->assertSame('run-tool', $bridge->sessionRunId($agent->id), 'el run sigue en vuelo tras el paso 2');
+
+        // El idle de sesion cierra el turno ENTERO: un final con ambos pasos,
+        // con el run_id del worker, una única vez.
+        $this->stream(['type' => 'session.status', 'properties' => ['sessionID' => self::SID, 'status' => ['type' => 'idle']]]);
+        $events = $this->pump($bridge, $agent->refresh());
+        $final = collect($events)->first(fn ($e) => $e->type === 'message.final');
+        $runEnds = collect($events)->filter(fn ($e) => $e->type === 'run.end')->values();
+        $this->assertNotNull($final, 'el turno se cierra en el idle');
+        $this->assertSame('run-tool', $final->payload['run_id']);
+        $this->assertStringContainsString('Voy a ejecutar la tool.', (string) $final->payload['content']);
+        $this->assertStringContainsString('Tool ejecutada', (string) $final->payload['content'], 'el contenido de AMBOS pasos viaja en el final');
+        $this->assertCount(1, $runEnds);
+        $this->assertSame('run-tool', $runEnds[0]->payload['run_id'], 'el run_id del worker de principio a fin');
+        $this->assertSame([], $this->turns());
+    }
+
+    public function test_idle_closes_leftover_queued_run_after_empty_completion(): void
+    {
+        // Ventana perdida: el bridge no vio ni el busy ni las partes, pero el
+        // worker SÍ encoló el run_id y el mensaje completa sin contenido en
+        // memoria. El idle del batch debe cerrarlo (no dejarlo en "working").
+        $agent = $this->agent(['session_id' => self::SID]);
+        $bridge = $this->makeAdapter($agent);
+        $this->fakeServer();
+        $bridge->attach($agent);
+        $this->realDocker->turnsAppend($agent->id, json_encode(['kind' => 'run', 'run_id' => 'run-ola']));
+
+        $this->stream(['type' => 'message.updated', 'properties' => ['sessionID' => self::SID, 'info' => ['id' => 'm1', 'role' => 'assistant', 'time' => ['created' => 1, 'completed' => 10]]]]);
+        $this->pump($bridge, $agent);
+        $this->assertNull($bridge->sessionRunId($agent->id), 'mensaje sin contenido: no adopta todavía');
+        $this->assertCount(1, $this->turns());
+
+        $this->stream(['type' => 'session.status', 'properties' => ['sessionID' => self::SID, 'status' => ['type' => 'idle']]]);
+        $events = $this->pump($bridge, $agent->refresh());
+        $runEnd = collect($events)->first(fn ($e) => $e->type === 'run.end');
+        $this->assertNotNull($runEnd, 'el run en cola se cierra en el idle, no se pierde');
+        $this->assertSame('run-ola', $runEnd->payload['run_id']);
         $this->assertSame([], $this->turns());
     }
 }

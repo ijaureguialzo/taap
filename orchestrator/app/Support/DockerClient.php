@@ -308,6 +308,34 @@ class DockerClient
     }
 
     /**
+     * Mira la línea más antigua de la cola SIN consumirla (`null` si el
+     * fichero no existe o está vacío): decide si otro turno espera en el
+     * proceso vecino sin robarle la línea al consumidor (que consume en su
+     * propio momento; ver `turnsNext`).
+     */
+    public function turnsPeek(int $agentId): ?string
+    {
+        $file = $this->turnsFile($agentId);
+        $handle = @fopen($file, 'r');
+        if ($handle === false) {
+            return null; // fichero inexistente = cola vacía
+        }
+        flock($handle, LOCK_SH);
+        $raw = (string) stream_get_contents($handle);
+        flock($handle, LOCK_UN);
+        fclose($handle);
+
+        foreach (preg_split('/\R/', $raw) ?: [] as $line) {
+            $line = trim($line);
+            if ($line !== '') {
+                return $line; // válida o corrupta: hay algo que consumir
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * Toma TODAS las lineas de la cola (y la trunca): el consumidor que
      * emite la cola entera (el bridge con el hilo Codex ya establecido).
      *

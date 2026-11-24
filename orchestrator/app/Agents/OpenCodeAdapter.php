@@ -33,6 +33,14 @@ use Symfony\Component\Process\Process;
  * los reinicios — el adapter solo re-consulta la misma id. Ver
  * notes/spike-opencode.md (API 1.19.6: endpoints, catálogo de eventos,
  * permisos `once|always|reject`, modelo por sesión).
+ *
+ * Correlación del turno (fix-bridge-cross-process-seams D4/4.3): el run_id
+ * nace en el worker (otro proceso) y viaja por la cola durable `turns` del
+ * area IPC; el bridge lo adopta en el primer evento del turno. El LÍMITE de
+ * turno es el `time.completed` de CADA mensaje de asistente (verificado
+ * contra el binario 1.19.6 con dos prompt_async en batería: el servidor
+ * emite UN solo par busy→idle para el batch entero, no uno por turno), de
+ * modo que un batch cierra cada prompt con su run_id y su final.
  */
 class OpenCodeAdapter extends StdioRpcAdapter
 {
@@ -67,7 +75,7 @@ class OpenCodeAdapter extends StdioRpcAdapter
     }
 
     /**
-     * @return array{reader: ?ProcessStreams, writer: null, dir: string, container_id: ?string, offset: int, buffer: string, lastOutChange: float, run_id: ?string, session_id: ?string, approvals: array, parts: array}
+     * @return array{reader: ?ProcessStreams, writer: null, dir: string, container_id: ?string, offset: int, buffer: string, lastOutChange: float, run_id: ?string, session_id: ?string, approvals: array, parts: array, thinking_parts: array, part_types: array, msg_roles: array, tool_seen: array, tool_parts: array, closed_msgs: array, user_msgs_seen: array, user_msgs_during_run: int}
      */
     protected function newSessionState(Agent $agent, string $dir, int $offset): array
     {
@@ -82,19 +90,34 @@ class OpenCodeAdapter extends StdioRpcAdapter
             'session_id' => $agent->config['session_id'] ?? null,
             // permisos pendientes: requestID => [at, request_id]
             'approvals' => [],
-            // texto acumulado por parte (partID => texto), solo partes de
-            // mensajes ASISTENT (los roles se aprenden en message.updated)
+            // texto acumulado POR MENSAJE (messageID => [partID => texto]),
+            // solo mensajes ASISTENT (los roles se aprenden en message.updated).
+            // Por mensaje (y no plano): un batch de prompt_async en batería
+            // comparten un único idle de sesion; el cierre por mensaje
+            // completado es lo que separa los turnos (4.3, verificado).
             'parts' => [],
-            // razonamiento acumulado por parte (partID => texto), SEPARADO
-            // del contenido (interactive-agent-chat 2.5: el binary 1.19.6
-            // streamea las partes reasoning con field "text", igual que el
-            // texto: el tipo se aprende en message.part.updated)
+            // razonamiento acumulado POR MENSAJE, SEPARADO del contenido
+            // (interactive-agent-chat 2.5: el binary 1.19.6 streamea las
+            // partes reasoning con field "text", igual que el texto: el tipo
+            // se aprende en message.part.updated)
             'thinking_parts' => [],
             // tipo de cada parte vista (partID => type): para saber a qué
             // flujo va cada delta cuando el updated de arranque se perdió
             'part_types' => [],
             'msg_roles' => [],
             'tool_seen' => [],
+            // partes tool POR MENSAJE (messageID => [key => status]): para
+            // el hasContent del cierre y la limpieza por mensaje
+            'tool_parts' => [],
+            // mensajes de asistente cerrados (messageID => true): el stream
+            // reemite el completed y no debe re-cerrar el run
+            'closed_msgs' => [],
+            // mensajes USER vistos (messageID => true, acotado): dedupe de
+            // re-emisiones del stream. Un user NUEVO mientras hay run en
+            // vuelo = llegó otro prompt (batch): el run actual se cierra en
+            // el completed de su último mensaje.
+            'user_msgs_seen' => [],
+            'user_msgs_during_run' => 0,
             // ultimo status emitido (dedupe: el stream repite busy por paso)
             'last_status' => null,
             // flag de re-sincronización de permisos tras (re)attach
@@ -446,7 +469,7 @@ class OpenCodeAdapter extends StdioRpcAdapter
         $entry = json_decode($line, true);
         if (is_array($entry) && ($entry['kind'] ?? '') === 'run'
             && is_string($entry['run_id'] ?? null) && $entry['run_id'] !== '') {
-            $session['run_id'] = $entry['run_id'];
+            $this->activateRun($session, $entry['run_id']);
 
             return $entry['run_id'];
         }
@@ -454,6 +477,24 @@ class OpenCodeAdapter extends StdioRpcAdapter
         Log::debug(static::class.': linea extraña en la cola run (consumida y descartada): '.substr($line, 0, 120));
 
         return null;
+    }
+
+    /**
+     * Activa un run en la sesión (D4/4.3): marca el run_id en vuelo y a
+     * cero el contador de prompts pendientes del batch. Cada vez que un run
+     * COMIENZA (adopción de la cola, generación, ...) el contador vuelve a
+     * cero: solo un user NUEVO durante el run marca un batch.
+     */
+    protected function activateRun(array &$session, string $runId): void
+    {
+        $session['run_id'] = $runId;
+        $session['user_msgs_during_run'] = 0;
+    }
+
+    /** Otro turno pendiente en la cola durable (un worker en otro proceso)? */
+    protected function queueHasLines(int $agentId): bool
+    {
+        return $this->docker->turnsPeek($agentId) !== null;
     }
 
     /** Run en vuelo del agente (introspeccion/tests de costura). */
@@ -638,6 +679,22 @@ class OpenCodeAdapter extends StdioRpcAdapter
                 if ($messageID !== '' && $role !== null) {
                     $session['msg_roles'][$messageID] = $role;
                 }
+                // 4.3: un mensaje USER nuevo mientras hay run en vuelo = llegó
+                // otro prompt (batch de prompt_async encola en el servidor):
+                // marca el run actual para cerrarlo en el completed de su
+                // último mensaje (el idle de sesion solo cubre el último).
+                if ($role === 'user' && $messageID !== ''
+                    && ! isset($session['user_msgs_seen'][$messageID])) {
+                    $session['user_msgs_seen'][$messageID] = true;
+                    if (count($session['user_msgs_seen']) > 64) {
+                        // Acote: descarta la mitad más antigua (el stream
+                        // reemite solo los recientes; el riesgo es residual).
+                        $session['user_msgs_seen'] = array_slice($session['user_msgs_seen'], 32, null, true);
+                    }
+                    if (($session['run_id'] ?? null) !== null) {
+                        $session['user_msgs_during_run'] = ($session['user_msgs_during_run'] ?? 0) + 1;
+                    }
+                }
                 if ($role === 'assistant' && ! empty($info['error'])) {
                     $err = (array) $info['error'];
                     $msg = (string) ($err['data']['message'] ?? $err['name'] ?? 'Error del modelo');
@@ -650,9 +707,34 @@ class OpenCodeAdapter extends StdioRpcAdapter
                         $out[] = $ev;
                     }
                     $session['run_id'] = null;
+                    // El mensaje no aportará más contenido: limpiar sus
+                    // buffers y no re-cerrarlo en el completed (que el
+                    // stream puede reemitir a continuación).
+                    if ($messageID !== '') {
+                        $session['closed_msgs'][$messageID] = true;
+                        $this->clearMessageBuffers($session, $messageID);
+                    }
+                } elseif ($role === 'assistant' && $messageID !== ''
+                    && ! empty($info['time']['completed'])
+                    && ! isset($session['closed_msgs'][$messageID])) {
+                    // 4.3 (verificado contra el binario 1.19.6): el completed
+                    // de un mensaje de asistente cierra el run SOLO si hay
+                    // otro prompt pendiente — un batch de prompt_async comparte
+                    // un único par busy→idle para el batch entero, y un prompt
+                    // con pasos de tool emite VARIOS mensajes de asistente
+                    // (uno por paso, cada uno con su completed): cerrar en cada
+                    // uno partiría un único turno en varios runs. Sin nada
+                    // pendiente, el contenido queda en buffers y el idle de
+                    // sesion cierra el turno entero de golpe.
+                    $session['closed_msgs'][$messageID] = true;
+                    $pending = ($session['user_msgs_during_run'] ?? 0) > 0
+                        || $this->queueHasLines($agentId);
+                    if ($pending) {
+                        $out = array_merge($out, $this->finishMessage($agentId, $session, $messageID));
+                    }
                 }
-                // mensajes user / sin error: sin aportación (el run.start ya
-                // se emitió en writeMessage)
+                // mensajes user / sin error ni completed: sin aportación (el
+                // run.start ya se emitió en writeMessage)
                 break;
 
             case 'message.part.delta':
@@ -669,10 +751,10 @@ class OpenCodeAdapter extends StdioRpcAdapter
                     // updated de arranque) se trata como texto y el updated
                     // de fin de parte lo mueve si resulta ser reasoning.
                     if (($session['part_types'][$partId] ?? null) === 'reasoning') {
-                        $session['thinking_parts'][$partId] = ($session['thinking_parts'][$partId] ?? '').$delta;
+                        $session['thinking_parts'][$messageID][$partId] = ($session['thinking_parts'][$messageID][$partId] ?? '').$delta;
                         $out[] = AgentEvent::thinkingDelta($runId, $delta);
                     } else {
-                        $session['parts'][$partId] = ($session['parts'][$partId] ?? '').$delta;
+                        $session['parts'][$messageID][$partId] = ($session['parts'][$messageID][$partId] ?? '').$delta;
                         $out[] = AgentEvent::messageDelta($runId, $delta);
                     }
                 }
@@ -692,18 +774,18 @@ class OpenCodeAdapter extends StdioRpcAdapter
                     // Solo partes de asistente: el texto final del turno no
                     // puede incluir el mensaje del usuario.
                     if (($session['msg_roles'][$messageID] ?? 'assistant') === 'assistant' && isset($part['text'])) {
-                        $session['parts'][$partId] = (string) $part['text'];
+                        $session['parts'][$messageID][$partId] = (string) $part['text'];
                         // Si su stream (tipo aún desconocido) se había
                         // acumulado en razonamiento, se descarta esa copia.
-                        unset($session['thinking_parts'][$partId]);
+                        unset($session['thinking_parts'][$messageID][$partId]);
                     }
                 } elseif ($partType === 'reasoning') {
                     // Parte de razonamiento COMPLETA: reemplaza los deltas
                     // acumulados y se mueve al flujo thinking (corrige la
                     // fusión con el contenido del final).
                     if (($session['msg_roles'][$messageID] ?? 'assistant') === 'assistant' && isset($part['text'])) {
-                        $session['thinking_parts'][$partId] = (string) $part['text'];
-                        unset($session['parts'][$partId]);
+                        $session['thinking_parts'][$messageID][$partId] = (string) $part['text'];
+                        unset($session['parts'][$messageID][$partId]);
                     }
                 } elseif ($partType === 'tool') {
                     $state = (array) ($part['state'] ?? []);
@@ -715,9 +797,15 @@ class OpenCodeAdapter extends StdioRpcAdapter
 
                     if (in_array($status, ['pending', 'running'], true) && $seen === null) {
                         $session['tool_seen'][$key] = $status;
+                        if ($messageID !== '') {
+                            $session['tool_parts'][$messageID][$key] = $status;
+                        }
                         $out[] = AgentEvent::toolStart($runId, $tool, (array) ($state['input'] ?? []));
                     } elseif (($status === 'completed' || $status === 'error') && $seen !== $status) {
                         $session['tool_seen'][$key] = $status;
+                        if ($messageID !== '') {
+                            $session['tool_parts'][$messageID][$key] = $status;
+                        }
                         $title = (string) ($state['title'] ?? $state['raw'] ?? '');
                         $out[] = AgentEvent::toolResult($runId, $tool, $status === 'completed', $title);
                     }
@@ -804,28 +892,57 @@ class OpenCodeAdapter extends StdioRpcAdapter
     }
 
     /**
-     * Fin de turno: emite el texto final acumulado (si lo hay) + `run.end`
-     * + `idle`. Solo si el turno estaba en vuelo (evita dobles en la
-     * reconexión del stream).
+     * Cierre defensivo del turno en el idle de sesion (`session.status`
+     * idle / `session.idle`): agrega y limpia TODO lo que queda en buffers
+     * sin su `time.completed` (ventana perdida del stream) y cierra el run
+     * en vuelo. (fix-bridge-cross-process-seams D4/4.3)
+     *
+     * Con el cierre POR MENSAJE (4.3), en el caso normal este llega con los
+     * buffers vacios (los mensajes ya se cerraron en su completed) y solo
+     * emite el idle; cuando un batch de prompt_async en bateria pierde su
+     * ultimo completed, aqui se emite el final con lo acumulado.
      *
      * @return list<AgentEvent>
      */
     protected function finishTurn(array &$session): array
     {
         $runId = $session['run_id'] ?? null;
-        $final = implode('', array_filter($session['parts'] ?? []));
-        $thinking = trim(implode("\n", array_filter($session['thinking_parts'] ?? [])));
-        $hasContent = $final !== '' || $thinking !== '' || ($session['tool_seen'] ?? []) !== [];
 
-        // Los buffers se limpian SIEMPRE (fix-bridge-cross-process-seams
-        // D4): un turno terminado no deja restos que contaminen al
-        // siguiente.
+        // Los buffers son POR MENSAJE: el cierre defensivo agrega los de
+        // todos los mensajes sin completed (un idle de sesion no distingue
+        // turnos: el batch comparte uno, 4.3).
+        $final = '';
+        foreach (($session['parts'] ?? []) as $byPart) {
+            foreach ($byPart as $text) {
+                $final .= (string) $text;
+            }
+        }
+        $thinkingParts = [];
+        foreach (($session['thinking_parts'] ?? []) as $byPart) {
+            foreach ($byPart as $text) {
+                $thinkingParts[] = $text;
+            }
+        }
+        $thinking = trim(implode("\n", array_filter($thinkingParts)));
+        $hasTools = false;
+        foreach (($session['tool_parts'] ?? []) as $tools) {
+            if ($tools !== []) {
+                $hasTools = true;
+
+                break;
+            }
+        }
+        $hasContent = $final !== '' || $thinking !== '' || $hasTools;
+
+        // Los buffers se limpian SIEMPRE (D4): un turno terminado no deja
+        // restos que contaminen al siguiente.
         $session['run_id'] = null;
         $session['parts'] = [];
         $session['thinking_parts'] = [];
         $session['part_types'] = [];
         $session['msg_roles'] = [];
         $session['tool_seen'] = [];
+        $session['tool_parts'] = [];
 
         $out = [];
         // Sin run_id en memoria el turno no estaba (o ya no estaba) en
@@ -848,28 +965,104 @@ class OpenCodeAdapter extends StdioRpcAdapter
 
             // Con restos y sin id adoptable: se genera uno y se cierra el
             // turno (el cliente recibira run.end y no queda un run
-            // colgando en "working").
-            $runId = (string) Str::uuid();
-            if (($session['agent'] ?? null) !== null) {
-                $this->sink->dispatch($session['agent'], AgentEvent::runStart($runId));
+            // colgando en "working"). Solo se genera si la adopcion no
+            // dio con uno: el id del worker (la cola) manda.
+            if ($runId === null) {
+                $runId = (string) Str::uuid();
+                if (($session['agent'] ?? null) !== null) {
+                    $this->sink->dispatch($session['agent'], AgentEvent::runStart($runId));
+                }
             }
+            $this->activateRun($session, $runId);
         }
 
         if ($final !== '') {
             $out[] = AgentEvent::messageFinal($runId, $final, $thinking);
         } elseif ($thinking !== '') {
-            // El modelo solo pensó (sin texto visible): el razonamiento se
+            // El modelo solo penso (sin texto visible): el razonamiento se
             // deja como contenido (ultima linea de defensa, igual que el
             // Model Proxy con reasoning_content): no se pierde el turno.
             $out[] = AgentEvent::messageFinal($runId, $thinking, '');
         }
         $out[] = AgentEvent::runEnd($runId, ok: true);
+        // El run cerrado ya no esta en vuelo: un idle re-emitido (el stream
+        // emite session.status idle + session.idle) no lo re-cierra.
+        $session['run_id'] = null;
         $ev = $this->emitStatus($session, 'idle');
         if ($ev !== null) {
             $out[] = $ev;
         }
 
         return $out;
+    }
+
+    /**
+     * Cierre POR MENSAJE (4.3, verificado contra el binario 1.19.6): un
+     * `message.updated` de asistente con `time.completed` cierra el turno
+     * de su prompt — emite el final + `run.end` UNA vez con el run_id en
+     * vuelo (o adoptado de la cola durable, o generado como ultima linea)
+     * y limpia los buffers de ese mensaje. Es lo que separa los turnos de
+     * un batch de prompt_async en bateria (un unico busy→idle para los
+     * N, no uno por turno).
+     *
+     * @return list<AgentEvent>
+     */
+    protected function finishMessage(int $agentId, array &$session, string $messageID): array
+    {
+        $final = '';
+        foreach (($session['parts'][$messageID] ?? []) as $text) {
+            $final .= (string) $text;
+        }
+        $thinking = trim(implode("\n", array_values(array_filter($session['thinking_parts'][$messageID] ?? []))));
+        $hasContent = $final !== '' || $thinking !== '' || ($session['tool_parts'][$messageID] ?? []) !== [];
+
+        $this->clearMessageBuffers($session, $messageID);
+
+        if (! $hasContent) {
+            // Un mensaje sin contenido no cierra run: el idle de sesion
+            // (o el siguiente mensaje) lo cierra.
+            return [];
+        }
+
+        $runId = $session['run_id'] ?? null;
+        if ($runId === null) {
+            // El busy se perdio: el run del worker sigue en la cola durable.
+            $runId = $this->adoptRunId($agentId, $session);
+        }
+        if ($runId === null) {
+            // Ni en vuelo ni en cola (el worker no llego a escribirla):
+            // se genera uno y se emite igualmente el final (nunca se
+            // descarta un turno terminado; el cliente recibira el run.start).
+            $runId = (string) Str::uuid();
+            if (($session['agent'] ?? null) !== null) {
+                $this->sink->dispatch($session['agent'], AgentEvent::runStart($runId));
+            }
+        }
+        $this->activateRun($session, $runId);
+        $session['run_id'] = null;
+
+        $out = [];
+        if ($final !== '') {
+            $out[] = AgentEvent::messageFinal($runId, $final, $thinking);
+        } elseif ($thinking !== '') {
+            $out[] = AgentEvent::messageFinal($runId, $thinking, '');
+        }
+        $out[] = AgentEvent::runEnd($runId, ok: true);
+
+        return $out;
+    }
+
+    /**
+     * Limpia los buffers de un mensaje de asistente (4.3): texto,
+     * razonamiento, herramientas y los markers de dedupe de sus partes.
+     */
+    protected function clearMessageBuffers(array &$session, string $messageID): void
+    {
+        unset($session['parts'][$messageID], $session['thinking_parts'][$messageID]);
+        foreach (array_keys($session['tool_parts'][$messageID] ?? []) as $key) {
+            unset($session['tool_seen'][$key]);
+        }
+        unset($session['tool_parts'][$messageID]);
     }
 
     public function drain(Agent $agent): array

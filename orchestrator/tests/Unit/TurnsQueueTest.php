@@ -107,6 +107,34 @@ class TurnsQueueTest extends TestCase
         $this->assertSame('ok', json_decode($taken[0], true)['run_id']);
     }
 
+    public function test_peek_returns_oldest_line_without_consuming(): void
+    {
+        $this->assertNull($this->docker->turnsPeek(1), 'fichero inexistente: cola vacia');
+        $this->assertNull($this->docker->turnsPeek(1));
+
+        $this->docker->turnsAppend(1, json_encode(['kind' => 'run', 'run_id' => 'a']));
+        $this->docker->turnsAppend(1, json_encode(['kind' => 'run', 'run_id' => 'b']));
+
+        $this->assertSame(json_encode(['kind' => 'run', 'run_id' => 'a']), $this->docker->turnsPeek(1));
+        $this->assertSame(json_encode(['kind' => 'run', 'run_id' => 'a']), $this->docker->turnsPeek(1), 'peek no consume: repite la primera');
+        $this->assertCount(2, $this->lines(1), 'peek no toca la cola');
+
+        $this->docker->turnsNext(1);
+        $this->assertSame(json_encode(['kind' => 'run', 'run_id' => 'b']), $this->docker->turnsPeek(1), 'avanza con el consume FIFO');
+
+        $this->docker->turnsNext(1);
+        $this->assertNull($this->docker->turnsPeek(1), 'cola vacia: null');
+    }
+
+    public function test_peek_counts_corrupt_line_as_pending(): void
+    {
+        // Una linea corrupta (que el consume descartara) sigue contando para
+        // la decision de "hay otro turno pendiente": es mejor un cierre
+        // defensivo de mas que un run colgado.
+        $this->docker->turnsAppend(1, 'no es json');
+        $this->assertNotNull($this->docker->turnsPeek(1));
+    }
+
     public function test_agent_areas_are_independent(): void
     {
         $this->docker->turnsAppend(1, json_encode(['kind' => 'run', 'run_id' => 'a1']));
