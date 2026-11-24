@@ -1,0 +1,1 @@
+{ "content-disposition": "attachment; filename=\"datos.zip\"", "content-type": "application/zip", "zip_entries": ["afile.txt", "bfile.txt", "pruebas/"] }

@@ -1,0 +1,7 @@
+{
+  "path": "/",
+  "entries": [
+    { "name": "datos", "type": "dir", "size": 0, "mtime": "2023-11-14T22:15:00+00:00" },
+    { "name": "leido.md", "type": "file", "size": 3, "mtime": "2023-11-14T22:21:40+00:00" }
+  ]
+}

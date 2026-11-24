@@ -1,0 +1,7 @@
+{
+  "path": "/",
+  "entries": [
+    { "name": "administrador", "type": "dir", "size": 0, "mtime": "2023-11-14T22:25:00+00:00", "owner": null },
+    { "name": "ana", "type": "dir", "size": 0, "mtime": "2023-11-14T22:23:20+00:00", "owner": "Ana" }
+  ]
+}
