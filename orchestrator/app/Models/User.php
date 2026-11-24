@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Str;
 use Laravel\Sanctum\HasApiTokens;
 
 class User extends Authenticatable
@@ -24,6 +25,7 @@ class User extends Authenticatable
         'locale',
         'active',
         'agent_quota',
+        'fs_slug',
     ];
 
     protected $hidden = [
@@ -40,6 +42,79 @@ class User extends Authenticatable
             'active' => 'boolean',
             'agent_quota' => 'integer',
         ];
+    }
+
+    /**
+     * FS compartido (shared-filesystem, design D4): el slug se asigna una
+     * sola vez (en la creación) y permanece estable aunque cambie el nombre
+     * de visualización (el slug es la fuente del mapa usuario→directorio).
+     */
+    protected static function booted(): void
+    {
+        static::creating(function (User $user) {
+            if (blank($user->fs_slug)) {
+                $user->fs_slug = static::resolveFsSlug($user);
+            }
+        });
+    }
+
+    /**
+     * Slug base derivado del nombre (lowercase, transliterado); si el
+     * nombre no produce alfanuméricos, el local part del email.
+     */
+    public static function slugifyName(string $name, ?string $email = null): string
+    {
+        $slug = trim(Str::slug($name), '-');
+
+        if ($slug === '') {
+            $local = ($email !== null && str_contains($email, '@')) ? explode('@', $email, 2)[0] : '';
+            $slug = trim(Str::slug($local), '-');
+        }
+
+        return $slug !== '' ? $slug : 'user';
+    }
+
+    /**
+     * Slug desambiguado contra el resto de usuarios: `ana`, `ana-2`,
+     * `ana-3`... Solo se usa cuando el usuario aún no tiene uno.
+     */
+    public static function resolveFsSlug(User $user): string
+    {
+        $base = static::slugifyName((string) $user->name, $user->email);
+        $candidate = $base;
+        $suffix = 1;
+
+        while (static::where('fs_slug', $candidate)->whereKeyNot($user->id)->exists()) {
+            $candidate = $base.'-'.(++$suffix);
+        }
+
+        return $candidate;
+    }
+
+    /**
+     * Backfill (migración): asigna slug a los usuarios que no lo tienen,
+     * en orden de id para que el resultado sea determinista. Devuelve el
+     * número de usuarios actualizados.
+     */
+    public static function backfillFsSlugs(): int
+    {
+        $updated = 0;
+
+        static::whereNull('fs_slug')->orderBy('id')->each(function (User $user) use (&$updated) {
+            $user->forceFill(['fs_slug' => static::resolveFsSlug($user)])->save();
+            $updated++;
+        });
+
+        return $updated;
+    }
+
+    /**
+     * Path canónico del home del usuario en el FS compartido (`/<fs_slug>`):
+     * la raíz de su vista virtual (design D3).
+     */
+    public function fsHomePath(): ?string
+    {
+        return filled($this->fs_slug) ? '/'.$this->fs_slug : null;
     }
 
     public function isAdmin(): bool
