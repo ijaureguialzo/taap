@@ -36,7 +36,7 @@ RUN npm run build
 FROM php:8.4
 RUN set -eux; \
     apt-get update; \
-    apt-get install -y --no-install-recommends git unzip zip libxml2-utils ca-certificates curl gnupg libpq-dev; \
+    apt-get install -y --no-install-recommends git unzip zip libzip-dev libxml2-utils ca-certificates curl gnupg libpq-dev; \
     # CLI de Docker (el DockerClient habla por CLI: contenedores, redes, logs)
     curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /usr/share/keyrings/docker.gpg; \
     echo "deb [arch=amd64 signed-by=/usr/share/keyrings/docker.gpg] https://download.docker.com/linux/debian bookworm stable" > /etc/apt/sources.list.d/docker.list; \
@@ -45,14 +45,15 @@ RUN set -eux; \
     rm -rf /var/lib/apt/lists/*
 # Solo las extensiones que no trae la imagen base (posix/openssl/curl/
 # mbstring/fileinfo ya van compiladas; reinstalarlas rompe los sources).
-RUN docker-php-ext-install pdo_pgsql pcntl opcache
+# zip: empaquetado de carpetas en el explorador (shared-filesystem 3.3).
+RUN docker-php-ext-install pdo_pgsql pcntl opcache zip
 
 COPY --from=vendor /app /app
 COPY --from=frontend /app/public/build /app/public/build
 COPY deploy/entrypoint.sh /usr/local/bin/taap-entrypoint
 RUN chmod +x /usr/local/bin/taap-entrypoint && \
-    mkdir -p /app/storage/framework/{cache,sessions,views} /app/bootstrap/cache /data/agents && \
-    chown -R www-data:www-data /app/storage /app/bootstrap/cache /data/agents && \
+    mkdir -p /app/storage/framework/{cache,sessions,views} /app/bootstrap/cache /data/agents /data/fs && \
+    chown -R www-data:www-data /app/storage /app/bootstrap/cache /data/agents /data/fs && \
     cp /app/.env.example /app/.env && rm /app/.env.example
 
 ENV PHP_CLI_SERVER_WORKERS=8 \

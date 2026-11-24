@@ -5,6 +5,8 @@ namespace App\Services;
 use App\Models\User;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\File;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
+use ZipArchive;
 
 /**
  * FS compartido (shared-filesystem, design D6): el NUCLEO unico de logica
@@ -385,6 +387,206 @@ class FilesystemService
         }
 
         throw new FileSystemException(404, "La entrada ya no existe: {$path}");
+    }
+
+    /* ================= transferencia (3.3): upload / download / zip ================= */
+
+    /**
+     * Sanea el nombre de entrada enviado por el cliente: se toma solo el
+     * basename (un path completo llega a ser su ultima pieza), se limpian los
+     * bordes y pasa la misma validacion de nombres que mkdir/rename (422).
+     *
+     * @throws FileSystemException 422
+     */
+    protected function sanitizeName(string $filename): string
+    {
+        $name = trim(basename(trim($filename)));
+
+        return $this->assertSingleName($name);
+    }
+
+    /**
+     * Sube un fichero a `$dir` (streaming a un temporal del propio directorio
+     * + rename atomico). Si el destino ya existe se sobreescribe. El nombre se
+     * sanea (basename, 422 si invalido) y el tamano esta acotado por
+     * `taap.fs.upload_max_size` (413, con limpieza del temporal).
+     *
+     * @param  resource  $stream
+     * @return array{path: string, name: string, type: string, size: int, mtime: string}
+     *
+     * @throws FileSystemException 404 dir inexistente; 413 tope de tamano;
+     *                             422 nombre invalido; 500 fallo de E/S
+     */
+    public function upload(User $user, string $dir, string $filename, $stream): array
+    {
+        $targetDir = $this->resolve($user, $dir, follow: true);
+        if (! is_dir($targetDir)) {
+            throw new FileSystemException(404, 'El directorio de destino no existe');
+        }
+
+        $name = $this->sanitizeName($filename);
+        $final = $targetDir.'/'.$name;
+        $tmp = $targetDir.'/.upload-'.bin2hex(random_bytes(8));
+
+        $max = (int) config('taap.fs.upload_max_size', 100 * 1024 * 1024);
+        $oversized = false;
+
+        $out = @fopen($tmp, 'wb');
+        if ($out === false) {
+            throw new FileSystemException(500, 'No se pudo abrir el fichero temporal');
+        }
+
+        try {
+            while (! feof($stream)) {
+                $chunk = fread($stream, 8192);
+                if ($chunk === false) {
+                    break;
+                }
+                if (($max > 0) && (strlen($chunk) > $max)) {
+                    $oversized = true;
+
+                    break;
+                }
+                fwrite($out, $chunk);
+            }
+        } finally {
+            fclose($out);
+        }
+
+        if ($oversized) {
+            @unlink($tmp);
+            throw new FileSystemException(413, 'El fichero supera el tamano maximo de subida');
+        }
+
+        if (! @rename($tmp, $final)) {
+            @unlink($tmp);
+            throw new FileSystemException(500, 'No se pudo guardar el fichero');
+        }
+
+        $stat = stat($final) ?: [];
+
+        return [
+            'path' => $this->virtualPath($user, $this->relativeTo($this->baseFor($user), $targetDir).'/'.$name),
+            'name' => $name,
+            'type' => 'file',
+            'size' => (int) ($stat['size'] ?? 0),
+            'mtime' => Carbon::createFromTimestamp((int) ($stat['mtime'] ?? time()))->toIso8601String(),
+        ];
+    }
+
+    /**
+     * Descarga un fichero como respuesta stream (nombre + contenido, spec
+     * "Descarga de un fichero"). Si la ruta es un directorio -> 404 (usar
+     * `zip`); un symlink que sale de la raiz del sujeto -> 404 (follow).
+     *
+     * @throws FileSystemException 404
+     */
+    public function download(User $user, string $path): BinaryFileResponse
+    {
+        $file = $this->resolve($user, $path, follow: true);
+        if (! is_file($file)) {
+            throw new FileSystemException(404, 'La ruta no es un fichero');
+        }
+
+        $name = basename($file);
+        $mime = @mime_content_type($file) ?: 'application/octet-stream';
+
+        return new BinaryFileResponse($file, 200, [
+            'Content-Type' => $mime,
+            'Content-Disposition' => 'attachment; filename="'.str_replace(['"', '\\'], '', $name).'"',
+        ]);
+    }
+
+    /**
+     * Empaqueta una carpeta (y su arbol) en un .zip temporal con rutas
+     * relativas: al descomprimir se reproduce la carpeta completa (spec
+     * "Descarga de una carpeta como .zip"). Los symlinks rotos o que salen
+     * de la raiz del sujeto no se incluyen (design D6). Acotado por
+     * `taap.fs.zip_max_size`/`zip_max_files` -> 413 con limpieza.
+     *
+     * La respuesta deja el .zip en el tmp del sistema (no contamina el area
+     * del usuario); el tmp del sistema se rota con el ciclo de vida del host.
+     *
+     * @throws FileSystemException 404 inexistente/no directorio; 413 topes
+     */
+    public function zip(User $user, string $dir): BinaryFileResponse
+    {
+        $source = $this->resolve($user, $dir, follow: true);
+        if (! is_dir($source)) {
+            throw new FileSystemException(404, 'La ruta no es un directorio');
+        }
+
+        $realRoot = (string) realpath($source);
+        $zipPath = (string) tempnam(sys_get_temp_dir(), 'taap-fs-zip-');
+
+        $zip = new ZipArchive;
+        if ($zip->open($zipPath, ZipArchive::CREATE) !== true) {
+            @unlink($zipPath);
+            throw new FileSystemException(500, 'No se pudo crear el .zip');
+        }
+
+        $count = 0;
+        $size = 0;
+        $this->walkToZip($zip, $realRoot, $realRoot, $count, $size);
+        $zip->close();
+
+        $maxSize = (int) config('taap.fs.zip_max_size', 256 * 1024 * 1024);
+        $maxFiles = (int) config('taap.fs.zip_max_files', 10000);
+        if (($maxSize > 0 && $size > $maxSize) || ($maxFiles > 0 && $count > $maxFiles)) {
+            @unlink($zipPath);
+            throw new FileSystemException(413, 'La carpeta supera los topes de empaquetado');
+        }
+
+        $name = basename($realRoot).'.zip';
+
+        return new BinaryFileResponse($zipPath, 200, [
+            'Content-Type' => 'application/zip',
+            'Content-Disposition' => 'attachment; filename="'.str_replace(['"', '\\'], '', $name).'"',
+        ]);
+    }
+
+    /**
+     * Recorrido del arbol para el zip: cada entrada con su ruta relativa a
+     * `$root` (sin el nombre de la carpeta raiz: al descomprimir se reproduce
+     * la carpeta). Ficheros (incluidos los enlaces a fichero contenidos en la
+     * raiz) como copia de contenido; directorios y enlaces a directorio
+     * contenidos se recorren (dir vacio incluido); lo roto o externo se omite.
+     */
+    protected function walkToZip(ZipArchive $zip, string $root, string $dir, int &$count, int &$size): void
+    {
+        $rel = ($dir === $root) ? '' : substr($dir, strlen($root) + 1);
+
+        foreach (scandir($dir) ?: [] as $name) {
+            if ($name === '.' || $name === '..' || str_starts_with($name, '.upload-')) {
+                continue;
+            }
+
+            $full = $dir.'/'.$name;
+            $entry = ($rel === '') ? $name : $rel.'/'.$name;
+
+            if (is_dir($full)) {
+                // Enlace a directorio: se sigue solo si resuelve dentro.
+                if (! is_link($full) || str_starts_with((string) realpath($full), $root.'/')) {
+                    $zip->addEmptyDir($entry);
+                    $this->walkToZip($zip, $root, $full, $count, $size);
+                }
+
+                continue;
+            }
+
+            if (! is_file($full)) {
+                continue; // enlace roto: no se incluye
+            }
+
+            $fileReal = (string) realpath($full);
+            if (is_link($full) && ! str_starts_with($fileReal, $root.'/')) {
+                continue; // apunta fuera de la raiz del sujeto: no se incluye
+            }
+
+            $zip->addFile($fileReal, $entry);
+            $size += filesize($full) ?: 0;
+            $count++;
+        }
     }
 
     /* ================= validacion de nombres (spec: nombre invalido) ================= */
