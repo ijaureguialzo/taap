@@ -1,0 +1,97 @@
+# Transcripcion v3: martes, 24 de noviembre de 2026, 17:45:53 CET
+# docker: client 29.9.3 / server 29.9.3
+# imagen: taap/pi:local
+
+== arena (esqueleto completo precreado) ==
+drwxr-xr-x  4 widemos  wheel  128 24 nov.  17:45 arena
+drwxr-xr-x  3 widemos  wheel  96 24 nov.  17:45 arena/ana
+drwxr-xr-x  2 widemos  wheel  64 24 nov.  17:45 arena/ana/proyectos
+drwxr-xr-x  3 widemos  wheel  96 24 nov.  17:45 arena/carlos
+drwxr-xr-x  2 widemos  wheel  64 24 nov.  17:45 arena/carlos/datos
+
+== create: --read-only -v arena:/fs:ro -v .../ana/proyectos:/fs/ana/proyectos -v .../carlos/datos:/fs/carlos/datos:ro ==
+8e9a33c06d651cfdee8982ecf9ee7eeb051dd2e167a69c6d59eb29dad79f5cdf
+
+== inspect mounts ==
+/tmp/taap-fs-spike-1795538753-Bp/arena -> /fs (ro)
+/tmp/taap-fs-spike-1795538753-Bp/fsroot/ana/proyectos -> /fs/ana/proyectos ()
+/tmp/taap-fs-spike-1795538753-Bp/fsroot/carlos/datos -> /fs/carlos/datos (ro)
+
+
+== start ==
+taap-fs-spike-1795538753-Bp
+taap-fs-spike-1795538753-Bp Up 1 second
+
+-- Q5 visibilidad (no root: usuario 9882(run '' whoami)) --
+total 4
+drwxr-xr-x 4 agent agent  128 Nov 24 16:45 .
+drwxr-xr-x 1 root  root  4096 Nov 24 16:45 ..
+drwxr-xr-x 3 agent agent   96 Nov 24 16:45 ana
+drwxr-xr-x 3 agent agent   96 Nov 24 16:45 carlos
+/fs/ana:
+total 0
+drwxr-xr-x 3 agent agent  96 Nov 24 16:45 .
+drwxr-xr-x 4 agent agent 128 Nov 24 16:45 ..
+drwxr-xr-x 2 agent agent  64 Nov 24 16:45 proyectos
+
+/fs/carlos:
+total 0
+drwxr-xr-x 3 agent agent  96 Nov 24 16:45 .
+drwxr-xr-x 4 agent agent 128 Nov 24 16:45 ..
+drwxr-xr-x 3 agent agent  96 Nov 24 16:45 datos
+
+/fs/carlos/datos:
+total 4
+drwxr-xr-x 3 agent agent 96 Nov 24 16:45 .
+drwxr-xr-x 3 agent agent 96 Nov 24 16:45 ..
+-rw-r--r-- 1 agent agent  5 Nov 24 16:45 seed.txt
+
+-- Q2 bind rw bajo arena ro (no root): mkdir + write --
+hola
+   RW-OK
+
+-- Q3 arena :ro (no root): tope --
+mkdir: cannot create directory '/fs/hueco': Read-only file system
+touch: cannot touch '/fs/x': Read-only file system
+rmdir: failed to remove '/fs/ana': Read-only file system
+rmdir: failed to remove '/fs/ana/proyectos': Read-only file system
+
+-- Q3/Q4 con ROOT (caso Hermes: s6 root, rootfs escribible) --
+whoami: root
+mkdir: cannot create directory '/fs/hueco-root': Read-only file system
+touch: cannot touch '/fs/xroot': Read-only file system
+rmdir: failed to remove '/fs/ana': Read-only file system
+rmdir: failed to remove '/fs/ana/proyectos': Read-only file system
+desde-root
+touch: cannot touch '/fs/carlos/datos/y': Read-only file system
+
+-- Q6 restart: mounts sobreviven --
+taap-fs-spike-1795538753-Bp
+taap-fs-spike-1795538753-Bp Up 1 second
+ana
+carlos
+hola
+drwxr-xr-x 4 agent agent 128 Nov 24 16:45 /fs/ana/proyectos
+
+== estado final en el host ==
+--- arena ---
+drwxr-xr-x  4 widemos  wheel  128 24 nov.  17:45 arena
+drwxr-xr-x  3 widemos  wheel  96 24 nov.  17:45 arena/ana
+drwxr-xr-x+ 2 widemos  wheel  64 24 nov.  17:45 arena/ana/proyectos
+drwxr-xr-x  3 widemos  wheel  96 24 nov.  17:45 arena/carlos
+drwxr-xr-x+ 2 widemos  wheel  64 24 nov.  17:45 arena/carlos/datos
+--- fsroot ---
+fsroot
+fsroot/ana
+fsroot/ana/proyectos
+fsroot/ana/proyectos/nuevo
+fsroot/ana/proyectos/nuevo/f.txt
+fsroot/ana/proyectos/root.txt
+fsroot/carlos
+fsroot/carlos/datos
+fsroot/carlos/datos/seed.txt
+fsroot/diego
+
+== limpieza ==
+   contenedor eliminado
+   dirs eliminados

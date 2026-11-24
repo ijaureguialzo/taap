@@ -1,0 +1,117 @@
+# Transcripcion v2: martes, 24 de noviembre de 2026, 17:43:52 CET
+# docker: client 29.9.3 / server 29.9.3
+# imagen: taap/pi:local (base node:24-bookworm; USER agent uid 1001)
+# mounts de la forma: -v <arena>:/fs[:ro] -v <fsroot>/ana/proyectos:/fs/ana/proyectos -v <fsroot>/carlos/datos:/fs/carlos/datos:ro (+ --read-only, --tmpfs /tmp)
+============================================================
+== FORMA B: arena :ro (primaria refinada) ==
+============================================================
+
+== create ==
+c69a1a763fc870514645fca34e019f890f1282ac07a9a507f7a87e14d4111975
+
+== arena tras create (esqueleto precreado) ==
+drwxr-xr-x  4 widemos  wheel  128 24 nov.  17:43 arena
+drwxr-xr-x  2 widemos  wheel  64 24 nov.  17:43 arena/ana
+drwxr-xr-x  2 widemos  wheel  64 24 nov.  17:43 arena/carlos
+
+== start ==
+Error response from daemon: failed to create task for container: failed to create shim task: OCI runtime create failed: runc create failed: unable to start container process: error during container init: error mounting "/host_mnt/private/tmp/taap-fs-spike-1795538632-B/fsroot/ana/proyectos" to rootfs at "/fs/ana/proyectos": create mountpoint for /fs/ana/proyectos mount: make mountpoint "/fs/ana/proyectos": mkdirat /var/lib/docker/rootfs/overlayfs/c69a1a763fc870514645fca34e019f890f1282ac07a9a507f7a87e14d4111975/fs/ana/proyectos: read-only file system
+failed to start containers: taap-fs-spike-1795538632-B
+
+== estado final en el host ==
+--- arena ---
+drwxr-xr-x  4 widemos  wheel  128 24 nov.  17:43 arena
+drwxr-xr-x  2 widemos  wheel  64 24 nov.  17:43 arena/ana
+drwxr-xr-x  2 widemos  wheel  64 24 nov.  17:43 arena/carlos
+--- fsroot ---
+fsroot
+fsroot/ana
+fsroot/ana/proyectos
+fsroot/carlos
+fsroot/carlos/datos
+fsroot/carlos/datos/seed.txt
+fsroot/diego
+
+== limpieza ==
+   contenedor eliminado
+   dirs eliminados
+
+============================================================
+== FORMA C: arena rw + 555 (fallback) ==
+============================================================
+
+== create ==
+3f3001f610e95fba0e62c04c8571d593d2e22a00f298fcbc5b2b7fe0d57ae560
+
+== arena tras create (esqueleto precreado) ==
+dr-xr-xr-x  4 widemos  wheel  128 24 nov.  17:43 arena
+drwxr-xr-x  2 widemos  wheel  64 24 nov.  17:43 arena/ana
+drwxr-xr-x  2 widemos  wheel  64 24 nov.  17:43 arena/carlos
+
+== start ==
+taap-fs-spike-1795538632-C
+taap-fs-spike-1795538632-C Up 1 second
+
+-- Q5 visibilidad (no root) --
+whoami: agent
+total 4
+dr-xr-xr-x 4 agent agent  128 Nov 24 16:43 .
+drwxr-xr-x 1 root  root  4096 Nov 24 16:43 ..
+drwxr-xr-x 3 agent agent   96 Nov 24 16:43 ana
+drwxr-xr-x 3 agent agent   96 Nov 24 16:43 carlos
+/fs/ana:
+total 0
+drwxr-xr-x 3 agent agent  96 Nov 24 16:43 .
+dr-xr-xr-x 4 agent agent 128 Nov 24 16:43 ..
+drwxr-xr-x 2 agent agent  64 Nov 24 16:43 proyectos
+
+/fs/carlos:
+total 0
+drwxr-xr-x 3 agent agent  96 Nov 24 16:43 .
+dr-xr-xr-x 4 agent agent 128 Nov 24 16:43 ..
+drwxr-xr-x 3 agent agent  96 Nov 24 16:43 datos
+
+/fs/carlos/datos:
+total 4
+drwxr-xr-x 3 agent agent 96 Nov 24 16:43 .
+drwxr-xr-x 3 agent agent 96 Nov 24 16:43 ..
+-rw-r--r-- 1 agent agent  5 Nov 24 16:43 seed.txt
+
+-- Q2 rw nested (no root) --
+hola
+   RW-OK
+-- Q3 arena: escribir en el tope (no root) --
+mkdir: cannot create directory '/fs/hueco': Permission denied
+touch: cannot touch '/fs/x': Permission denied
+rmdir: failed to remove '/fs/ana': Permission denied
+-- Q3/Q4 arena+nested con ROOT (caso Hermes) --
+whoami: root
+mkdir: cannot create directory '/fs/hueco-root': Permission denied
+touch: cannot touch '/fs/xroot': Permission denied
+rmdir: failed to remove '/fs/ana': Permission denied
+desde-root
+touch: cannot touch '/fs/carlos/datos/y': Read-only file system
+
+== estado final en el host ==
+--- arena ---
+dr-xr-xr-x  4 widemos  wheel  128 24 nov.  17:43 arena
+drwxr-xr-x  3 widemos  wheel  96 24 nov.  17:43 arena/ana
+drwxr-xr-x+ 2 widemos  wheel  64 24 nov.  17:43 arena/ana/proyectos
+drwxr-xr-x  3 widemos  wheel  96 24 nov.  17:43 arena/carlos
+drwxr-xr-x+ 2 widemos  wheel  64 24 nov.  17:43 arena/carlos/datos
+--- fsroot ---
+fsroot
+fsroot/ana
+fsroot/ana/proyectos
+fsroot/ana/proyectos/nuevo
+fsroot/ana/proyectos/nuevo/f.txt
+fsroot/ana/proyectos/root.txt
+fsroot/carlos
+fsroot/carlos/datos
+fsroot/carlos/datos/seed.txt
+fsroot/diego
+
+== limpieza ==
+   contenedor eliminado
+   dirs eliminados
+

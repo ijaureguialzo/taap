@@ -1,0 +1,90 @@
+# Transcripcion: martes, 24 de noviembre de 2026, 17:40:40 CET (v1: forma A del design)
+# docker: client 29.9.3 / server 29.9.3
+# imagen: taap/pi:local
+
+== 0. Estructura en el host ==
+/tmp/taap-fs-spike-1795538440
+/tmp/taap-fs-spike-1795538440/arena
+/tmp/taap-fs-spike-1795538440/fsroot
+/tmp/taap-fs-spike-1795538440/fsroot/ana
+/tmp/taap-fs-spike-1795538440/fsroot/ana/proyectos
+/tmp/taap-fs-spike-1795538440/fsroot/carlos
+/tmp/taap-fs-spike-1795538440/fsroot/carlos/datos
+/tmp/taap-fs-spike-1795538440/fsroot/carlos/datos/seed.txt
+/tmp/taap-fs-spike-1795538440/fsroot/diego
+
+== 1. docker create (forma primaria: arena ro ANTES que los binds anidados) ==
+054c80a8a037ea785238d5200f8b368f16dfbe5477e19a4c9183b14907b15233
+
+--- /tmp/taap-fs-spike-1795538440/arena (¿creó el daemon los parents EN LA ARENA?) ---
+drwxr-xr-x  2 widemos  wheel  64 24 nov.  17:40 /tmp/taap-fs-spike-1795538440/arena
+
+== 2. docker inspect: mounts ==
+null | ["/tmp/taap-fs-spike-1795538440/arena:/fs:ro","/tmp/taap-fs-spike-1795538440/fsroot/ana/proyectos:/fs/ana/proyectos","/tmp/taap-fs-spike-1795538440/fsroot/carlos/datos:/fs/carlos/datos:ro"] | readonly=true
+  /tmp/taap-fs-spike-1795538440/arena                          -> /fs                          mode=ro         rw=False
+  /tmp/taap-fs-spike-1795538440/fsroot/ana/proyectos           -> /fs/ana/proyectos            mode=           rw=True
+  /tmp/taap-fs-spike-1795538440/fsroot/carlos/datos            -> /fs/carlos/datos             mode=ro         rw=False
+
+== 3. docker start ==
+Error response from daemon: failed to create task for container: failed to create shim task: OCI runtime create failed: runc create failed: unable to start container process: error during container init: error mounting "/host_mnt/private/tmp/taap-fs-spike-1795538440/fsroot/ana/proyectos" to rootfs at "/fs/ana/proyectos": create mountpoint for /fs/ana/proyectos mount: make mountpoint "/fs/ana/proyectos": mkdirat /var/lib/docker/rootfs/overlayfs/054c80a8a037ea785238d5200f8b368f16dfbe5477e19a4c9183b14907b15233/fs/ana: read-only file system
+failed to start containers: taap-fs-spike-1795538440
+
+== 4. Q5: visibilidad del agente (usuario no root por defecto) ==
+-- whoami --
+Error response from daemon: container 054c80a8a037ea785238d5200f8b368f16dfbe5477e19a4c9183b14907b15233 is not running
+-- ls /fs --
+Error response from daemon: container 054c80a8a037ea785238d5200f8b368f16dfbe5477e19a4c9183b14907b15233 is not running
+-- ls /fs/ana --
+Error response from daemon: container 054c80a8a037ea785238d5200f8b368f16dfbe5477e19a4c9183b14907b15233 is not running
+-- ls /fs/carlos --
+Error response from daemon: container 054c80a8a037ea785238d5200f8b368f16dfbe5477e19a4c9183b14907b15233 is not running
+-- ls /fs/carlos/datos --
+Error response from daemon: container 054c80a8a037ea785238d5200f8b368f16dfbe5477e19a4c9183b14907b15233 is not running
+-- stat /fs (mount) --
+Error response from daemon: container 054c80a8a037ea785238d5200f8b368f16dfbe5477e19a4c9183b14907b15233 is not running
+
+== 5. Q2: bind rw bajo arena ro, usuario no root ==
+-- mkdir+write en /fs/ana/proyectos (rw) --
+Error response from daemon: container 054c80a8a037ea785238d5200f8b368f16dfbe5477e19a4c9183b14907b15233 is not running
+RW-FALLO
+-- escribir DIRECTO en la arena (mkdir /fs/hueco; touch /fs/x) --
+Error response from daemon: container 054c80a8a037ea785238d5200f8b368f16dfbe5477e19a4c9183b14907b15233 is not running
+-- rm del esqueleto (rmdir /fs/ana) --
+Error response from daemon: container 054c80a8a037ea785238d5200f8b368f16dfbe5477e19a4c9183b14907b15233 is not running
+
+== 6. Q3: arena ro con proceso ROOT (caso Hermes) ==
+-- whoami root --
+Error response from daemon: container 054c80a8a037ea785238d5200f8b368f16dfbe5477e19a4c9183b14907b15233 is not running
+-- mkdir /fs/hueco-root (root sobre arena ro) --
+Error response from daemon: container 054c80a8a037ea785238d5200f8b368f16dfbe5477e19a4c9183b14907b15233 is not running
+-- touch /fs/xroot --
+Error response from daemon: container 054c80a8a037ea785238d5200f8b368f16dfbe5477e19a4c9183b14907b15233 is not running
+-- rmdir /fs/ana (root) --
+Error response from daemon: container 054c80a8a037ea785238d5200f8b368f16dfbe5477e19a4c9183b14907b15233 is not running
+-- write en bind rw (root) --
+Error response from daemon: container 054c80a8a037ea785238d5200f8b368f16dfbe5477e19a4c9183b14907b15233 is not running
+ROOT-RW-FALLO
+
+== 7. Q4: bind anidado :ro con root y no root ==
+-- cat seed (no root) --
+Error response from daemon: container 054c80a8a037ea785238d5200f8b368f16dfbe5477e19a4c9183b14907b15233 is not running
+-- touch (no root) --
+Error response from daemon: container 054c80a8a037ea785238d5200f8b368f16dfbe5477e19a4c9183b14907b15233 is not running
+-- touch (root) --
+Error response from daemon: container 054c80a8a037ea785238d5200f8b368f16dfbe5477e19a4c9183b14907b15233 is not running
+
+== 8. Estado final en el host (qué quedó en arena y fsroot) ==
+--- arena ---
+/tmp/taap-fs-spike-1795538440/arena
+--- fsroot ---
+/tmp/taap-fs-spike-1795538440/fsroot
+/tmp/taap-fs-spike-1795538440/fsroot/ana
+/tmp/taap-fs-spike-1795538440/fsroot/ana/proyectos
+/tmp/taap-fs-spike-1795538440/fsroot/carlos
+/tmp/taap-fs-spike-1795538440/fsroot/carlos/datos
+/tmp/taap-fs-spike-1795538440/fsroot/carlos/datos/seed.txt
+/tmp/taap-fs-spike-1795538440/fsroot/diego
+
+== 9. Limpieza ==
+contenedor eliminado
+dirs eliminados

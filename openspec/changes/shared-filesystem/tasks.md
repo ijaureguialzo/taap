@@ -2,7 +2,7 @@
 
 ## 1. Spike: montaje Docker del FS compartido
 
-- [ ] 1.1 Spike con un contenedor desechable (rootfs `--read-only` + arena bind `:ro` + binds anidados rw/ro bajo ella): verificar que el daemon crea los destinos anidados en el lado host de la arena, que un bind rw bajo arena ro es totalmente escribible y que la arena ro es absoluta también para un proceso root (caso Hermes). Verificación: transcripción `docker create/inspect` y las comprobaciones fijadas como fixture + conclusión con la forma exacta de los `--volume` (primaria o fallback del design D2/Risks) en `notes/spike-docker-fs.md` dentro del cambio.
+- [x] 1.1 Spike con un contenedor desechable (rootfs `--read-only` + arena bind `:ro` + binds anidados rw/ro bajo ella): verificar que el daemon crea los destinos anidados en el lado host de la arena, que un bind rw bajo arena ro es totalmente escribible y que la arena ro es absoluta también para un proceso root (caso Hermes). Verificación: transcripción `docker create/inspect` y las comprobaciones fijadas como fixture + conclusión con la forma exacta de los `--volume` (primaria o fallback del design D2/Risks) en `notes/spike-docker-fs.md` dentro del cambio.
 
 ## 2. Datos y configuración base
 
