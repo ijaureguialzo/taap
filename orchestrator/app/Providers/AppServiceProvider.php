@@ -41,7 +41,11 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->configureDefaults();
-        URL::forceHttps($this->app->isProduction());
+
+        // Fuerza https solo si la URL de la app la declara (deploy TLS tras el
+        // proxy). Con APP_ENV=production + APP_URL=http (dev local en Docker)
+        // no fuerza, para que los redirects no muestren https.
+        URL::forceHttps(str_starts_with((string) config('app.url'), 'https://'));
     }
 
     /**
