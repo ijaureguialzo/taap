@@ -17,8 +17,12 @@ services:
       - "traefik.http.routers.${COMPOSE_PROJECT_NAME}-dashboard_redirect.entrypoints=websecure"
       - "traefik.http.routers.${COMPOSE_PROJECT_NAME}-dashboard_redirect.tls=true"
     networks:
-      - default
-      - taap-internal
+      default:
+      taap-internal:
+        # IP fija: sin ella, un recreate del traefik puede capturar 10.163.3.2
+        # (la fija del egress en compose.yaml) y el arranque del egress falla
+        # con "Address already in use" (el orden de attach decide).
+        ipv4_address: 10.163.3.20
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - ./traefik/traefik.yml:/etc/traefik/traefik.yml:ro
