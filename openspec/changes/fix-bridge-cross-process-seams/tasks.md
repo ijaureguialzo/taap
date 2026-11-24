@@ -27,9 +27,9 @@
 
 ## 5. Verificación en el despliegue real
 
-- [ ] 5.1 Con el agente Codex de producción: enviar un mensaje desde la web/iOS y verificar respuesta en el chat, `run.start`…`run.end` + `message.final` en `agent_events`, mensaje en `chat_messages` y status `idle` al final (sin el error *Undefined array key*)
-- [ ] 5.2 Con el agente OpenCode de producción: enviar un mensaje (p. ej. un tutorial largo) y verificar la respuesta visible en web e iOS, persistida, y `run_id` coherente en todos los eventos del turno
-- [ ] 5.3 Verificar post-cambio: un único par de coprocesos por agente tras envíos desde el worker y el hilo de Codex sano (el `thread_id` persistido resume sin error)
+- [x] 5.1 Con el agente Codex de producción: enviar un mensaje desde la web/iOS y verificar respuesta en el chat, `run.start`…`run.end` + `message.final` en `agent_events`, mensaje en `chat_messages` y status `idle` al final (sin el error *Undefined array key*)
+- [x] 5.2 Con el agente OpenCode de producción: enviar un mensaje (p. ej. un tutorial largo) y verificar la respuesta visible en web e iOS, persistida, y `run_id` coherente en todos los eventos del turno
+- [x] 5.3 Verificar post-cambio: un único par de coprocesos por agente tras envíos desde el worker y el hilo de Codex sano (el `thread_id` persistido resume sin error)
 
 ## Workflow follow-up
 
