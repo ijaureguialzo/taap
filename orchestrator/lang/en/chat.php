@@ -8,6 +8,8 @@ return [
     'you' => 'You',
     'agent' => 'Agent',
     'streaming' => 'writing…',
+    'reasoning' => 'Reasoning',
+    'activity' => 'Activity',
     'thinking' => 'thinking…',
     'offline' => 'The agent is offline. Start it to chat.',
     'will_start' => 'The agent is stopped: sending a message will start it.',

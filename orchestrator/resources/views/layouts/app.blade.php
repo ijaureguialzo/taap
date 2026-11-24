@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 @php $themeAttr = in_array(($t = request()->cookie('taap-theme')), ['light', 'dark'], true) ? $t : null; @endphp
-<html lang="{{ str_replace('_', '-', app()->getLocale()) }}"@if ($themeAttr) data-bs-theme="{{ $themeAttr }}"@endif>
+<html lang="{{ str_replace('_', '-', app()->getLocale()) }}" class="js"@if ($themeAttr) data-bs-theme="{{ $themeAttr }}"@endif>
 @props(['title' => null])
 <head>
     <meta charset="utf-8" />

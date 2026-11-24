@@ -1,7 +1,13 @@
+@php
+    // 4.2: el input/aviso gobiernan con el estado EN VIVO (canal); sin
+    // eventos (mount/recarga) cae al estado persistido.
+    $status = $this->effectiveStatus();
+@endphp
 <div class="agent-chat" data-agent-id="{{ $agent->id }}">
 
     {{-- Historial + streaming --}}
-    <div class="chat-scroll flex-grow-1 overflow-auto border rounded-2 p-3 bg-body mb-3" id="chat-box">
+    <div class="chat-scroll overflow-auto border rounded-2 p-3 bg-body mb-3" id="chat-box"
+         style="flex-grow: 1">
         @if (count($history) === 0 && $streaming === null)
             <div class="text-center text-muted py-5">{{ __('chat.empty') }}</div>
         @endif
@@ -11,32 +17,84 @@
                 <div class="d-flex justify-content-end mb-3">
                     <div class="bubble bubble-user">
                         <div class="small mb-1">{{ __('chat.you') }} · <time wire:ignore class="chat-time" data-time="{{ $msg['at'] }}">{{ $msg['at'] }}</time></div>
-                        <div class="message-content">{{ $msg['content'] }}</div>
+                        <div class="message-content md-target">{{ $msg['content'] }}</div>
                     </div>
                 </div>
             @else
+                @php
+                    // 3.3: secciones colapsables del mensaje asientado:
+                    // Razonamiento (meta.thinking, texto plano) + Actividad
+                    // (tool/error persistidos del run; 1 consulta por lote).
+                    $thinking = trim((string) ($msg['meta']['thinking'] ?? ''));
+                    $runId = $msg['meta']['run_id'] ?? null;
+                    $acts = $runId ? ($activities[$runId] ?? []) : [];
+                @endphp
                 <div class="d-flex mb-3">
                     <div class="bubble bubble-agent">
                         <div class="small mb-1">{{ $agent->name }} · <time wire:ignore class="chat-time" data-time="{{ $msg['at'] }}">{{ $msg['at'] }}</time></div>
-                        <div class="message-content">{{ $msg['content'] }}</div>
+
+                        @if ($thinking !== '')
+                            <details class="msg-reasoning mb-2">
+                                <summary class="msg-section-summary">
+                                    <i class="bi bi-lightning-charge me-1" aria-hidden="true"></i>
+                                    {{ __('chat.reasoning') }}
+                                    <span class="text-muted ms-1">{{ number_format(mb_strlen($thinking) / 1024, 1) }} KB</span>
+                                </summary>
+                                <div class="reasoning-text">{{ $thinking }}</div>
+                            </details>
+                        @endif
+
+                        <div class="message-content md-target">{{ $msg['content'] }}</div>
+
+                        @if (count($acts) > 0)
+                            <details class="msg-activity mt-2">
+                                <summary class="msg-section-summary">
+                                    <i class="bi bi-gear me-1" aria-hidden="true"></i>
+                                    {{ __('chat.activity') }} ({{ count($acts) }})
+                                </summary>
+                                <div class="activity-lines">
+                                    @foreach ($acts as $a)
+                                        @php
+                                            $icon = match ($a['type']) {
+                                                'tool.start' => 'bi-gear',
+                                                'tool.result' => $a['ok'] ? 'bi-check-lg' : 'bi-x-lg',
+                                                default => 'bi-exclamation-octagon',
+                                            };
+                                            $label = $a['type'] === 'error'
+                                                ? ($a['summary'] !== '' ? $a['summary'] : __('chat.error'))
+                                                : (($a['tool'] ?? '') . ($a['summary'] !== '' ? ' · ' . $a['summary'] : ''));
+                                        @endphp
+                                        <div class="activity-line {{ $a['type'] === 'error' || ! $a['ok'] ? 'text-danger' : 'text-muted' }}">
+                                            <i class="bi {{ $icon }} me-1" aria-hidden="true"></i>{{ $label }}
+                                            <time wire:ignore class="chat-time ms-2" data-time="{{ $a['at'] }}">{{ $a['at'] }}</time>
+                                        </div>
+                                    @endforeach
+                                </div>
+                            </details>
+                        @endif
                     </div>
                 </div>
             @endif
         @endforeach
 
-        {{-- Burbuja en streaming (deltas) --}}
+        {{--
+            Burbuja en streaming (3.1): el servidor solo pinta el
+            ESQUELETO (etiqueta de estado + contenedores wire:ignore).
+            El JS aplica los deltas LOCALmente en esos contenedores (sin
+            round-trip Livewire por token); los wire:ignore sobreviven a
+            los morphs (actividad, estado…) hasta que el message.final
+            sustituye la burbuja por el mensaje asientado.
+        --}}
         @if ($streaming !== null)
-            <div class="d-flex mb-3">
+            <div class="d-flex mb-3" wire:key="stream-bubble">
                 <div class="bubble bubble-agent">
                     <div class="small text-muted mb-1">
                         {{ $agent->name }} ·
-                        @if ($activity)
-                            <span wire:key="activity" class="text-info">{{ $activity['kind'] === 'tool' ? __('chat.tool').': '.$activity['label'] : __('chat.thinking') }}</span>
-                        @else
-                            <span class="text-info">{{ __('chat.streaming') }}</span>
-                        @endif
+                        <span class="stream-state-label" data-stream-state="thinking" wire:ignore>{{ __('chat.thinking') }}</span>
                     </div>
-                    <div class="message-content" wire:text="streaming"></div>
+                    <div class="stream-thinking" wire:ignore hidden></div>
+                    <div class="message-content stream-content" wire:ignore hidden></div>
+                    <div class="stream-activity" wire:ignore></div>
                 </div>
             </div>
         @endif
@@ -73,8 +131,8 @@
     {{-- Indicador de actividad de herramientas --}}
     @if ($activity && $streaming !== null)
         <div class="small text-info mb-2" wire:key="activity-2">
-            ⚙ {{ $activity['kind'] === 'tool' ? __('chat.tool').': '.$activity['label'] : __('chat.run') }}
-            {{ ($activity['detail'] ?? null) ? '· '.$activity['detail'] : '' }}
+            ⚙ {{ $activity['kind'] === 'tool' ? __('chat.tool').': '.$activity['label'] : ($activity['kind'] === 'error' ? __('chat.error') : __('chat.run')) }}
+            {{ (!empty($activity['detail']) || $activity['kind'] === 'error') ? '· '.$activity['label'] : '' }}
         </div>
     @endif
 
@@ -84,19 +142,20 @@
          nodos al re-renderizar `disabled` y un listener unido al nodo
          original moriria en silencio (el boton dejaba de activarse al
          teclear). `wire:model` sigue sincronizando `content` para el
-         historial y para el estado del botón renderizado. --}}
+         historial y para el estado del botón renderizado. El disabled
+         gobierna el estado EN VIVO (4.2), no el de la memoria. --}}
     <div class="input-group">
         <input type="text" wire:model.live.400ms="content" class="form-control" id="chat-input"
                placeholder="{{ __('chat.placeholder') }}"
-               @disabled(! $agent->status->acceptsMessages())>
+               @disabled(! $status->acceptsMessages())>
         <button class="btn btn-primary" type="button" id="chat-send"
-                @disabled(! $agent->status->acceptsMessages() || trim($content) === '')>
+                @disabled(! $status->acceptsMessages() || trim($content) === '')>
             <x-icon name="send" class="me-1" />{{ __('chat.send') }}
         </button>
     </div>
-    @if (! $agent->status->acceptsMessages())
+    @if ($status === \App\Enums\AgentStatus::WaitingApproval)
         <div class="form-text mt-1">{{ __('chat.waiting_approval') }}</div>
-    @elseif (! $agent->status->isRunning())
+    @elseif (! $status->isRunning())
         <div class="form-text mt-1">{{ __('chat.will_start') }}</div>
     @endif
 
@@ -117,7 +176,7 @@
             // hasta que setup() se complete (el flag a nivel window
             // indica éxito, no solo "se intento").
             const ready = () =>
-                window.TaapEcho && window.TaapPusher && window.Livewire;
+                window.TaapAgents && window.Livewire;
 
             const currentRoot = () =>
                 document.querySelector('.agent-chat[data-agent-id="' + agentId + '"]') || root;
@@ -133,29 +192,169 @@
                 return el ? window.Livewire.find(el.getAttribute('wire:id')) : null;
             };
 
-            // Horas locales del visor (web-chat-ux D2): el servidor envia el
-            // instante en ISO 8601 (data-time) y el cliente lo renderiza en
-            // la zona horaria del dispositivo. El fallback visible hasta que
-            // corre el JS es el propio ISO (un instante, no una hora horneada).
+            // Horas locales del visor: el servidor envia el instante en ISO
+            // 8601 (data-time) y el cliente lo renderiza en la zona
+            // horaria del dispositivo. 5.2: el CSS oculta el ISO (html.js)
+            // hasta que se añade `.is-ready` (sin parpadeo); sin JS, el ISO
+            // es el fallback visible.
             const fmtLocal = (iso) => {
                 const d = new Date(iso);
                 return isNaN(d) ? null : d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
             };
             const formatTimes = (scope) => {
-                const root = scope || currentRoot();
-                if (!root || root.nodeType !== 1) return;
+                const base = scope || currentRoot();
+                if (!base || base.nodeType !== 1) return;
                 // querySelectorAll solo coincide con descendientes: si el scope ES un
                 // <time> (el hook morph.updated pasa el nodo directamente)
                 // hay que añadirlo a los objetivos o se perdería el formato.
-                const targets = new Set(root.querySelectorAll('time.chat-time[data-time]'));
-                if (root.matches('time.chat-time')) targets.add(root);
+                const targets = new Set(base.querySelectorAll('time.chat-time[data-time]'));
+                if (base.matches && base.matches('time.chat-time')) targets.add(base);
                 targets.forEach((el) => {
                     const t = fmtLocal(el.getAttribute('data-time'));
-                    // Mismo patrón idempotente que la linea de tiempo: no
-                    // reasignar un texto igual (reemplaza el nodo y, si algun
-                    // dia un observer lo observa, volveria a disparar esto).
+                    // Idempotente: no reasignar un texto igual (reemplaza el
+                    // nodo y re-dispararia observers/hooks).
                     if (t !== null && el.textContent !== t) el.textContent = t;
+                    el.classList.add('is-ready');
                 });
+            };
+
+            // ── 3.1 streaming local ────────────────────────────────────
+            // El JS es el dueño del texto en streaming: acumula los deltas
+            // (razonamiento y texto en flujos SEPARADOS) y los pinta en los
+            // contenedores wire:ignore del esqueleto. NINGUN delta produce
+            // un round-trip Livewire; el servidor solo crea el esqueleto
+            // (run.start/primer delta) y lo cierra (message.final).
+            const streamBuf = { thinking: '', content: '', summoned: false, dirty: false, mdTimer: null };
+            const streamEls = () => {
+                const r = currentRoot();
+                if (!r) return null;
+                return {
+                    thinking: r.querySelector('.stream-thinking'),
+                    content: r.querySelector('.stream-content'),
+                    activity: r.querySelector('.stream-activity'),
+                    label: r.querySelector('.stream-state-label'),
+                };
+            };
+            const renderStream = () => {
+                const els = streamEls();
+                if (!els) return; // el esqueleto aún no existe: los deltas
+                // quedan en el buffer y se vuelcan cuando aparezca.
+                if (streamBuf.thinking !== '') {
+                    els.thinking.textContent = streamBuf.thinking;
+                    els.thinking.hidden = false;
+                }
+                if (streamBuf.content !== '') {
+                    els.content.textContent = streamBuf.content;
+                    els.content.hidden = false;
+                    // 5.3: markdown con throttle (~100 ms) durante el
+                    // streaming.
+                    if (!streamBuf.mdTimer) {
+                        streamBuf.mdTimer = setTimeout(() => {
+                            streamBuf.mdTimer = null;
+                            const c = streamEls() && streamEls().content;
+                            if (c) window.TaapAgents.markdown.render(c);
+                        }, 100);
+                    }
+                }
+                // etiqueta de estado: pensó -> "pensando…"; escribió -> "escribiendo…"
+                if (els.label) {
+                    const state = streamBuf.content !== '' ? 'writing' : 'thinking';
+                    if (els.label.dataset.streamState !== state) {
+                        els.label.dataset.streamState = state;
+                        els.label.textContent = state === 'writing'
+                            ? {{ json_encode(__('chat.streaming')) }}
+                            : {{ json_encode(__('chat.thinking')) }};
+                    }
+                }
+            };
+            const summonSkeleton = () => {
+                // Se perdio el run.start (la pagina se abrio a mitad del
+                // turno): un unico cambio de estado para que el servidor
+                // pinte el esqueleto; el buffer se vuelca con renderStream.
+                if (streamBuf.summoned) return;
+                streamBuf.summoned = true;
+                const wire = currentWire();
+                if (wire) {
+                    const action = wire.agentEvent({ type: 'message.delta', payload: { run_id: null, content: '' } });
+                    if (action && action.promise) action.promise.catch((e) => console.warn('taap: summon', e));
+                }
+            };
+            const appendStream = (kind, text) => {
+                if (!text) return;
+                if (kind === 'thinking') streamBuf.thinking += text;
+                else streamBuf.content += text;
+                const els = streamEls();
+                if (els) renderStream();
+                else summonSkeleton();
+            };
+            const resetStream = () => {
+                if (streamBuf.mdTimer) { clearTimeout(streamBuf.mdTimer); streamBuf.mdTimer = null; }
+                streamBuf.thinking = '';
+                streamBuf.content = '';
+                streamBuf.summoned = false;
+                const els = streamEls();
+                if (els) {
+                    els.thinking.textContent = '';
+                    els.content.textContent = '';
+                    els.thinking.hidden = true;
+                    els.content.hidden = true;
+                    if (els.activity) els.activity.innerHTML = '';
+                }
+            };
+
+            // ── 3.2 feed de actividad en vivo ──────────────────────────
+            // tool.start/tool.result/error como lineas compactas (⚙/✓/✗ +
+            // resumen truncado) dentro de la burbuja en streaming; en la
+            // burbuja asientada la misma info sale de la BD (3.3).
+            const activityTruncate = (s) => (s && s.length > 120 ? s.slice(0, 120) + '…' : (s || ''));
+            const pushActivityLine = (kind, label, detail) => {
+                const els = streamEls();
+                if (!els || !els.activity) return;
+                const icon = kind === 'error' ? 'bi-exclamation-octagon'
+                    : kind === 'tool.result' ? 'bi-check-lg' : 'bi-gear';
+                const line = document.createElement('div');
+                line.className = 'activity-line' + (kind === 'error' ? ' text-danger' : ' text-muted');
+                const i = document.createElement('i');
+                i.className = 'bi ' + icon + ' me-1';
+                i.setAttribute('aria-hidden', 'true');
+                line.appendChild(i);
+                line.appendChild(document.createTextNode((label || '') + (detail ? ' · ' + detail : '')));
+                els.activity.appendChild(line);
+                // tope de lineas (el historial lo guarda en la BD)
+                while (els.activity.children.length > 30) els.activity.firstChild.remove();
+                if (kind === 'tool.result' || kind === 'error') {
+                    // la ultima linea manda el color de la actividad
+                    const prev = els.activity.querySelector('.activity-line:last-child');
+                    if (prev && kind === 'tool.result' && !prev.dataset.fail) {
+                        // ok: ya sale muted por defecto
+                    }
+                }
+            };
+
+            // ── 5.1 scroll: pin si estaba cerca del final ──────────────
+            // Antes de cada morph se registra nearBottom (<80 px); al
+            // terminar (morphed/island.morphed) se re-ancha el observer
+            // (el morph sustituye nodos) y se fija abajo SOLO si nearBottom.
+            // El observer conserva la guarda: no arrastra a quien ha subido.
+            let pinned = true;
+            const chatBox = () => document.querySelector('#chat-box');
+            const isNearBottom = () => {
+                const box = chatBox();
+                if (!box) return true;
+                return (box.scrollHeight - box.scrollTop - box.clientHeight) < 80;
+            };
+            let autoScrollObserver = null;
+            let observedBox = null;
+            const attachAutoScroll = () => {
+                const box = chatBox();
+                if (!box || box === observedBox) return;
+                if (autoScrollObserver) autoScrollObserver.disconnect();
+                autoScrollObserver = new MutationObserver(() => {
+                    // Guarda nearBottom: solo fija si el lector sigue al final.
+                    if (isNearBottom()) box.scrollTop = box.scrollHeight;
+                });
+                autoScrollObserver.observe(box, { childList: true, subtree: true, characterData: true });
+                observedBox = box;
             };
 
             const setup = () => {
@@ -164,18 +363,42 @@
                 window[FLAG] = true;
 
                 try {
-                    // 1) Canal en vivo `agent.{id}` (público): el mismo que
-                    //    difunde el orquestador y al que se suscribe la app
-                    //    iOS. (Con Echo.private la web no resolvía el auth y
-                    //    los eventos nunca llegaban: bug que congelaba la
-                    //    burbuja en "escribiendo…").
-                    if (window.TaapEcho) {
-                        window.TaapEcho
-                            .channel('agent.' + agentId)
-                            .listen('agent-event', (payload) => {
-                                const wire = currentWire();
-                                if (wire) wire.agentEvent(payload);
-                            });
+                    // 1) Canal en vivo `agent.{id}` (público, 4.1): el helper
+                    //    compartido (app.js) da la re-suscripción robusta
+                    //    (30 s + connected). Los deltas se aplican LOCALES
+                    //    (3.1); el resto van al componente.
+                    if (window.TaapAgents) {
+                        window.TaapAgents.subscribeAgent(agentId, (payload) => {
+                            const type = payload.type;
+                            const data = payload.payload || {};
+                            if (type === 'message.delta' || type === 'thinking.delta') {
+                                appendStream(type === 'thinking.delta' ? 'thinking' : 'content', data.content);
+                                return; // sin round-trip por token
+                            }
+                            if (type === 'message.final') {
+                                resetStream();
+                            }
+                            if (type === 'tool.start') {
+                                pushActivityLine('tool.start', data.tool, activityTruncate(data.args && (data.args.label || data.args.command || data.args.filePath || data.args.pattern)));
+                            } else if (type === 'tool.result') {
+                                pushActivityLine('tool.result', data.tool, activityTruncate(data.summary));
+                                const els = streamEls();
+                                if (els && els.activity) {
+                                    const last = els.activity.lastElementChild;
+                                    if (last && !data.ok) last.classList.add('text-danger');
+                                }
+                            } else if (type === 'error') {
+                                pushActivityLine('error', {{ json_encode(__('chat.error')) }}, activityTruncate(data.message));
+                            }
+                            // Todo lo que muta estado del componente
+                            // (incluido run.start que abre/cierra el
+                            // esqueleto) sigue por Livewire.
+                            const wire = currentWire();
+                            if (wire) {
+                                const action = wire.agentEvent(payload);
+                                if (action && action.promise) action.promise.catch((e) => console.warn('taap: agentEvent', e));
+                            }
+                        });
                     }
 
                     // 2) Tras un envío: Livewire no sobreescribe el input
@@ -185,70 +408,33 @@
                     if (window.Livewire) {
                         window.Livewire.on('message-sent', () => {
                             if (!currentRoot().isConnected) return;
+                            resetStream();
                             const input = document.querySelector('#chat-input');
                             if (!input) return;
                             input.value = '';
                             input.focus();
-                            const box = document.querySelector('#chat-box');
-                            if (box) box.scrollTop = box.scrollHeight;
+                            if (pinned) {
+                                const box = chatBox();
+                                if (box) box.scrollTop = box.scrollHeight;
+                            }
                             refreshSend();
                         });
                     }
 
-                    // 2b) Re-suscripcion robusta. pusher-js NO garantiza
-                    //     re-suscribir un canal que ya esta en
-                    //     `subscribed === true` (cambio de transporte o
-                    //     reinicio de Reverb): el servidor pierde la
-                    //     suscripcion y el canal muere en silencio (el
-                    //     socket sigue vivo y recibiendo pongs, pero nunca
-                    //     vuelve a recibir eventos).
-                    //     - `connected` -> re-suscribimos en el nuevo socket.
-                    //     - watchdog 30s -> redes para zombis de TCP
-                    //       half-open que el cliente no detecta (re-suscribir
-                    //       es barato e idempotente: el servidor re-registra).
-                    if (window.TaapPusher) {
-                        const resubscribe = () => {
-                            if (!currentRoot().isConnected) return;
-                            const channel = window.TaapPusher.channel('agent.' + agentId);
-                            channel.subscribed = false;
-                            channel.subscribe();
-                        };
-                        window.TaapPusher.connection.bind('connected', resubscribe);
-                        setInterval(resubscribe, 30_000);
-                    }
-
-                    // 3) Autodesplazamiento al recibir contenido nuevo.
-                    //    El observer se (re)ancla en el nodo actual: si el
-                    //    morph del padre reemplaza el nodo, reanclamos.
-                    let observedBox = null;
-                    let autoScrollObserver = null;
-                    const attachAutoScroll = () => {
-                        const box = document.querySelector('#chat-box');
-                        if (!box || box === observedBox) return;
-                        if (autoScrollObserver) autoScrollObserver.disconnect();
-                        autoScrollObserver = new MutationObserver(() => {
-                            box.scrollTop = box.scrollHeight;
-                        });
-                        autoScrollObserver.observe(box, { childList: true, subtree: true, characterData: true });
-                        observedBox = box;
-                    };
+                    // 3) Autodesplazamiento: observer con guarda nearBottom
+                    //    (5.1). Sin el re-ancrado por setInterval de 30 s:
+                    //    el morphed/island.morphed re-ancla (abajo).
                     attachAutoScroll();
-                    setInterval(attachAutoScroll, 30_000);
 
-                    // 5) Estado del botón y envío (Enter/click) por
+                    // 4) Estado del botón y envío (Enter/click) por
                     //    DELEGACION en `document`: sobrevive a cualquier
-                    //    morph. Livewire v4 sustituye el nodo del botón
-                    //    cuando el atributo `disabled` re-renderizado cambia y el
-                    //    listener unido al nodo original moria en silencio
-                    //    (el botón no se activaba al teclear hasta recargar;
-                    //    tampoco el envío era inmediato: dependia del
-                    //    round-trip de wire:model con debounce 400ms).
+                    //    morph (el listener unido al nodo original moria al
+                    //    re-renderizarse `disabled`).
                     let sending = false;
                     let sendTries = 0;
                     const currentInput = () => document.querySelector('#chat-input');
                     const currentBtn = () => document.querySelector('#chat-send');
 
-                    // Re-aplica el estado del botón leyendo el DOM ACTUAL.
                     const refreshSend = () => {
                         const input = currentInput();
                         const btn = currentBtn();
@@ -269,8 +455,8 @@
                         sending = true;
                         refreshSend();
                         try {
-                            // v4: el proxy $wire invoca el método por nombre
-                            // y devuelve una Action (con `.promise`).
+                            // v4: el proxy invoca el método por nombre y
+                            // devuelve una Action (con `.promise`).
                             const action = wire.send(content);
                             const p = action && action.promise ? action.promise : Promise.resolve();
                             p.catch((e) => console.warn('taap: send', e))
@@ -291,8 +477,6 @@
                         attemptSend(content);
                     };
 
-                    // Activación inmediata al teclear (0ms, sin esperar el
-                    // round-trip) y envío por Enter / click.
                     document.addEventListener('input', (e) => {
                         if (e.target && e.target.id === 'chat-input') refreshSend();
                     });
@@ -311,19 +495,22 @@
                         doSend();
                     });
 
-                    // Tras cada morph que toque el chat, re-aplica el estado
-                    // (el estado del botón re-renderizado por el servidor puede ir
-                    // desfasado respecto al texto en el input).
+                    // 5) Hooks de morph (5.1/5.2/5.3): nearBottom ANTES de
+                    //    parchear; tras el morph, re-ancar el observer y
+                    //    fijar solo si estaba al final; re-formatear horas;
+                    //    re-renderizar markdown de lo nuevo.
                     if (window.Livewire && typeof window.Livewire.hook === 'function') {
-                        // ¿El nodo ES o CONTIENE el chat de este agente?
                         const touchesOurChat = (el) => {
                             if (!el || el.nodeType !== 1) return false;
                             const sel = '.agent-chat[data-agent-id="' + agentId + '"]';
                             return el.matches(sel) || (el.querySelector ? !!el.querySelector(sel) : false);
                         };
-                        // Re-formatea TODAS las horas del chat tras un morph
-                        // completo (scope = root de este agentId).
-                        const reformatChat = (el) => { if (touchesOurChat(el)) formatTimes(); };
+
+                        window.Livewire.hook('morph', (arg) => {
+                            // «morph» dispara ANTES de modificar el DOM:
+                            // es el punto de registro de nearBottom.
+                            if (touchesOurChat(arg && arg.el)) pinned = isNearBottom();
+                        });
 
                         window.Livewire.hook('morph.updated', (arg) => {
                             const el = arg && arg.el ? arg.el : null;
@@ -331,31 +518,38 @@
                             if (el.id === 'chat-input' || el.id === 'chat-send' ||
                                 (el.closest && el.closest('.agent-chat[data-agent-id="' + agentId + '"]'))) {
                                 refreshSend();
-                                if (el.matches('time.chat-time') || el.querySelector('time.chat-time')) formatTimes(el);
                             }
                         });
 
-                        // El hook `updated` dispara ANTES de parchear los nodos
-                        // de texto (morph: updated -> patchChildren): reformatear
-                        // alli se sobreescribia en el mismo morph con el ISO que
-                        // envia el servidor (así se veia ISO al teclear en la caja
-                        // de texto: wire:model.live.400ms -> update -> morph).
-                        // `morphed`/`island.morphed` disparan cuando el morph ya
-                        // termino: ahi la re-aplicacion de la hora local es
-                        // definitiva (y es donde se formatea un mensaje nuevo).
-                        window.Livewire.hook('morphed', (arg) => reformatChat(arg && arg.el));
-                        window.Livewire.hook('island.morphed', (arg) => reformatChat(arg && arg.component && arg.component.el));
-                        // Mensajes nuevos: al añadirse con el ISO visible,
-                        // formatearlos en cuanto aparecen en el DOM.
+                        const afterMorph = (el) => {
+                            if (!el || !touchesOurChat(el)) return;
+                            attachAutoScroll();
+                            if (pinned) {
+                                const box = chatBox();
+                                if (box) box.scrollTop = box.scrollHeight;
+                            }
+                            if (el.matches && el.matches('time.chat-time') || (el.querySelector && el.querySelector('time.chat-time'))) formatTimes(el);
+                            // markdown de mensajes nuevos (5.3)
+                            document.querySelectorAll('.md-target:not(.md-ready)').forEach((n) => {
+                                if (n.closest('.agent-chat[data-agent-id="' + agentId + '"]')) window.TaapAgents.markdown.render(n);
+                            });
+                        };
+                        window.Livewire.hook('morphed', (arg) => afterMorph(arg && arg.el));
+                        window.Livewire.hook('island.morphed', (arg) => afterMorph(arg && arg.component && arg.component.el));
                         window.Livewire.hook('morph.added', (arg) => {
                             const el = arg && arg.el;
-                            if (el && (el.matches('time.chat-time') ||
-                                (el.querySelector && el.querySelector('time.chat-time')))) formatTimes(el);
+                            if (!el) return;
+                            if (el.matches && (el.matches('time.chat-time') || (el.querySelector && el.querySelector('time.chat-time')))) formatTimes(el);
+                            if (el.matches && el.matches('.md-target')) window.TaapAgents.markdown.render(el);
                         });
                     }
-                    document.addEventListener('livewire:initialized', () => refreshSend());
+                    document.addEventListener('livewire:initialized', () => {
+                        refreshSend();
+                        pinned = isNearBottom();
+                    });
                     refreshSend();
                     formatTimes();
+                    pinned = isNearBottom();
                 } catch (e) {
                     window[FLAG] = false; // permitir retry
                     console.warn('taap: chat setup', e);

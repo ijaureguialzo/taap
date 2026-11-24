@@ -11,13 +11,16 @@
         </div>
         @if ($canManage)
             <div class="d-flex gap-2">
-                @if ($agent->status->isRunning())
+                {{-- 4.2: los botones gobiernan con el estado EN VIVO
+                     ($status, del canal); el modelo en memoria queda
+                     desfasado hasta la próxima recarga. --}}
+                @if ($status->isRunning())
                     <button class="btn btn-outline-warning btn-sm" wire:click="lifecycle('stop')"><x-icon name="stop-circle" class="me-1" />{{ __('agents.stop') }}</button>
                 @else
                     <button class="btn btn-success btn-sm" wire:click="lifecycle('start')"><x-icon name="play-fill" class="me-1" />{{ __('agents.start') }}</button>
                 @endif
                 <button class="btn btn-outline-secondary btn-sm" wire:click="lifecycle('restart')"
-                        @disabled(! $agent->container_name)><x-icon name="arrow-repeat" class="me-1" />{{ __('agents.restart') }}</button>
+                        @disabled(! $agent->container_name || $status === \App\Enums\AgentStatus::Starting)><x-icon name="arrow-repeat" class="me-1" />{{ __('agents.restart') }}</button>
             </div>
         @endif
     </div>
@@ -198,7 +201,7 @@
             // livewire.js): si las dependencias aun no existen, reintenta
             // (el flag a nivel window indica exito, no solo "se intento").
             const ready = () =>
-                window.TaapEcho && window.TaapPusher && window.Livewire;
+                window.TaapAgents && window.Livewire;
             const currentRoot = () =>
                 document.querySelector('.agent-detail[data-agent-id="' + agentId + '"]') || root;
             // Resuelve la INSTANCIA actual en cada evento. (En Livewire 4
@@ -216,21 +219,19 @@
                 // Se marca ANTES del trabajo: si algo lanza, el retry sigue.
                 window[FLAG] = true;
                 try {
-                    const labels = {};
-                    currentRoot().querySelectorAll('[data-status-label]').forEach(n => {
-                        labels[n.dataset.statusValue] = n.textContent;
+                    // 4.1: suscripción al canal público vía helper
+                    // compartido (re-suscripción 30 s + connected): el
+                    // status.update pinta el badge con el mapa completo
+                    // (icono+clase+etiqueta) y el resto va al componente.
+                    window.TaapAgents.subscribeAgent(agentId, (payload) => {
+                        const wire = currentWire();
+                        if (wire) wire.agentEvent(payload);
+                        if (payload.type === 'status.change') {
+                            const s = payload.payload?.status;
+                            const badge = currentRoot().querySelector('.live-status[data-status-map]');
+                            if (s && badge) window.TaapAgents.applyStatus(badge, s);
+                        }
                     });
-                    window.TaapEcho
-                        .channel('agent.' + agentId)
-                        .listen('agent-event', (payload) => {
-                            const wire = currentWire();
-                            if (wire) wire.agentEvent(payload);
-                            if (payload.type === 'status.change') {
-                                const s = payload.payload?.status;
-                                const badge = currentRoot().querySelector('[data-status-label]');
-                                if (s && labels[s] && badge) badge.textContent = labels[s];
-                            }
-                        });
                 } catch (e) {
                     window[FLAG] = false; // permitir retry
                     console.warn('taap: detail setup', e);

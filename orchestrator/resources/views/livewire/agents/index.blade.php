@@ -68,31 +68,28 @@
     @endif
 
     <script>
-        // Estado en vivo: un canal `agent.{id}` por agente visible. Al recibir
-        // status.change, se actualiza la insignia sin refrescar la pagina.
+        // Estado en vivo (4.1): un canal público `agent.{id}` por agente
+        // visible, vía el helper compartido (re-suscripción 30 s +
+        // connected). Antes usaba `Echo.private` (el canal difunde sin
+        // auth: con private la web no resolvía el authentication endpoint
+        // y los badges quedaban congelados) y sin re-suscripción.
         (() => {
             const root = document.querySelector('.agents-index');
-            if (!root || !window.TaapEcho || !window.TaapPusher) return;
+            if (!root || !window.TaapAgents) return;
             const wire = Livewire.find(root.id);
             if (!wire) return;
 
-            const labels = {};
-            // la pagina inyecta las etiquetas localizadas
-            root.querySelectorAll('[data-status-label]').forEach(n => {
-                labels[n.dataset.statusValue] = n.textContent;
-            });
-
             root.querySelectorAll('[data-agent-id]').forEach(el => {
                 const id = el.dataset.agentId;
-                const channel = window.TaapEcho.private(`agent.${id}`);
-                channel.listen('agent-event', (payload) => {
+                window.TaapAgents.subscribeAgent(id, (payload) => {
+                    if (payload.type !== 'status.change') return;
+                    const s = payload.payload?.status;
+                    if (!s) return;
                     wire.receiveAgentEvent(payload);
-                    if (payload.type === 'status.change') {
-                        const s = payload.payload?.status;
-                        if (s && labels[s]) {
-                            el.textContent = labels[s];
-                        }
-                    }
+                    // El badge de la fila (el nodo puede haber sido
+                    // sustituido por un morph: se resuelve de nuevo).
+                    const badge = (el.closest('tr') || el).querySelector('.live-status[data-status-map]');
+                    if (badge) window.TaapAgents.applyStatus(badge, s);
                 });
             });
         })();

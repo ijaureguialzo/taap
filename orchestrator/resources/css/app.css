@@ -589,3 +589,204 @@ body {
 [data-bs-theme="dark"] .bubble-agent .small {
     color: var(--taap-slate-300); /* 7.8:1 sobre slate-800 (AA) */
 }
+
+/* ===================================================================
+ * Chat interactivo (change interactive-agent-chat, §3/§5):
+ * secciones colapsables, streaming local, feed de actividad, Markdown
+ * y marcas de tiempo sin parpadeo. Los colores vienen de los tokens.
+ * =================================================================== */
+
+/* 5.2: el ISO (fallback sin JS) queda OCULTO mientras hay JS: el script
+   lo formatea a zona local y añade .is-ready antes de mostrarlo. Sin JS
+   (html sin clase `js`) el ISO es el fallback visible. */
+html.js time.chat-time:not(.is-ready),
+html.js time.tl-time:not(.is-ready) {
+    visibility: hidden;
+}
+
+/* 3.3: secciones colapsables del mensaje asientado (Razonamiento /
+   Actividad). Colapsadas por defecto (el <details> sin `open`). */
+.msg-reasoning summary,
+.msg-activity summary {
+    cursor: pointer;
+    list-style: none;
+    user-select: none;
+    font-size: 0.8125rem;
+    color: var(--taap-slate-600);
+    padding: 0.125rem 0;
+}
+
+.msg-reasoning summary::-webkit-details-marker,
+.msg-activity summary::-webkit-details-marker {
+    display: none;
+}
+
+.msg-reasoning summary:hover,
+.msg-activity summary:hover {
+    color: var(--taap-slate-800);
+}
+
+[data-bs-theme="dark"] .msg-reasoning summary,
+[data-bs-theme="dark"] .msg-activity summary {
+    color: var(--taap-slate-300);
+}
+
+/* El razonamiento se mantiene como TEXTO PLANO (spec: markdown solo para
+   el contenido) y atenuado: es un proceso, no la respuesta. */
+.reasoning-text {
+    white-space: pre-wrap;
+    word-break: break-word;
+    font-size: 0.8125rem;
+    color: var(--taap-slate-500);
+    border-left: 2px solid var(--taap-slate-300);
+    padding: 0.25rem 0.5rem;
+    margin-top: 0.25rem;
+    max-height: 16rem;
+    overflow-y: auto;
+}
+
+[data-bs-theme="dark"] .reasoning-text {
+    color: var(--taap-slate-400);
+    border-left-color: var(--taap-slate-600);
+}
+
+.activity-lines {
+    margin-top: 0.25rem;
+    font-size: 0.8125rem;
+}
+
+.activity-line {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    padding: 0.0625rem 0;
+}
+
+.activity-line time.chat-time {
+    white-space: normal;
+}
+
+/* 3.1: contenedores del streaming local (wire:ignore). El razonamiento
+   en vivo tiene la misma atenuacion que el asientado; el texto, el color
+   de cuerpo de la burbuja. */
+.stream-thinking {
+    white-space: pre-wrap;
+    word-break: break-word;
+    font-size: 0.8125rem;
+    color: var(--taap-slate-500);
+    border-left: 2px solid var(--taap-slate-300);
+    padding: 0.25rem 0.5rem;
+    margin-bottom: 0.375rem;
+    max-height: 12rem;
+    overflow-y: auto;
+}
+
+[data-bs-theme="dark"] .stream-thinking {
+    color: var(--taap-slate-400);
+    border-left-color: var(--taap-slate-600);
+}
+
+.stream-activity {
+    margin-top: 0.375rem;
+    font-size: 0.8125rem;
+}
+
+.stream-state-label {
+    color: var(--taap-ink);
+}
+
+[data-bs-theme="dark"] .stream-state-label {
+    color: var(--taap-ink-dark);
+}
+
+/* 5.3: Markdown en burbujas. `pre-wrap` se conserva (el texto plano queda
+   identico a antes: saltos y sangrias respetados); el HTML generado
+   (listas, tablas, bloques) se apoya en el CSS aqui. */
+.message-content.md-ready {
+    white-space: pre-wrap;
+}
+
+.message-content.md-ready > :first-child { margin-top: 0; }
+.message-content.md-ready > :last-child { margin-bottom: 0; }
+
+.message-content.md-ready p {
+    margin: 0 0 0.5rem;
+}
+
+.message-content.md-ready pre {
+    background: var(--taap-slate-900);
+    color: var(--taap-slate-100);
+    border-radius: 0.5rem;
+    padding: 0.625rem 0.75rem;
+    overflow-x: auto;
+    margin: 0.5rem 0;
+    white-space: pre;
+    font-size: 0.8125rem;
+}
+
+[data-bs-theme="dark"] .message-content.md-ready pre {
+    background: var(--taap-slate-950);
+    border: 1px solid var(--taap-slate-700);
+}
+
+.message-content.md-ready code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.875em;
+}
+
+.message-content.md-ready :not(pre) > code {
+    background: var(--taap-slate-200);
+    border-radius: 0.25rem;
+    padding: 0.1rem 0.25rem;
+}
+
+[data-bs-theme="dark"] .message-content.md-ready :not(pre) > code {
+    background: var(--taap-slate-800);
+}
+
+.message-content.md-ready a {
+    color: var(--taap-ink);
+    overflow-wrap: anywhere;
+}
+
+[data-bs-theme="dark"] .message-content.md-ready a {
+    color: var(--taap-ink-dark);
+}
+
+.message-content.md-ready table {
+    border-collapse: collapse;
+    margin: 0.5rem 0;
+    display: block;
+    overflow-x: auto;
+    max-width: 100%;
+    font-size: 0.8125rem;
+}
+
+.message-content.md-ready th,
+.message-content.md-ready td {
+    border: 1px solid var(--taap-slate-300);
+    padding: 0.25rem 0.5rem;
+}
+
+[data-bs-theme="dark"] .message-content.md-ready th,
+[data-bs-theme="dark"] .message-content.md-ready td {
+    border-color: var(--taap-slate-600);
+}
+
+.message-content.md-ready blockquote {
+    border-left: 3px solid var(--taap-slate-300);
+    margin: 0.5rem 0;
+    padding-left: 0.625rem;
+    color: var(--taap-slate-500);
+}
+
+[data-bs-theme="dark"] .message-content.md-ready blockquote {
+    border-left-color: var(--taap-slate-600);
+    color: var(--taap-slate-400);
+}
+
+.message-content.md-ready ul,
+.message-content.md-ready ol {
+    padding-left: 1.25rem;
+    margin: 0.25rem 0 0.5rem;
+}

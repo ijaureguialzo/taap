@@ -8,6 +8,8 @@ return [
     'you' => 'Zu',
     'agent' => 'Agentea',
     'streaming' => 'idazten…',
+    'reasoning' => 'Azterketa',
+    'activity' => 'Jarduerak',
     'thinking' => 'pentsatzen…',
     'offline' => 'Agentea deskonekatuta dago. Abiarazi kontsultatzeko.',
     'will_start' => 'Agentea geldituta dago: mezu bat bidalita abiaraziko da.',

@@ -3,6 +3,8 @@ import '../../node_modules/bootstrap/dist/js/bootstrap.bundle.min.js';
 import Alpine from 'alpinejs';
 import Echo from 'laravel-echo';
 import Pusher from 'pusher-js';
+import { marked } from 'marked';
+import DOMPurify from 'dompurify';
 
 // livewire.js (classic <script> en el body; se ejecuta ANTES de este modulo)
 // instala su propio Alpine (con plugins navigate/history) en window.Alpine.
@@ -163,6 +165,121 @@ window.addEventListener('livewire:navigated', () => {
     initThemeSwitcher();
     reinitBootstrapToggles();
 });
+
+// =====================================================================
+// TaapAgents: utilidades compartidas de agentes (interactive-agent-chat
+// §4.1/§5.3). Las blades las usan desde el <head> (app.js se carga con
+// vite ANTES que los scripts inline de los componentes; los retry de los
+// setup inline cubren el caso de carga diferida).
+// =====================================================================
+
+// ── 4.1: suscripción al canal público `agent.{id}` ─────────────────────
+// Mismo patrón para index, detalle y chat: suscripción con RE-SUSCRIPCIÓN
+// robusta. pusher-js NO garantiza re-suscribir un canal que ya está en
+// `subscribed === true` (cambio de transporte o reinicio de Reverb): el
+// servidor pierde la suscripción y el canal muere en silencio (el socket
+// sigue vivo y recibiendo pongs, pero nunca vuelve a recibir eventos).
+//   - `connected`  -> re-suscribir en el socket nuevo.
+//   - watchdog 30s -> red para zombis de TCP half-open que el cliente no
+//     detecta (re-suscribir es barato e idempotente).
+function subscribeAgent(agentId, handler) {
+    let stopped = false;
+    let timer = null;
+    const ensure = () => {
+        if (stopped || !window.TaapEcho) return;
+        // .channel() (público): el canal `agent.{id}` difunde sin auth
+        // (el emisor es el orquestador y el contenido es de todos los
+        // clientes autorizados; con Echo.private la web no resolvía el
+        // auth y los eventos nunca llegaban).
+        const channel = window.TaapEcho.channel('agent.' + agentId);
+        channel.off('agent-event');
+        channel.listen('agent-event', (payload) => {
+            if (!stopped) handler(payload);
+        });
+        if (window.TaapPusher) {
+            const pusherChannel = window.TaapPusher.channel('agent.' + agentId);
+            pusherChannel.subscribed = false;
+            pusherChannel.subscribe();
+        }
+    };
+    ensure();
+    if (window.TaapPusher) {
+        window.TaapPusher.connection.bind('taap-resub-' + agentId, ensure);
+        window.TaapPusher.connection.bind('connected', () => {
+            window.TaapPusher.connection.emit('taap-resub-' + agentId);
+        });
+    }
+    timer = setInterval(ensure, 30_000);
+    return {
+        stop() {
+            stopped = true;
+            if (timer) clearInterval(timer);
+        },
+    };
+}
+
+// ── 5.3: Markdown sanitizado en burbujas ───────────────────────────────
+// marked (GFM: listas, tablas, énfasis) + DOMPurify (sin script ni
+// atributos de evento; enlaces con rel/target). El resultado se mantiene
+// con white-space: pre-wrap (los .md conservan la semantica del texto
+// plano de antes: saltos/sangrías respetados) y los bloques de código
+// llevan su propio `pre`.
+const taapMarked = marked.marked;
+taapMarked.setOptions({ gfm: true, breaks: true });
+DOMPurify.addHook('afterSanitizeAttributes', (node) => {
+    if (node.tagName === 'A') {
+        node.setAttribute('rel', 'noopener noreferrer');
+        node.setAttribute('target', '_blank');
+    }
+});
+function renderMarkdownInto(el) {
+    // Idempotente: el texto fuente viaja en data-raw (el morph repinta el
+    // nodo con el texto del servidor y se re-renderiza una sola vez).
+    const raw = el.hasAttribute('data-raw')
+        ? el.getAttribute('data-raw')
+        : (el.textContent || '');
+    if (el.hasAttribute('data-raw') && el.classList.contains('md-ready')
+        && el.getAttribute('data-raw') === raw) {
+        return; // sin cambio desde el ultimo render
+    }
+    el.setAttribute('data-raw', raw);
+    if (raw.trim() === '') {
+        el.classList.add('md-ready');
+        return;
+    }
+    const html = DOMPurify.sanitize(taapMarked.parse(raw), {
+        FORBID_TAGS: ['script', 'style', 'iframe', 'object', 'embed'],
+    });
+    el.innerHTML = html;
+    el.classList.add('md-ready');
+}
+
+window.TaapAgents = {
+    subscribeAgent,
+    // 4.1: aplica un status al badge usando el mapa server-renderizado
+    // (data-status-map): icono + clase + etiqueta en vivo, sin round-trip.
+    applyStatus(badge, status) {
+        if (!badge || !badge.getAttribute) return;
+        const map = JSON.parse(badge.getAttribute('data-status-map') || '{}');
+        const info = map[status];
+        if (!info) return;
+        badge.className = 'badge status-' + status + ' live-status';
+        const icon = badge.querySelector('[data-status-icon]');
+        if (icon) icon.className = 'bi bi-' + info.icon + ' me-1';
+        const label = badge.querySelector('[data-status-label]');
+        if (label) {
+            label.textContent = info.label;
+            label.dataset.statusValue = status;
+        }
+        badge.dataset.statusValue = status;
+    },
+    markdown: {
+        // Renderiza el nodo (histórico o streaming); el throttle del
+        // streaming lo hace el dueño del buffer (los deltas llegan a
+        // ráfaga y marked+purify no deben correr por cada token).
+        render: renderMarkdownInto,
+    },
+};
 document.addEventListener('alpine:init', () => {
     TaapAlpine.data('taap', {
         reverbReady: false,

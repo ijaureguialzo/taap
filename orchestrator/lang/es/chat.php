@@ -8,6 +8,8 @@ return [
     'you' => 'Tú',
     'agent' => 'Agente',
     'streaming' => 'escribiendo…',
+    'reasoning' => 'Razonamiento',
+    'activity' => 'Actividad',
     'thinking' => 'pensando…',
     'offline' => 'El agente está desconectado. Arráncalo para conversar.',
     'will_start' => 'El agente está detenido: al enviar un mensaje se arrancará.',
