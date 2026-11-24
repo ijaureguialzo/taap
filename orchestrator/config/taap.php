@@ -181,6 +181,27 @@ return [
         ],
     ],
 
+    /*
+    | FS compartido (shared-filesystem, design D9): un unico arbol fisico
+    | cuya raiz se define en el despliegue (`TAAP_FS_ROOT`), montado por
+    | bind en el orquestador, la cola y cada contenedor de agente (arena
+    | :ro + binds por path — spike 1.1).
+    */
+    'fs' => [
+        /* Vía del proceso (dentro del contenedor del orquestador/cola): el
+           deploy lo monta en /data/fs (deploy/compose.yaml). */
+        'fs_base' => env('TAAP_FS_BASE', '/data/fs'),
+        /* Vía del daemon Docker (host): source de los binds de agente y de
+           la precreación del esqueleto de la arena. En el deploy es
+           `TAAP_FS_ROOT` (mismo bind que fs_base). */
+        'fs_host_base' => env('TAAP_FS_HOST_BASE', env('TAAP_FS_ROOT', '/var/lib/taap/fs')),
+
+        /* Topes (design Risks): upload y .zip con 413 descriptivo. */
+        'upload_max_size' => (int) env('TAAP_FS_UPLOAD_MAX_SIZE', 100 * 1024 * 1024),
+        'zip_max_size' => (int) env('TAAP_FS_ZIP_MAX_SIZE', 256 * 1024 * 1024),
+        'zip_max_files' => (int) env('TAAP_FS_ZIP_MAX_FILES', 10000),
+    ],
+
     /* Model Proxy: los agentes llaman al orquestador con su token de agente;
        las claves reales de proveedor solo viven en el orquestador. */
     'proxy' => [

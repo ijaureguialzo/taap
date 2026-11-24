@@ -91,6 +91,10 @@ services:
       - ${TAAP_SQUID_DIR:-/var/lib/taap/squid}:/etc/squid/taap
       # Areas persistentes de agentes (data/workspace/config por agente).
       - ${TAAP_AGENT_DATA_DIR:-/var/lib/taap/agents}:/data/agents
+      # FS compartido (shared-filesystem, design D9): raiz fisica en el
+      # host, montada en /data/fs. Cambiar TAAP_FS_ROOT requiere recreate
+      # (orquestador + cola + agentes).
+      - ${TAAP_FS_ROOT:-/var/lib/taap/fs}:/data/fs
     depends_on:
       postgres:
         condition: service_healthy
@@ -147,6 +151,8 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       - ${TAAP_SQUID_DIR:-/var/lib/taap/squid}:/etc/squid/taap
       - ${TAAP_AGENT_DATA_DIR:-/var/lib/taap/agents}:/data/agents
+      # FS compartido (design D9): mismo bind que el orquestador (rw).
+      - ${TAAP_FS_ROOT:-/var/lib/taap/fs}:/data/fs
     depends_on:
       postgres:
         condition: service_healthy
