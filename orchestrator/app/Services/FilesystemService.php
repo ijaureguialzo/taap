@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\UserRole;
 use App\Models\User;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\File;
@@ -280,6 +281,8 @@ class FilesystemService
             return $dirDiff !== 0 ? $dirDiff : strcasecmp($a['name'], $b['name']);
         });
 
+        $this->annotateOwners($user, $dir, $entries);
+
         return [
             'path' => $this->virtualPath($user, $path),
             'entries' => $entries,
@@ -323,6 +326,8 @@ class FilesystemService
             throw new FileSystemException(404, 'La entrada no existe');
         }
 
+        $this->assertRenameAllowed($user, $source);
+
         $newName = $this->assertSingleName($newName);
         $parent = dirname($source);
         $target = $parent.'/'.$newName;
@@ -345,7 +350,7 @@ class FilesystemService
      *
      * @throws FileSystemException 404 no existe; 409 es la raiz
      */
-    public function delete(User $user, string $path): void
+    public function delete(User $user, string $path, bool $confirm = false): void
     {
         $target = $this->resolve($user, $path, follow: false);
         if (! file_exists($target) && ! is_link($target)) {
@@ -353,6 +358,12 @@ class FilesystemService
         }
         if ($target === $this->baseFor($user)) {
             throw new FileSystemException(409, 'No se puede borrar la raiz del area');
+        }
+
+        // 3.4: borrar la home de un usuario (vista de admin) exige confirmacion
+        // explicita; sin ella, 409.
+        if (! $confirm && $this->userHomeOf($user, $target) !== null) {
+            throw new FileSystemException(409, 'Borrar un directorio de usuario requiere confirmacion explicita');
         }
 
         $this->deleteRecursive($target);
@@ -586,6 +597,59 @@ class FilesystemService
             $zip->addFile($fileReal, $entry);
             $size += filesize($full) ?: 0;
             $count++;
+        }
+    }
+
+    /* ================= proteccion de homes de usuario (3.4) ================= */
+
+    /**
+     * Si $viewer es admin y $dir es la home de un usuario (directo de la raiz
+     * fisica, nombre = fs_slug de un usuario existente), devuelve ese usuario;
+     * en caso contrario, null.
+     */
+    protected function userHomeOf(User $viewer, string $dir): ?User
+    {
+        if ($viewer->role !== UserRole::Admin) {
+            return null;
+        }
+
+        if (dirname($dir) !== $this->baseFor($viewer)) {
+            return null; // solo las homes directas de la raiz fisica
+        }
+
+        return User::where('fs_slug', basename($dir))->first();
+    }
+
+    /**
+     * 3.4: los directorios de usuario no se renombran (el nombre esta ligado
+     * al fs_slug que usa el resto del sistema: rutas virtuales, mounts).
+     *
+     * @throws FileSystemException 422
+     */
+    protected function assertRenameAllowed(User $user, string $source): void
+    {
+        if ($this->userHomeOf($user, $source) !== null) {
+            throw new FileSystemException(422, 'Los directorios de usuario no se pueden renombrar');
+        }
+    }
+
+    /**
+     * 3.4 (badge): en la vista de admin, las entradas que son homes de
+     * usuario llevan `owner` con el nombre del propietario (la UI lo muestra
+     * como insignia); el resto llevan `owner: null`.
+     *
+     * @param  list<array{name: string, type: string, size: int, mtime: string}>  $entries
+     */
+    protected function annotateOwners(User $user, string $dir, array &$entries): void
+    {
+        if ($user->role !== UserRole::Admin || $dir !== $this->baseFor($user)) {
+            return;
+        }
+
+        foreach ($entries as &$entry) {
+            $entry['owner'] = ($entry['type'] === 'dir')
+                ? $this->userHomeOf($user, $dir.'/'.$entry['name'])?->name
+                : null;
         }
     }
 
