@@ -271,6 +271,109 @@ class DockerClient
     }
 
     /**
+     * Cola durable de turnos en el área IPC (fichero `turns`): el medio
+     * cross-proceso del bridge (fix-bridge-cross-process-seams D1). Los
+     * procesos NO comparten memoria (el worker de cola y el daemon bridge
+     * son distintos), pero comparten el área IPC por ficheros: el worker
+     * AÑADE lineas (un turno pendiente de Codex o un run_id de OpenCode) y
+     * el bridge, único consumidor, las LEE Y TRUNCA. `in` no sirve: su
+     * coproceso writer la consume línea a línea como JSON-RPC y un
+     * marcador se entregaría tal cual al runtime.
+     *
+     * Formato de línea: JSON del adapter (p. ej.
+     * `{"kind":"turn","content":"…"}` de Codex o `{"kind":"run","run_id":"…"}`
+     * de OpenCode); una línea que no decodee se descarta al consumirla.
+     * Ambas operaciones bajo LOCK_EX: la append es un write corto atómico y
+     * el consume (lectura + reescritura/truncado) no intercala con ella.
+     */
+    public function turnsAppend(int $agentId, string $line): void
+    {
+        $file = $this->turnsFile($agentId);
+        if (@file_put_contents($file, $line."\n", FILE_APPEND | LOCK_EX) === false) {
+            throw new DockerException("No se pudo escribir en la cola de turnos de {$agentId}");
+        }
+    }
+
+    /**
+     * Toma la línea más antigua de la cola (o `null` si está vacía), dejando
+     * el resto en el fichero (FIFO: cada turno consume la suya). Lectura +
+     * reescritura en UN SOLO HOLD de lock: una append concurrente no se
+     * interpone entre la lectura y el truncado.
+     */
+    public function turnsNext(int $agentId): ?string
+    {
+        $consumed = $this->turnsConsume($agentId, all: false);
+
+        return $consumed[0] ?? null;
+    }
+
+    /**
+     * Toma TODAS las lineas de la cola (y la trunca): el consumidor que
+     * emite la cola entera (el bridge con el hilo Codex ya establecido).
+     *
+     * @return list<string>
+     */
+    public function turnsTake(int $agentId): array
+    {
+        return $this->turnsConsume($agentId, all: true);
+    }
+
+    /** Ruta de la cola (`$area/turns`). */
+    public function turnsFile(int $agentId): string
+    {
+        return $this->rpcDir($agentId).'/turns';
+    }
+
+    /**
+     * Consume atomico bajo LOCK_EX: lee las lineas validas, trunca el
+     * fichero y lo reescribe con lo no consumido. `all`: consume la cola
+     * entera; si no, solo la primera (FIFO).
+     *
+     * @return list<string> las lineas consumidas, en orden
+     */
+    protected function turnsConsume(int $agentId, bool $all = true): array
+    {
+        $file = $this->turnsFile($agentId);
+        $handle = @fopen($file, 'c+');
+        if ($handle === false) {
+            $handle = @fopen($file, 'w+');
+        }
+        if ($handle === false) {
+            return [];
+        }
+        flock($handle, LOCK_EX);
+        $raw = (string) stream_get_contents($handle);
+
+        $lines = [];
+        foreach (preg_split('/\R/', $raw) ?: [] as $line) {
+            $line = trim($line);
+            if ($line === '') {
+                continue;
+            }
+            // Linea corta y con apariencia de JSON: el `kind` lo valida el
+            // consumidor (cada adapter conoce el suyo). > 4 KB = append a
+            // medias o corrupta: se descarta (el contenido se recupera por
+            // el stream o el job reintenta; ver design.md Risks).
+            if (strlen($line) > 4096 || $line[0] !== '{') {
+                continue;
+            }
+            $lines[] = $line;
+        }
+
+        $consumed = $all ? $lines : array_slice($lines, 0, 1);
+        $rest = $all ? [] : array_slice($lines, 1);
+
+        ftruncate($handle, 0);
+        fseek($handle, 0); // el cursor quedo al final del contenido antiguo
+        fwrite($handle, implode("\n", $rest).($rest !== [] ? "\n" : ''));
+        fflush($handle);
+        flock($handle, LOCK_UN);
+        fclose($handle);
+
+        return $consumed;
+    }
+
+    /**
      * Lector persistente: `docker logs -f --tail 0` (solo salida nueva)
      * volcada a un archivo; PHP lo sondea. logs -f no toca el stdin del
      * contenedor: si el lector muere, el agente no se cae.
