@@ -3,6 +3,7 @@
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\RegisterController;
 use App\Livewire\Agents;
+use App\Livewire\Files;
 use App\Livewire\Mcp;
 use App\Livewire\Models;
 use App\Livewire\Providers;
@@ -33,6 +34,8 @@ Route::middleware(['auth'])->group(function () {
     Route::get('models', Models\Index::class)->name('models.index');
     Route::get('providers', Providers\Index::class)->name('providers.index');
     Route::get('mcp', Mcp\Index::class)->name('mcp.index');
+
+    Route::get('files', Files\Index::class)->name('files.index');
 
     Route::get('users', Users\Index::class)
         ->middleware('role:admin')->name('users.index');

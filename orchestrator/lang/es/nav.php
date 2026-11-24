@@ -5,6 +5,7 @@ return [
     'models' => 'Modelos',
     'providers' => 'Proveedores',
     'mcp' => 'MCP',
+    'files' => 'Archivos',
     'users' => 'Usuarios',
     'logout' => 'Cerrar sesión',
     'theme' => 'Tema',

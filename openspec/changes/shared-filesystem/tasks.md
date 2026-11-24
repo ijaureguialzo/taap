@@ -25,7 +25,7 @@
 
 ## 5. Web: sección "Archivos"
 
-- [ ] 5.1 Componente Livewire `Files` + route `/files` + entrada en la navbar + strings localizados (es/en/eu) + visualización de `TAAP_FS_ROOT` en solo lectura para admin. Verificación: tests Livewire: el menú y la página renderizan; usuario ve su home como `/`; admin ve el árbol completo con la ubicación física.
+- [x] 5.1 Componente Livewire `Files` + route `/files` + entrada en la navbar + strings localizados (es/en/eu) + visualización de `TAAP_FS_ROOT` en solo lectura para admin. Verificación: tests Livewire: el menú y la página renderizan; usuario ve su home como `/`; admin ve el árbol completo con la ubicación física.
 - [ ] 5.2 UI del explorador sobre `FilesystemService`: navegación con breadcrumbs, listado, acciones de crear carpeta/subir (con progreso)/renombrar/borrar (confirmación recursiva)/descargar (fichero o .zip) y badge de "dir de usuario" en la vista de admin. Verificación: tests Livewire de cada acción incluyendo flujos de confirmación y de error, y smoke manual con `agent-browser` (crear carpeta, subir, renombrar, borrar, descargar .zip) con captura como fixture.
 
 ## 6. Agente: montajes y permisos de runtime

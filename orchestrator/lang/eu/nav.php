@@ -5,6 +5,7 @@ return [
     'models' => 'Modeloak',
     'providers' => 'Eskaintzaileak',
     'mcp' => 'MCP',
+    'files' => 'Fitxak',
     'users' => 'Erabiltzaileak',
     'logout' => 'Saioa itxi',
     'theme' => 'Gaia',

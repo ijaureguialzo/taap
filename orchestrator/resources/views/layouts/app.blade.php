@@ -63,6 +63,7 @@
                     <li class="nav-item"><a class="nav-link" href="{{ route('models.index') }}"><x-icon name="box-seam" class="me-1" />{{ __('nav.models') }}</a></li>
                     <li class="nav-item"><a class="nav-link" href="{{ route('providers.index') }}"><x-icon name="cloud-arrow-down" class="me-1" />{{ __('nav.providers') }}</a></li>
                     <li class="nav-item"><a class="nav-link" href="{{ route('mcp.index') }}"><x-icon name="plug" class="me-1" />{{ __('nav.mcp') }}</a></li>
+                    <li class="nav-item"><a class="nav-link" href="{{ route('files.index') }}"><x-icon name="folder2" class="me-1" />{{ __('nav.files') }}</a></li>
                     @if (auth()->user()->isAdmin())
                         <li class="nav-item"><a class="nav-link" href="{{ route('users.index') }}"><x-icon name="people" class="me-1" />{{ __('nav.users') }}</a></li>
                     @endif
