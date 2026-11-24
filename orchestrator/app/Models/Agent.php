@@ -92,6 +92,16 @@ class Agent extends Model
     }
 
     /**
+     * Carpetas del FS compartido conectadas (shared-filesystem, design D4).
+     *
+     * @return HasMany<AgentFsMount, $this>
+     */
+    public function fsMounts(): HasMany
+    {
+        return $this->hasMany(AgentFsMount::class);
+    }
+
+    /**
      * @return HasMany<AgentEvent, $this>
      */
     public function events(): HasMany
