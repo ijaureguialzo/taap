@@ -1,0 +1,9 @@
+{
+    "image": "taap/pi:local",
+    "readonly": true,
+    "volumes": {
+        "/fs": "<tmp>/arena:ro",
+        "/fs/ana/proyectos": "<tmp>/fs/ana/proyectos",
+        "/fs/carlos/datos": "<tmp>/fs/carlos/datos:ro"
+    }
+}
