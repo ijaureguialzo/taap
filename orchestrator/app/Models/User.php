@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Str;
 use Laravel\Sanctum\HasApiTokens;
 
@@ -115,6 +116,25 @@ class User extends Authenticatable
     public function fsHomePath(): ?string
     {
         return filled($this->fs_slug) ? '/'.$this->fs_slug : null;
+    }
+
+    /**
+     * Asegura idempotente el directorio del usuario en el primer nivel de
+     * la raíz física: `<fs_base>/<fs_slug>` (design D4: primer uso +
+     * backfill). Devuelve el path (vía proceso). Sin slug: no hay nada
+     * que asegurar.
+     */
+    public function ensureFsDir(): ?string
+    {
+        if (! filled($this->fs_slug)) {
+            return null;
+        }
+
+        $base = rtrim((string) config('taap.fs.fs_base', '/data/fs'), '/');
+        $dir = $base.'/'.$this->fs_slug;
+        File::ensureDirectoryExists($dir);
+
+        return $dir;
     }
 
     public function isAdmin(): bool

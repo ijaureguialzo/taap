@@ -9,7 +9,7 @@
 - [x] 2.1 Migración `users.fs_slug` (unique, backfill con slug del nombre desambiguado `-N`) + accesores en el modelo `User`. Verificación: `migrate` up/down en base de prueba y test de backfill (usuarios existentes obtienen slug único estable).
 - [x] 2.2 Migración `agent_fs_mounts` (`agent_id` FK cascade, `path`, `mode` enum, única por agente+path) + modelo `AgentFsMount` + `Agent::fsMounts()`. Verificación: tests de modelo (unique, cascade al borrar agente, modos).
 - [x] 2.3 Config de deployment: `fs_base`/`fs_host_base` + topes de upload/zip en `config/taap.php`; bind `$TAAP_FS_ROOT:/data/fs` en orquestador y queue en `deploy/compose.yaml`; `TAAP_FS_ROOT` en `deploy/env.example`. Verificación: `docker compose config` válido y `smoke-e2e.sh` pasa con el nuevo env.
-- [ ] 2.4 Asegurado idempotente del directorio de usuario (slug → `<root>/<slug>`) + comando `taap:fs:ensure-user-dirs` para backfill. Verificación: ejecutar el comando sobre la base de prueba y verificar que existe el directorio de cada usuario en la raíz (incluido el de los administradores).
+- [x] 2.4 Asegurado idempotente del directorio de usuario (slug → `<root>/<slug>`) + comando `taap:fs:ensure-user-dirs` para backfill. Verificación: ejecutar el comando sobre la base de prueba y verificar que existe el directorio de cada usuario en la raíz (incluido el de los administradores).
 
 ## 3. FilesystemService (núcleo)
 
