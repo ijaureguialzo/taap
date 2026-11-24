@@ -7,6 +7,9 @@
 //  - user con "denegado"   -> tool bash "echo denegado"
 //  - user con "tardio"     -> tool bash "echo tardio"
 //  - user con "recordatorio"-> solo texto
+//  - user con "bateria"     -> texto que ecoa el prompt + retardo de 1,5s
+//                               (4.3: mantiene el turno en vuelo para que un
+//                               segundo prompt_async se cole en el servidor)
 //  - tool result presente   -> confirmacion
 import http from 'node:http';
 import fs from 'node:fs';
@@ -92,7 +95,7 @@ const server = http.createServer((req, res) => {
   }
   let body = '';
   req.on('data', (c) => (body += c));
-  req.on('end', () => {
+  req.on('end', async () => {
     let parsed = {};
     try { parsed = JSON.parse(body); } catch {}
     const ut = userText(parsed);
@@ -106,6 +109,13 @@ const server = http.createServer((req, res) => {
       'cache-control': 'no-cache',
     });
     if (!parsed.stream) {
+      if (ut.includes('bateria')) {
+        // 4.3: retardo para que el segundo prompt_async se cole en el
+        // servidor mientras el primer turno sigue en vuelo (batch real).
+        await new Promise((r) => setTimeout(r, 1500));
+        const message = { role: 'assistant', content: 'Respuesta a: ' + ut, finish_reason: 'stop' };
+        return res.end(JSON.stringify({ id: 'c_' + entry.n, object: 'chat.completion', model: parsed.model, choices: [{ index: 0, message, finish_reason: 'stop' }], usage: { prompt_tokens: 10, completion_tokens: 8, total_tokens: 18 } }));
+      }
       // El Model Proxy llama en modo no-stream y sintetiza el SSE: la
       // llamada a herramienta debe ir en message.tool_calls (el proxy la
       // copia al primer delta).
@@ -130,7 +140,13 @@ const server = http.createServer((req, res) => {
       delta.content = ut.includes('tardio') ? 'Voy a ejecutar el tardio.'
         : ut.includes('ping') ? 'Voy a ejecutar el ping.'
         : ut.includes('denegado') ? 'Voy a ejecutar el denegado.'
+        : ut.includes('bateria') ? 'Respuesta a: ' + ut
         : 'Aquí tienes el recordatorio: la integracion OpenCode funciona.';
+    }
+    if (ut.includes('bateria')) {
+      // 4.3: retardo para que el segundo prompt_async se cole en el
+      // servidor mientras el primer turno sigue en vuelo (batch real).
+      await new Promise((r) => setTimeout(r, 1500));
     }
     push({ index: 0, delta, finish_reason: null });
     if (ut.includes('ping')) {

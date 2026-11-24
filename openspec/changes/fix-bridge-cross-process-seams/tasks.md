@@ -21,9 +21,9 @@
 
 ## 4. Tests de integración contra la costura (D6)
 
-- [ ] 4.1 Test de integración Codex con dos instancias de adapter (una adjunta y drena, otra recién construida): el mensaje entregado por la segunda produce exactamente un `run.start`…`run.end` + `message.final` drenados por la primera, con el `run_id` dispatchado por la segunda, y el historial persistido
-- [ ] 4.2 Test de integración OpenCode con dos instancias: lo mismo que 4.1, y además verificación de que tras el envío solo existe un lector vivo (sin huérfanos del worker)
-- [ ] 4.3 Confirmar contra el binario opencode 1.19.6 la emisión de `busy→idle` con dos `prompt_async` en batería (Open Question del design): si es un par por turno, el FIFO de `run_id` de 3.2 es suficiente; si no, ajustar el consumo al par de eventos que el servidor emite
+- [x] 4.1 Test de integración Codex con dos instancias de adapter (una adjunta y drena, otra recién construida): el mensaje entregado por la segunda produce exactamente un `run.start`…`run.end` + `message.final` drenados por la primera, con el `run_id` dispatchado por la segunda, y el historial persistido
+- [x] 4.2 Test de integración OpenCode con dos instancias: lo mismo que 4.1, y además verificación de que tras el envío solo existe un lector vivo (sin huérfanos del worker)
+- [x] 4.3 Confirmar contra el binario opencode 1.19.6 la emisión de `busy→idle` con dos `prompt_async` en batería (Open Question del design): si es un par por turno, el FIFO de `run_id` de 3.2 es suficiente; si no, ajustar el consumo al par de eventos que el servidor emite
 
 ## 5. Verificación en el despliegue real
 
