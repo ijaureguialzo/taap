@@ -243,6 +243,10 @@ class AgentManager
             }
         }
 
+        // Las aprobaciones colgadas se quedan sin efecto (el contenedor
+        // ya no esta): se resuelven para que la web no remonte la tarjeta.
+        app(EventSink::class)->resolvePendingApprovals($agent, 'agent-stopped');
+
         $agent->status = AgentStatus::Stopped;
         $agent->save();
 

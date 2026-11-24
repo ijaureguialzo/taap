@@ -185,22 +185,32 @@ window.addEventListener('livewire:navigated', () => {
 function subscribeAgent(agentId, handler) {
     let stopped = false;
     let timer = null;
+    let listener = null;
     const ensure = () => {
-        if (stopped || !window.TaapEcho) return;
-        // .channel() (público): el canal `agent.{id}` difunde sin auth
-        // (el emisor es el orquestador y el contenido es de todos los
-        // clientes autorizados; con Echo.private la web no resolvía el
-        // auth y los eventos nunca llegaban).
-        const channel = window.TaapEcho.channel('agent.' + agentId);
-        channel.off('agent-event');
-        channel.listen('agent-event', (payload) => {
-            if (!stopped) handler(payload);
-        });
-        if (window.TaapPusher) {
-            const pusherChannel = window.TaapPusher.channel('agent.' + agentId);
-            pusherChannel.subscribed = false;
-            pusherChannel.subscribe();
+        if (stopped || !window.TaapPusher || !window.TaapEcho) return;
+        // `channel()` de pusher-js devuelve NULL si el canal no existe aún
+        // (hay que `subscribe()` para crearlo). El listener se une DIRECTO
+        // al canal pusher (el wrapper de Echo no expone `off`, y un unbind
+        // a ciegas borraria el listener de OTROS componentes de la pagina
+        // que comparten el mismo canal): se quita SOLO el nuestro.
+        let channel = window.TaapPusher.channel('agent.' + agentId);
+        if (!channel) {
+            channel = window.TaapPusher.subscribe('agent.' + agentId);
         }
+        if (listener) {
+            channel.unbind('agent-event', listener);
+        }
+        listener = (payload) => {
+            if (!stopped) handler(payload);
+        };
+        channel.bind('agent-event', listener);
+        // Re-suscripcion forzada: pusher-js NO garantiza re-suscribir un
+        // canal que ya esta en `subscribed === true` (canal zombi: TCP
+        // half-open que el cliente no detecta; el servidor pierde la
+        // suscripcion y el canal muere en silencio aunque el socket siga
+        // vivo recibiendo pongs). Es barata e idempotente.
+        channel.subscribed = false;
+        channel.subscribe();
     };
     ensure();
     if (window.TaapPusher) {
@@ -224,7 +234,10 @@ function subscribeAgent(agentId, handler) {
 // con white-space: pre-wrap (los .md conservan la semantica del texto
 // plano de antes: saltos/sangrías respetados) y los bloques de código
 // llevan su propio `pre`.
-const taapMarked = marked.marked;
+// El export nombrado `marked` de v18 YA es la instancia precargada
+// (usar `marked.marked` da undefined en el build ESM y mataba el modulo
+// en silencio: window.TaapAgents nunca existia).
+const taapMarked = marked;
 taapMarked.setOptions({ gfm: true, breaks: true });
 DOMPurify.addHook('afterSanitizeAttributes', (node) => {
     if (node.tagName === 'A') {

@@ -36,18 +36,29 @@ class EventSink
             $row->save();
         }
 
+        // Excepcion: un message.final REEMITIDO (pi lo reemite del
+        // historial al re-adjuntar) NO se difunde: el cliente ya lo
+        // procesó y un segundo message.final cerraria de nuevo el
+        // esqueleto / la tarjeta de aprobacion. Se comprueba ANTES de
+        // applySideEffects: una vez persistido, el final propio ya seria
+        // el "ultimo" y la comprobacion siempre daría duplicado.
+        $finalDuplicate = $event->type === 'message.final'
+            && $this->finalIsDuplicate($agent, $event->payload);
+
         $this->applySideEffects($agent, $row);
 
         // En cola: el broadcast no debe bloquear el bucle del bridge.
         // Los deltas SÍ se difunden por el canal (interactive-agent-chat D1/
         // D2): la web los aplica localmente sin round-trip por token; los
         // suscriptores por canal son pocos (dueño/admin).
-        Bus::dispatch(new BroadcastEvent(new AgentEventBroadcast(
-            $agent->id,
-            $event->type,
-            $event->payload,
-            $event->at->format('c'),
-        )));
+        if (! $finalDuplicate) {
+            Bus::dispatch(new BroadcastEvent(new AgentEventBroadcast(
+                $agent->id,
+                $event->type,
+                $event->payload,
+                $event->at->format('c'),
+            )));
+        }
     }
 
     protected function applySideEffects(Agent $agent, AgentEventRow $row): void
@@ -83,28 +94,23 @@ class EventSink
                     }
                 } elseif ($row->type === 'run.end') {
                     $this->setStatus($agent, AgentStatus::Idle);
+                    // Si el turno termina con aprobaciones colgadas (abort),
+                    // quedan sin efecto: la tarjeta de la web no debe
+                    // reaparecer con una aprobacion de un turno muerto.
+                    $this->resolvePendingApprovals($agent, 'run-ended');
                 }
                 break;
 
             case 'message.final':
-                // Anti-duplicidad: pi reemite message_end del historial al
-                // re-adjuntar/probar. Se deduplica por (run_id, contenido,
-                // razonamiento): si el ultimo final es identico, se omite.
-                $content = (string) ($payload['content'] ?? '');
-                $thinking = (string) ($payload['thinking'] ?? '');
-                $runId = $payload['run_id'] ?? null;
-                $last = ChatMessage::where('agent_id', $agent->id)
-                    ->where('author', 'agent')
-                    ->latest('id')
-                    ->first();
-                if (! ($last && $last->content === $content
-                    && ($last->meta['run_id'] ?? null) === $runId
-                    && ($last->meta['thinking'] ?? '') === $thinking)) {
+                if (! $this->finalIsDuplicate($agent, $payload)) {
                     ChatMessage::create([
                         'agent_id' => $agent->id,
                         'author' => 'agent',
-                        'content' => $content,
-                        'meta' => ['run_id' => $runId, 'thinking' => $thinking],
+                        'content' => (string) ($payload['content'] ?? ''),
+                        'meta' => [
+                            'run_id' => $payload['run_id'] ?? null,
+                            'thinking' => (string) ($payload['thinking'] ?? ''),
+                        ],
                     ]);
                     $agent->forceFill(['last_active_at' => $row->occurred_at])->save();
                 }
@@ -144,6 +150,45 @@ class EventSink
                 Log::warning('Agente '.$agent->id.': '.($payload['message'] ?? 'error sin detalle'));
                 break;
         }
+    }
+
+    /**
+     * Anti-duplicidad (pi reemite `message_end` del historial al
+     * re-adjuntar/probar): el ultimo final persistido con el mismo
+     * (run_id, contenido, razonamiento) se considera reemision.
+     *
+     * @param  array<string, mixed>  $payload
+     */
+    protected function finalIsDuplicate(Agent $agent, array $payload): bool
+    {
+        $last = ChatMessage::where('agent_id', $agent->id)
+            ->where('author', 'agent')
+            ->latest('id')
+            ->first();
+
+        return (bool) ($last && $last->content === (string) ($payload['content'] ?? '')
+            && ($last->meta['run_id'] ?? null) === ($payload['run_id'] ?? null)
+            && ($last->meta['thinking'] ?? '') === (string) ($payload['thinking'] ?? ''));
+    }
+
+    /**
+     * Marca como resueltas (superadas) las aprobaciones colgadas del
+     * agente: no tienen ya sentido (el turno ha terminado o el agente se
+     * ha detenido) y la web las re-montaria como tarjeta en cada carga.
+     */
+    public function resolvePendingApprovals(Agent $agent, string $reason): void
+    {
+        AgentEventRow::where('agent_id', $agent->id)
+            ->where('type', 'approval.request')
+            ->whereNot('payload->resolved', true)
+            ->get()
+            ->each(function (AgentEventRow $row) use ($reason): void {
+                $p = $row->payload ?? [];
+                $p['resolved'] = true;
+                $p['outcome'] = 'superseded';
+                $p['reason'] = $reason;
+                $row->forceFill(['payload' => $p])->save();
+            });
     }
 
     protected function setStatus(Agent $agent, AgentStatus $status): void

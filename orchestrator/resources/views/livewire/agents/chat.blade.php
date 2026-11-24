@@ -262,8 +262,8 @@
                     if (els.label.dataset.streamState !== state) {
                         els.label.dataset.streamState = state;
                         els.label.textContent = state === 'writing'
-                            ? {{ json_encode(__('chat.streaming')) }}
-                            : {{ json_encode(__('chat.thinking')) }};
+                            ? {!! json_encode(__('chat.streaming')) !!}
+                            : {!! json_encode(__('chat.thinking')) !!};
                     }
                 }
             };
@@ -388,7 +388,7 @@
                                     if (last && !data.ok) last.classList.add('text-danger');
                                 }
                             } else if (type === 'error') {
-                                pushActivityLine('error', {{ json_encode(__('chat.error')) }}, activityTruncate(data.message));
+                                pushActivityLine('error', {!! json_encode(__('chat.error')) !!}, activityTruncate(data.message));
                             }
                             // Todo lo que muta estado del componente
                             // (incluido run.start que abre/cierra el

@@ -37,6 +37,17 @@ abstract class StdioRpcAdapter implements AgentRuntimeAdapter
      */
     protected array $sessions = [];
 
+    /**
+     * run_ids en curso que sobreviven a un detach/attach (interactive-agent-chat
+     * 3.3): el (re)adjuntado del IPC no debe perder la correlacion del run en
+     * curso, o los eventos posteriores (incluido message.final) se
+     * persistirian con run_id=null y el mensaje no llevaria su seccion de
+     * Actividad/Razonamiento por run.
+     *
+     * @var array<int, string|null>
+     */
+    protected array $pendingRunIds = [];
+
     public function __construct(
         protected DockerClient $docker,
         protected EventSink $sink,
@@ -83,6 +94,11 @@ abstract class StdioRpcAdapter implements AgentRuntimeAdapter
 
         $dir = $this->docker->rpcDir($agent->id);
         $this->sessions[$agent->id] = $this->newSessionState($agent, $dir, 0);
+        // Correlacion del run en curso: sobrevive al (re)adjuntado (3.3).
+        if (($this->pendingRunIds[$agent->id] ?? null) !== null) {
+            $this->sessions[$agent->id]['run_id'] = $this->pendingRunIds[$agent->id];
+        }
+        unset($this->pendingRunIds[$agent->id]);
 
         // El lector es `docker logs -f --tail 0`: tras el (re)attach el `out`
         // solo debe contener lineas nuevas. Se trunca para que un re-attach
@@ -104,6 +120,9 @@ abstract class StdioRpcAdapter implements AgentRuntimeAdapter
     {
         $session = $this->sessions[$agent->id] ?? null;
         if ($session) {
+            if (($session['run_id'] ?? null) !== null) {
+                $this->pendingRunIds[$agent->id] = $session['run_id'];
+            }
             // Lo que lanzamos nosotros en este proceso...
             $session['reader']?->stop(3);
             $session['writer']?->stop(3);
@@ -275,10 +294,14 @@ abstract class StdioRpcAdapter implements AgentRuntimeAdapter
             $agentId = $agent->id;
             $containerName = $agent->container_name;
             $dir = $session['dir'];
+            $runId = $session['run_id'] ?? null;
             unset($this->sessions[$idx]);
             $this->detachForDir($dir, $containerName);
             if ($this->docker->status($containerName) === 'running') {
                 $fresh = $this->newSessionState($agent, $dir, (int) (@filesize("$dir/out") ?: 0));
+                if ($runId !== null) {
+                    $fresh['run_id'] = $runId;
+                }
                 $this->sessions[$agentId] = $fresh;
                 $session = &$this->sessions[$agentId];
                 $this->spawnCoprocesses($containerName, $session);

@@ -159,12 +159,11 @@ class Chat extends Component
                 // secciones Razonamiento/Actividad) se repinta.
                 $this->streaming = null;
                 $this->activity = null;
-                // Si el agente NO sigue esperando aprobacion, la tarjeta
-                // deja de serlo (p. ej. tras el timeout del bridge).
-                if (($this->liveStatus ?? null) !== 'waiting-approval') {
-                    $this->pendingApproval = null;
-                    $this->pendingApprovalInfo = null;
-                }
+                // El turno ha terminado: la tarjeta deja de serlo aunque
+                // el status.change(idle) llegue un milisegundo mas tarde
+                // (un turno no puede terminar con una aprobacion activa).
+                $this->pendingApproval = null;
+                $this->pendingApprovalInfo = null;
                 $this->refreshHistory();
                 break;
 
