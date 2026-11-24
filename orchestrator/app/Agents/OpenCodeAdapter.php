@@ -76,6 +76,7 @@ class OpenCodeAdapter extends StdioRpcAdapter
         $state['writer'] = null; // modo api-events: los comandos van por HTTP
 
         return $state + [
+            'agent_id' => $agent->id,
             'agent' => $agent,
             // id de sesión opencode (ses_*) persistido en el config del agente
             'session_id' => $agent->config['session_id'] ?? null,
@@ -369,8 +370,17 @@ class OpenCodeAdapter extends StdioRpcAdapter
 
     public function writeMessage(Agent $agent, string $content, ?int $userId = null): void
     {
-        if (! $this->ensureAttached($agent)) {
+        // SIN attach (fix-bridge-cross-process-seams D5): el worker no
+        // spawnea coprocesos ni trunca el stream (es el bridge quien
+        // drena): un attach aqui mataba al lector del bridge via el .pid
+        // compartido y re-adjuntaba en bucle. La viabilidad se comprueba
+        // ligera: contenedor vivo + area IPC (las llamadas HTTP no
+        // dependen del lector).
+        if ($this->docker->status($agent->container_name) !== 'running') {
             throw new \RuntimeException('El agente no está disponible ('.$agent->container_name.')');
+        }
+        if (! is_dir($this->docker->rpcDir($agent->id))) {
+            throw new \RuntimeException('No hay area RPC para el agente');
         }
 
         $runId = (string) Str::uuid();
@@ -385,6 +395,12 @@ class OpenCodeAdapter extends StdioRpcAdapter
 
             return;
         }
+
+        // D4: el run_id viaja por el area IPC: el bridge (que drena el
+        // stream en OTRO proceso) lo adopta para correlacionar el final.
+        // (Tras asegurar la sesion: si fallara, el run muere aqui y el id
+        // no debe contaminar la correlacion del siguiente turno.)
+        $this->docker->turnsAppend($agent->id, json_encode(['kind' => 'run', 'run_id' => $runId]));
 
         $session = &$this->sessions[$agent->id];
         $session['run_id'] = $runId;
@@ -407,6 +423,43 @@ class OpenCodeAdapter extends StdioRpcAdapter
             'session_id' => $sessionId,
             'body' => $body,
         ]);
+    }
+
+    /**
+     * Adopción del run_id desde la cola durable (fix-bridge-cross-process-
+     * seams D4): el worker encoló `{kind:"run", run_id}` al aceptar el
+     * mensaje; el bridge (otro proceso, run_id null en memoria) lo toma en
+     * el primer evento del turno. Solo consume cuando el turno NO está en
+     * vuelo: si ya hay run_id en memoria, el run en cola es el siguiente
+     * (prompt encolado) y se deja para su propio busy.
+     */
+    protected function adoptRunId(int $agentId, array &$session): ?string
+    {
+        if (($session['run_id'] ?? null) !== null) {
+            return $session['run_id'];
+        }
+
+        $line = $this->docker->turnsNext($agentId);
+        if ($line === null) {
+            return null;
+        }
+        $entry = json_decode($line, true);
+        if (is_array($entry) && ($entry['kind'] ?? '') === 'run'
+            && is_string($entry['run_id'] ?? null) && $entry['run_id'] !== '') {
+            $session['run_id'] = $entry['run_id'];
+
+            return $entry['run_id'];
+        }
+
+        Log::debug(static::class.': linea extraña en la cola run (consumida y descartada): '.substr($line, 0, 120));
+
+        return null;
+    }
+
+    /** Run en vuelo del agente (introspeccion/tests de costura). */
+    public function sessionRunId(int $agentId): ?string
+    {
+        return $this->sessions[$agentId]['run_id'] ?? null;
     }
 
     public function resolveApproval(Agent $agent, string $approvalId, bool $approved, ?string $note = null): void
@@ -526,14 +579,32 @@ class OpenCodeAdapter extends StdioRpcAdapter
         }
 
         // 1 contenedor = 1 agente = 1 sesión: los eventos de otras sesiones
-        // (si existieran) no nos competen.
+        // (si existieran) no nos competen. Si el worker recreó la sesión
+        // (el config persiste la nueva id), la adoptamos de la config: el
+        // id durable manda sobre el del attach.
         $sessionID = $params['sessionID'] ?? null;
         if ($sessionID !== null && $session['session_id'] !== null && $sessionID !== $session['session_id']) {
-            return [];
+            $cfgId = $session['agent']?->config['session_id'] ?? null;
+            if ($cfgId === $sessionID) {
+                $session['session_id'] = $sessionID;
+            } else {
+                return [];
+            }
         }
 
         $out = [];
         $runId = $session['run_id'] ?? null;
+
+        // D4: el run_id nace en el worker (otro proceso); el bridge lo
+        // adopta de la cola durable en el PRIMER evento del turno (busy o
+        // primer delta/parte), para que el final y los deltas lleven el id
+        // que el cliente recibió.
+        if ($runId === null
+            && (in_array((string) ($params['status']['type'] ?? ''), ['busy', 'retrying'], true) && $type === 'session.status'
+                || $type === 'message.part.delta'
+                || $type === 'message.part.updated')) {
+            $runId = $this->adoptRunId($agentId, $session);
+        }
         $runEnded = true; // si el turno ya no estaba en vuelo, no emitimos run.*
 
         switch ($type) {
@@ -742,14 +813,14 @@ class OpenCodeAdapter extends StdioRpcAdapter
     protected function finishTurn(array &$session): array
     {
         $runId = $session['run_id'] ?? null;
-        if ($runId === null) {
-            return [AgentEvent::statusChange('idle')];
-        }
-
-        $session['run_id'] = null;
-
         $final = implode('', array_filter($session['parts'] ?? []));
         $thinking = trim(implode("\n", array_filter($session['thinking_parts'] ?? [])));
+        $hasContent = $final !== '' || $thinking !== '' || ($session['tool_seen'] ?? []) !== [];
+
+        // Los buffers se limpian SIEMPRE (fix-bridge-cross-process-seams
+        // D4): un turno terminado no deja restos que contaminen al
+        // siguiente.
+        $session['run_id'] = null;
         $session['parts'] = [];
         $session['thinking_parts'] = [];
         $session['part_types'] = [];
@@ -757,15 +828,31 @@ class OpenCodeAdapter extends StdioRpcAdapter
         $session['tool_seen'] = [];
 
         $out = [];
-        // Un `idle` sin turno en vuelo (p. ej. el inicial de la sesion o
-        // uno re-emitido) no cierra nada: sin run_id no hay run que cerrar.
+        // Sin run_id en memoria el turno no estaba (o ya no estaba) en
+        // vuelo. Un `idle` así SIN restos de contenido (el inicial de la
+        // sesion o uno re-emitido) no cierra nada.
         if ($runId === null) {
-            $ev = $this->emitStatus($session, 'idle');
-            if ($ev !== null) {
-                $out[] = $ev;
+            // El busy puede haberse perdido (stream truncado, lector
+            // re-adjuntado): el turno esta en la cola durable. Adoptarlo
+            // para no perderlo.
+            $runId = $this->adoptRunId($session['agent_id'] ?? 0, $session);
+
+            if ($runId === null && ! $hasContent) {
+                $ev = $this->emitStatus($session, 'idle');
+                if ($ev !== null) {
+                    $out[] = $ev;
+                }
+
+                return $out;
             }
 
-            return $out;
+            // Con restos y sin id adoptable: se genera uno y se cierra el
+            // turno (el cliente recibira run.end y no queda un run
+            // colgando en "working").
+            $runId = (string) Str::uuid();
+            if (($session['agent'] ?? null) !== null) {
+                $this->sink->dispatch($session['agent'], AgentEvent::runStart($runId));
+            }
         }
 
         if ($final !== '') {

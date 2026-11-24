@@ -33,6 +33,8 @@ class OpenCodeAdapterTest extends TestCase
 
     protected EventSink $sink;
 
+    protected DockerClient $realDocker;
+
     const SID = 'ses_e07b7f8a5ffeIbjTqeDVD1PX5l';
 
     protected function setUp(): void
@@ -45,6 +47,16 @@ class OpenCodeAdapterTest extends TestCase
         $this->dir = sys_get_temp_dir().'/taap-oc-'.uniqid();
         mkdir($this->dir.'/rpc', 0777, true);
         $this->sink = new EventSink;
+        $this->realDocker = new class ($this->dir.'/rpc') extends DockerClient {
+            public function __construct(private string $d) {
+                parent::__construct('docker-fake');
+            }
+
+            public function rpcDir(int $agentId): string
+            {
+                return $this->d;
+            }
+        };
     }
 
     protected function tearDown(): void
@@ -70,6 +82,12 @@ class OpenCodeAdapterTest extends TestCase
         $streams = $this->createMock(ProcessStreams::class);
         $docker->method('attachReader')->willReturn($streams);
         $docker->method('killCoprocess');
+        // La cola durable `turns` se delega a un DockerClient REAL (la misma
+        // area de ficheros que el mock): los tests de costura usan la logica
+        // de ficheros, no un mock en memoria (que es justo lo que rompio).
+        $docker->method('turnsAppend')->willReturnCallback(fn ($id, $line) => $this->realDocker->turnsAppend($id, $line));
+        $docker->method('turnsNext')->willReturnCallback(fn ($id) => $this->realDocker->turnsNext($id));
+        $docker->method('turnsTake')->willReturnCallback(fn ($id) => $this->realDocker->turnsTake($id));
 
         return new OpenCodeAdapter($docker, $this->sink);
     }
@@ -213,6 +231,14 @@ class OpenCodeAdapterTest extends TestCase
         });
 
         $this->assertSame('taap|gpt-test', $agent->refresh()->config['model_key']);
+    }
+
+    /** @return list<string> lineas de la cola durable `turns` (crudas) */
+    protected function turns(): array
+    {
+        $raw = (string) @file_get_contents($this->dir.'/rpc/turns');
+
+        return array_values(array_filter(array_map('trim', preg_split('/\R/', $raw) ?: [])));
     }
 
     /* ── 2.3 aprobaciones por API ── */
@@ -572,5 +598,161 @@ class OpenCodeAdapterTest extends TestCase
         $this->assertNotNull($final);
         $this->assertSame('Solo pense esto.', $final->payload['content']);
         $this->assertSame('', $final->payload['thinking'], 'el razonamiento ya esta en el contenido: no se duplica');
+    }
+
+    /* ── 3.4 costura cross-proceso (fix-bridge-cross-process-seams) ──
+
+    Dos instancias de adapter comparten el mismo area de ficheros (la cola
+    `turns` es real): una simula el worker de cola (writeMessage, sin
+    sesion) y otra el daemon bridge (attach + drenado). Es la costura que
+    rompio: los procesos comparten ficheros, no memoria.
+    */
+
+    public function test_write_message_from_worker_queues_run_id_without_attach(): void
+    {
+        $agent = $this->agent(['session_id' => self::SID]);
+        $adapter = $this->makeAdapter($agent); // worker: sin attach
+        $this->fakeServer();
+        $this->assertFalse($adapter->isAttached($agent));
+
+        $adapter->writeMessage($agent, 'hola');
+
+        $lines = $this->turns();
+        $this->assertCount(1, $lines);
+        $entry = json_decode($lines[0], true);
+        $this->assertSame('run', $entry['kind']);
+        $this->assertMatchesRegularExpression('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/', $entry['run_id']);
+
+        // El prompt fue por HTTP (no depende del lector) y NO hay attach
+        // (el worker no spawnea coprocesos: D5).
+        Http::assertSent(fn (Request $r) => str_contains($r->url(), '/prompt_async') && str_contains($r->body(), 'hola'));
+        $this->assertFalse(is_file($this->dir.'/rpc/reader.pid'), 'el worker no spawneo el lector');
+    }
+
+    public function test_bridge_adopts_run_id_and_closes_turn(): void
+    {
+        $agent = $this->agent(['session_id' => self::SID]);
+        $worker = $this->makeAdapter($agent); // proceso 1: writeMessage
+        $bridge = $this->makeAdapter($agent); // proceso 2: attach + drenado
+        $this->fakeServer();
+        $bridge->attach($agent);
+        $this->assertNull($bridge->sessionRunId($agent->id), 'el bridge no conoce el run (otra memoria)');
+
+        $worker->writeMessage($agent, 'hola');
+        $runId = json_decode($this->turns()[0], true)['run_id'];
+
+        // El stream (que el bridge drena): el worker NUNCA lo vio.
+        $this->stream(['type' => 'session.status', 'properties' => ['sessionID' => self::SID, 'status' => ['type' => 'busy']]]);
+        $this->pump($bridge, $agent);
+        $this->assertSame($runId, $bridge->sessionRunId($agent->id), 'el bridge adopto el id en el primer evento del turno');
+
+        $this->stream(['type' => 'message.part.updated', 'properties' => [
+            'sessionID' => self::SID, 'messageID' => 'msg_1',
+            'part' => ['id' => 'prt_1', 'messageID' => 'msg_1', 'type' => 'text', 'text' => 'Hola'],
+        ]]);
+        $this->stream(['type' => 'message.part.delta', 'properties' => [
+            'sessionID' => self::SID, 'messageID' => 'msg_1', 'partID' => 'prt_1', 'field' => 'text', 'delta' => ' mundo',
+        ]]);
+        $events = $this->pump($bridge, $agent->refresh());
+        $delta = collect($events)->first(fn ($e) => $e->type === 'message.delta');
+        $this->assertNotNull($delta);
+        $this->assertSame($runId, $delta->payload['run_id'], 'el delta lleva el id del run que el cliente recibio');
+
+        $this->stream(['type' => 'session.status', 'properties' => ['sessionID' => self::SID, 'status' => ['type' => 'idle']]]);
+        $events = $this->pump($bridge, $agent->refresh());
+        $final = collect($events)->first(fn ($e) => $e->type === 'message.final');
+        $this->assertNotNull($final, 'el final se perdio (el bug de produccion)');
+        $this->assertSame($runId, $final->payload['run_id'], 'mismo id de principio a fin: un turno coherente');
+        $this->assertSame('Hola mundo', $final->payload['content']);
+        $runEnds = collect($events)->filter(fn ($e) => $e->type === 'run.end')->values();
+        $this->assertCount(1, $runEnds, 'exactly once');
+        $this->assertSame($runId, $runEnds[0]->payload['run_id']);
+        $this->assertSame([], $this->turns(), 'la cola quedo vacia (no se re-emite)');
+    }
+
+    public function test_finish_turn_generates_run_id_when_adopt_fails(): void
+    {
+        // El busy se perdio (stream truncado) y la cola esta vacia: el idle
+        // cierra el turno igual (genera un id, no deja el run colgando).
+        $agent = $this->agent(['session_id' => self::SID]);
+        $bridge = $this->makeAdapter($agent);
+        $this->fakeServer();
+        $bridge->attach($agent);
+
+        $this->stream(['type' => 'message.part.delta', 'properties' => [
+            'sessionID' => self::SID, 'messageID' => 'msg_9', 'partID' => 'prt_9', 'field' => 'text', 'delta' => 'Respuesta',
+        ]]);
+        $events = $this->pump($bridge, $agent);
+        $delta = collect($events)->first(fn ($e) => $e->type === 'message.delta');
+        $this->assertNotNull($delta);
+        $this->assertNull($delta->payload['run_id'], 'sin adopcion posible: id null');
+
+        $this->stream(['type' => 'session.status', 'properties' => ['sessionID' => self::SID, 'status' => ['type' => 'idle']]]);
+        $events = $this->pump($bridge, $agent->refresh());
+        $final = collect($events)->first(fn ($e) => $e->type === 'message.final');
+        $runEnd = collect($events)->first(fn ($e) => $e->type === 'run.end');
+        $this->assertNotNull($final, 'el turno con contenido nunca se pierde');
+        $this->assertNotNull($runEnd);
+        $this->assertNotNull($final->payload['run_id'], 'id generado');
+        $this->assertSame($final->payload['run_id'], $runEnd->payload['run_id']);
+    }
+
+    public function test_idle_without_content_and_without_run_closes_nothing(): void
+    {
+        // El idle inicial de la sesion (sin turno en vuelo ni en cola) no
+        // emite run.* (regresion: el dedupe de idle re-emitidos).
+        $agent = $this->agent(['session_id' => self::SID]);
+        $bridge = $this->makeAdapter($agent);
+        $this->fakeServer();
+        $bridge->attach($agent);
+
+        $this->stream(['type' => 'session.status', 'properties' => ['sessionID' => self::SID, 'status' => ['type' => 'idle']]]);
+        $events = $this->pump($bridge, $agent);
+
+        $this->assertNotContains('run.end', $this->types($events));
+        $this->assertNotContains('message.final', $this->types($events));
+        $this->assertContains('status.change', $this->types($events));
+    }
+
+    /**
+     * Dos turnos en bateria: la cola FIFO entrelaza correctamente (cada run
+     * adopta su id en su propio busy; el final del primero NO consume el id
+     * del segundo).
+     */
+    public function test_two_queued_runs_interleave_fifo(): void
+    {
+        $agent = $this->agent(['session_id' => self::SID]);
+        $bridge = $this->makeAdapter($agent);
+        $this->fakeServer();
+        $bridge->attach($agent);
+
+        // El worker envio dos mensajes mientras el primero iba en vuelo.
+        $this->realDocker->turnsAppend($agent->id, json_encode(['kind' => 'run', 'run_id' => 'run-uno']));
+        $this->realDocker->turnsAppend($agent->id, json_encode(['kind' => 'run', 'run_id' => 'run-dos']));
+
+        // Turno 1: busy -> adopcion del primero.
+        $this->stream(['type' => 'session.status', 'properties' => ['sessionID' => self::SID, 'status' => ['type' => 'busy']]]);
+        $this->pump($bridge, $agent);
+        $this->assertSame('run-uno', $bridge->sessionRunId($agent->id));
+        $this->assertCount(1, $this->turns(), 'el segundo run sigue en cola');
+
+        $this->stream(['type' => 'message.part.delta', 'properties' => ['sessionID' => self::SID, 'messageID' => 'm1', 'partID' => 'p1', 'field' => 'text', 'delta' => 'A1']]);
+        $this->stream(['type' => 'session.status', 'properties' => ['sessionID' => self::SID, 'status' => ['type' => 'idle']]]);
+        $events = $this->pump($bridge, $agent->refresh());
+        $this->assertSame('run-uno', collect($events)->first(fn ($e) => $e->type === 'message.final')->payload['run_id']);
+        $this->assertCount(1, $this->turns(), 'el final del turno 1 no consumo el id del turno 2');
+
+        // Turno 2: su busy adopta el segundo id.
+        $this->stream(['type' => 'session.status', 'properties' => ['sessionID' => self::SID, 'status' => ['type' => 'busy']]]);
+        $this->pump($bridge, $agent->refresh());
+        $this->assertSame('run-dos', $bridge->sessionRunId($agent->id));
+
+        $this->stream(['type' => 'message.part.delta', 'properties' => ['sessionID' => self::SID, 'messageID' => 'm2', 'partID' => 'p2', 'field' => 'text', 'delta' => 'A2']]);
+        $this->stream(['type' => 'session.status', 'properties' => ['sessionID' => self::SID, 'status' => ['type' => 'idle']]]);
+        $events = $this->pump($bridge, $agent->refresh());
+        $final = collect($events)->first(fn ($e) => $e->type === 'message.final');
+        $this->assertSame('run-dos', $final->payload['run_id']);
+        $this->assertSame('A2', $final->payload['content'], 'los buffers no se mezclan entre turnos');
+        $this->assertSame([], $this->turns());
     }
 }
