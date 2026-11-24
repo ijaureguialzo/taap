@@ -2,6 +2,7 @@
 
 use App\Http\Middleware\EnsureUserRole;
 use App\Http\Middleware\SetLocale;
+use App\Services\FileSystemException;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -33,4 +34,13 @@ return Application::configure(basePath: dirname(__DIR__))
         $exceptions->shouldRenderJsonWhen(
             fn (Request $request) => $request->is('api/*') || $request->expectsJson(),
         );
+
+        // FS compartido: el servicio lleva su codigo HTTP (404/409/413/422/500).
+        $exceptions->render(function (FileSystemException $e, Request $request) {
+            if (! $request->is('api/*') && ! $request->expectsJson()) {
+                throw $e;
+            }
+
+            return response()->json(['error' => $e->getMessage()], $e->status);
+        });
     })->create();

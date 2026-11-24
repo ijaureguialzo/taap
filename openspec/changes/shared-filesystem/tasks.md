@@ -20,7 +20,7 @@
 
 ## 4. API v1 (contrato para iOS futura)
 
-- [ ] 4.1 Rutas `/api/v1/files*` (GET list, POST folders, POST rename, DELETE, POST uploads, GET download) sobre `FilesystemService`, auth Sanctum, raíz resuelta en servidor por rol. Verificación: tests de API: usuario no admin lista `/` = su home; admin = raíz física; usuario no alcanza a otro usuario (404); códigos de error 404/409/413.
+- [x] 4.1 Rutas `/api/v1/files*` (GET list, POST folders, POST rename, DELETE, POST uploads, GET download) sobre `FilesystemService`, auth Sanctum, raíz resuelta en servidor por rol. Verificación: tests de API: usuario no admin lista `/` = su home; admin = raíz física; usuario no alcanza a otro usuario (404); códigos de error 404/409/413.
 - [ ] 4.2 Fijar el contrato: fixtures JSON de las respuestas (listado y metadatos de descarga/zip) como base de paridad para la app iOS. Verificación: test que compara las respuestas reales contra los fixtures.
 
 ## 5. Web: sección "Archivos"

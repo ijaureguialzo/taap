@@ -647,6 +647,13 @@ class FilesystemService
         }
 
         foreach ($entries as &$entry) {
+            // La propia home del admin no es "home de usuario" a efectos de badge.
+            if ($entry['name'] === $user->fs_slug) {
+                $entry['owner'] = null;
+
+                continue;
+            }
+
             $entry['owner'] = ($entry['type'] === 'dir')
                 ? $this->userHomeOf($user, $dir.'/'.$entry['name'])?->name
                 : null;

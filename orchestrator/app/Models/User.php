@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Laravel\Sanctum\HasApiTokens;
 
@@ -55,6 +56,20 @@ class User extends Authenticatable
         static::creating(function (User $user) {
             if (blank($user->fs_slug)) {
                 $user->fs_slug = static::resolveFsSlug($user);
+            }
+        });
+
+        // shared-filesystem 2.4: todo usuario tiene su <raiz>/<fs_slug> desde
+        // el alta (best-effort: si la raiz no es escribible, se avisa y la
+        // creacion no falla; baseFor y taap:fs:ensure-user-dirs lo reintentan).
+        static::created(function (User $user) {
+            try {
+                $user->ensureFsDir();
+            } catch (\Throwable) {
+                Log::warning('FS compartido: no se pudo crear el directorio de usuario', [
+                    'user_id' => $user->id,
+                    'fs_slug' => $user->fs_slug,
+                ]);
             }
         });
     }

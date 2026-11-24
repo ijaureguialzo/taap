@@ -57,6 +57,11 @@ class UserFsDirTest extends TestCase
         DB::table('users')->where('id', $user->id)->update(['fs_slug' => null]);
         $user->refresh();
 
+        // El hook `created` (2.4/3.4) ya creo el directorio cuando el usuario
+        // tenia slug; lo eliminamos para verificar que sin slug ensureFsDir
+        // no (re)crea nada.
+        exec('rm -rf '.escapeshellarg($this->fsBase.'/ana'));
+
         $this->assertNull($user->ensureFsDir());
         $this->assertDirectoryDoesNotExist($this->fsBase.'/ana');
     }

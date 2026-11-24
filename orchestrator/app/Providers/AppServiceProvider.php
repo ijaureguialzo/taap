@@ -7,6 +7,7 @@ use App\Agents\ConfigRenderer;
 use App\Agents\EgressSync;
 use App\Agents\EventSink;
 use App\Agents\RuntimeAdapters;
+use App\Services\FilesystemService;
 use App\Support\DockerClient;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Date;
@@ -28,6 +29,10 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(EventSink::class);
         $this->app->singleton(RuntimeAdapters::class);
         $this->app->singleton(DockerClient::class);
+
+        // FS compartido (shared-filesystem): el nucleo lo consumen la API v1
+        // y la web (Livewire); la raiz fisica viene de la config (2.3).
+        $this->app->singleton(FilesystemService::class);
     }
 
     /**

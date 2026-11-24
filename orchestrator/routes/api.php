@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\AgentController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\ChatController;
+use App\Http\Controllers\Api\FileController;
 use App\Http\Controllers\Api\McpController;
 use App\Http\Controllers\Api\ModelController;
 use App\Http\Controllers\Api\RuntimeController;
@@ -109,8 +110,15 @@ Route::prefix('v1')->group(function () {
         Route::put('mcp/{server}', [McpController::class, 'update']);
         Route::delete('mcp/{server}', [McpController::class, 'destroy']);
 
-        /* usuarios (admin) */
-        Route::get('users', [UserController::class, 'index']);
+        /* ficheros (shared-filesystem 4.1): la raiz se resuelve por rol */
+        Route::get('files', [FileController::class, 'index']);
+        Route::get('files/download', [FileController::class, 'download']);
+        Route::post('files/folders', [FileController::class, 'storeFolder']);
+        Route::post('files/rename', [FileController::class, 'rename']);
+        Route::post('files/uploads', [FileController::class, 'upload']);
+        Route::delete('files', [FileController::class, 'destroy']);
+
+        /* usuarios (admin) */ Route::get('users', [UserController::class, 'index']);
         Route::put('users/{user}', [UserController::class, 'update']);
     });
 });
