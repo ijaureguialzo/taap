@@ -42,7 +42,7 @@
 
 ## 8. Rollout
 
-- [ ] 8.1 Comando `taap:agents:reprovision`: aplica la nueva forma de mounts a todos los agentes (sin carpetas = solo arena; con carpetas = arena + binds) reanudando las sesiones. Verificación: ejecutarlo contra el despliegue de desarrollo y verificar con transcripción `docker inspect` (fixture) que cada contenedor lleva los mounts esperados y los agentes vuelven a `idle`.
+- [x] 8.1 Comando `taap:agents:reprovision`: aplica la nueva forma de mounts a todos los agentes (sin carpetas = solo arena; con carpetas = arena + binds) reanudando las sesiones. Verificación: ejecutarlo contra el despliegue de desarrollo y verificar con transcripción `docker inspect` (fixture) que cada contenedor lleva los mounts esperados y los agentes vuelven a `idle`.
 
 ## 9. Integración y documentación
 

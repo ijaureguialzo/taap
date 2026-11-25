@@ -295,7 +295,7 @@ class AgentManager
             // set cambio (carpetas del FS añadidas/quitadas/cambio de modo),
             // `docker restart` no basta: se recrea el contenedor. La sesion
             // vive en el volumen y se reanuda con --session-id.
-            if ($this->mountsChanged($agent)) {
+            if ($this->needsMountRecreate($agent)) {
                 $this->recreateContainer($agent, $this->specFor($agent, $this->config->render($agent)));
                 Log::info("Agente {$agent->id} recreado: cambiaron los mounts");
             } else {
@@ -314,8 +314,9 @@ class AgentManager
     /**
      * ¿El contenedor actual tiene otros mounts que los de la config
      * renderizada? (comparacion dest+modo+source resuelta; orden ignorado).
+     * Publico para el dry-run del comando de reprovision (8.1).
      */
-    protected function mountsChanged(Agent $agent): bool
+    public function needsMountRecreate(Agent $agent): bool
     {
         if (! $agent->container_name || $this->docker->status($agent->container_name) === null) {
             return true;

@@ -1,0 +1,57 @@
+# taap:agents:reprovision — despliegue de desarrollo (2026-11-25T01:44:01Z)
+
+## dry-run
+[dry-run] Procesando 5 agente(s)...
+  pi #1 "Pi" (contenedor taap-agent-1-pi): recrea el contenedor (cambian los mounts)
+  codex #2 "Codex" (contenedor taap-agent-2-codex): recrea el contenedor (cambian los mounts)
+  hermes #3 "Hermes" (contenedor taap-agent-3-hermes): recrea el contenedor (cambian los mounts)
+  claude #4 "Claudia" (contenedor taap-agent-4-claudia): recrea el contenedor (cambian los mounts)
+  opencode #5 "OpenCode" (contenedor taap-agent-5-opencode): recrea el contenedor (cambian los mounts)
+Completado: todos los agentes aplicados.
+
+## ejecucion real
+Procesando 5 agente(s)...
+  OK pi #1 "Pi" (contenedor taap-agent-1-pi): config aplicada; la sesion se reanuda
+  OK codex #2 "Codex" (contenedor taap-agent-2-codex): config aplicada; la sesion se reanuda
+  OK hermes #3 "Hermes" (contenedor taap-agent-3-hermes): config aplicada; la sesion se reanuda
+  OK claude #4 "Claudia" (contenedor taap-agent-4-claudia): config aplicada; la sesion se reanuda
+  OK opencode #5 "OpenCode" (contenedor taap-agent-5-opencode): config aplicada; la sesion se reanuda
+Completado: todos los agentes aplicados.
+
+## docker inspect (mounts + readonly rootfs) tras el rollout
+=== taap-agent-1-pi ===
+running ro=true/Users/widemos/proyectos/taap/data/agents/1/config -> /config rw=true
+/Users/widemos/proyectos/taap/data/agents/1/fs-arena -> /fs rw=false
+/Users/widemos/proyectos/taap/data/agents/1/workspace -> /workspace rw=true
+/Users/widemos/proyectos/taap/data/agents/1/data -> /home/agent/.pi/agent rw=true
+
+=== taap-agent-2-codex ===
+running ro=true/Users/widemos/proyectos/taap/data/agents/2/config -> /config rw=true
+/Users/widemos/proyectos/taap/data/agents/2/data -> /data rw=true
+/Users/widemos/proyectos/taap/data/agents/2/fs-arena -> /fs rw=false
+/Users/widemos/proyectos/taap/data/agents/2/workspace -> /workspace rw=true
+
+=== taap-agent-3-hermes ===
+running ro=false/Users/widemos/proyectos/taap/data/agents/3/fs-arena -> /fs rw=false
+/Users/widemos/proyectos/taap/data/agents/3/data -> /opt/data rw=true
+
+=== taap-agent-4-claudia ===
+running ro=true/Users/widemos/proyectos/taap/data/agents/4/config -> /config rw=true
+/Users/widemos/proyectos/taap/data/agents/4/data -> /data rw=true
+/Users/widemos/proyectos/taap/data/agents/4/fs-arena -> /fs rw=false
+/Users/widemos/proyectos/taap/data/agents/4/workspace -> /workspace rw=true
+
+=== taap-agent-5-opencode ===
+running ro=true/Users/widemos/proyectos/taap/data/agents/5/config -> /config rw=true
+/Users/widemos/proyectos/taap/data/agents/5/data -> /data rw=true
+/Users/widemos/proyectos/taap/data/agents/5/fs-arena -> /fs rw=false
+/Users/widemos/proyectos/taap/data/agents/5/workspace -> /workspace rw=true
+
+
+
+## estados finales (verificacion: todos vuelven a idle)
+1 Pi = idle
+2 Codex = idle
+3 Hermes = idle
+4 Claudia = idle
+5 OpenCode = idle
