@@ -19,6 +19,16 @@ return [
     'default_locale' => env('TAAP_DEFAULT_LOCALE', 'es'),
 
     /*
+    | Esquema de las URLs que la aplicacion genera (assets de Vite,
+    | redirects, url()/asset()). Tri-estado de TAAP_FORCE_HTTPS (change
+    | configurable-https-urls): true -> https; false -> http; sin definir
+    | -> derivado del esquema de APP_URL. El deploy TLS (Traefik) lo fija
+    | a true: APP_URL es la URL interna (http) y el navegador bloquearia
+    | los assets http de la pagina https (mixed content).
+    */
+    'force_https' => env('TAAP_FORCE_HTTPS'),
+
+    /*
     | Datos publicos para que los clientes (web/iOS) abran el canal WSS.
     | Son la cara externa del Reverb interno (TAAP_PUBLIC_*).
     */

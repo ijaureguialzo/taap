@@ -9,6 +9,7 @@ use App\Agents\EventSink;
 use App\Agents\RuntimeAdapters;
 use App\Services\FilesystemService;
 use App\Support\DockerClient;
+use App\Support\ForceHttps;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
@@ -42,10 +43,13 @@ class AppServiceProvider extends ServiceProvider
     {
         $this->configureDefaults();
 
-        // Fuerza https solo si la URL de la app la declara (deploy TLS tras el
-        // proxy). Con APP_ENV=production + APP_URL=http (dev local en Docker)
-        // no fuerza, para que los redirects no muestren https.
-        URL::forceHttps(str_starts_with((string) config('app.url'), 'https://'));
+        // Fuerza https por entorno (change configurable-https-urls):
+        // TAAP_FORCE_HTTPS=true (deploy TLS tras el proxy) / false / sin
+        // definir -> derivacion del esquema de APP_URL (2f56d5b: el dev
+        // local en Docker con APP_URL=http no debe redirigir a https).
+        URL::forceHttps(
+            ForceHttps::resolve(config('taap.force_https'), (string) config('app.url'))
+        );
     }
 
     /**
