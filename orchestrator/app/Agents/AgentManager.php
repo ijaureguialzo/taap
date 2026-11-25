@@ -76,13 +76,53 @@ class AgentManager
         // 3. Config nativa renderizada en el area persistente del agente
         $mounts = $this->config->render($agent);
 
-        // 4. Contenedor
+        // 4. Contenedor (re-creacion limpia: los mounts son inmutables
+        //    despues del create, asi que cualquier cambio pasa por aca)
         $name = $agent->container_name;
-        $existing = $this->docker->status($name);
-        if ($existing !== null) {
-            $this->docker->remove($name);
+        $spec = $this->specFor($agent, $mounts);
+
+        if (! $this->docker->imageExists($agent->image)) {
+            $this->docker->imagePull($agent->image);
         }
 
+        // Primero el estado (el reconcile del bridge respeta `starting`)
+        $agent->status = AgentStatus::Starting;
+        $agent->started_at = now();
+        $agent->save();
+
+        $this->recreateContainer($agent, $spec);
+
+        // Paridad con start()/stop() (spec agent-lifecycle): los clientes
+        // ven la transición starting sin recargar (badge de index/detalle).
+        app(EventSink::class)->dispatch($agent, AgentEvent::statusChange(AgentStatus::Starting->value));
+
+        // Puerto publicado en modo test (el adapter lo usa como base URL).
+        if ($port = $this->testApiPort($agent)) {
+            $published = $this->docker->publishedPort($name, $port);
+            if ($published !== null) {
+                $config = $agent->config ?? [];
+                $config['api_test_port'] = $published;
+                $agent->config = $config;
+                $agent->save();
+            }
+        }
+
+        // Sincroniza el ACL de egress (el proxy decide por IP)
+        app(EgressSync::class)->sync();
+
+        Log::info("Agente {$agent->id} provisionado: {$name} ({$agent->ip})");
+
+        return $agent;
+    }
+
+    /**
+     * Spec del contenedor a partir del estado actual (redes, env, mounts
+     * ya renderizados). La creacion es siempre "recreate": stop + rm +
+     * create + start (los mounts son fijos desde el create).
+     */
+    protected function specFor(Agent $agent, array $mounts): array
+    {
+        $name = $agent->container_name;
         $networks = [[
             'name' => (string) config('taap.agents.network_internal'),
             'ip' => $agent->ip,
@@ -95,7 +135,7 @@ class AgentManager
             'ip' => null,
         ];
 
-        $spec = [
+        return [
             'agent_id' => $agent->id,
             'name' => $name,
             'image' => $agent->image,
@@ -134,43 +174,28 @@ class AgentManager
                 'host.docker.internal:host-gateway',
             ],
         ];
+    }
 
-        if (! $this->docker->imageExists($agent->image)) {
-            $this->docker->imagePull($agent->image);
+    /**
+     * stop + rm + create + start con la spec dada. La sesion NO se pierde:
+     * vive en el volumen de datos (bind) y el id de sesion es estable.
+     */
+    protected function recreateContainer(Agent $agent, array $spec): void
+    {
+        $name = $agent->container_name;
+        if ($this->docker->status($name) !== null) {
+            try {
+                $this->docker->stop($name);
+            } catch (DockerException $e) {
+                Log::warning("recreate: stop {$name}: {$e->getMessage()}");
+            }
+            $this->docker->remove($name);
         }
 
-        // Primero el estado (el reconcile del bridge respeta `starting`)
-        $agent->status = AgentStatus::Starting;
-        $agent->started_at = now();
-        $agent->save();
-
-        $containerId = $this->docker->createContainer($spec);
-        $agent->container_id = $containerId;
+        $agent->container_id = $this->docker->createContainer($spec);
         $agent->container_name = $name;
         $agent->save();
         $this->docker->start($name);
-
-        // Paridad con start()/stop() (spec agent-lifecycle): los clientes
-        // ven la transición starting sin recargar (badge de index/detalle).
-        app(EventSink::class)->dispatch($agent, AgentEvent::statusChange(AgentStatus::Starting->value));
-
-        // Puerto publicado en modo test (el adapter lo usa como base URL).
-        if ($port = $this->testApiPort($agent)) {
-            $published = $this->docker->publishedPort($name, $port);
-            if ($published !== null) {
-                $config = $agent->config ?? [];
-                $config['api_test_port'] = $published;
-                $agent->config = $config;
-                $agent->save();
-            }
-        }
-
-        // Sincroniza el ACL de egress (el proxy decide por IP)
-        app(EgressSync::class)->sync();
-
-        Log::info("Agente {$agent->id} provisionado: {$name} ({$agent->ip})");
-
-        return $agent;
     }
 
     /**
@@ -258,11 +283,24 @@ class AgentManager
     public function restart(Agent $agent): Agent
     {
         // Re-renderiza la config nativa: los cambios de modelo/MCP se aplican
-        // al reiniciar sin recrear el contenedor
+        // al reiniciar sin recrear el contenedor.
         $this->config->render($agent);
+        // C2 (spike 1.1): destinos que dejaron de montarse se eliminan si
+        // estan vacios (ANTES de la recreacion: los mounts viejos del
+        // contenedor son la fuente de los "antes montados").
+        $this->pruneUnmountedFsDestinations($agent);
 
         if ($agent->container_name && $this->docker->status($agent->container_name) !== null) {
-            $this->docker->restart($agent->container_name);
+            // Los bind mounts son inmutables despues del create (6.5): si el
+            // set cambio (carpetas del FS añadidas/quitadas/cambio de modo),
+            // `docker restart` no basta: se recrea el contenedor. La sesion
+            // vive en el volumen y se reanuda con --session-id.
+            if ($this->mountsChanged($agent)) {
+                $this->recreateContainer($agent, $this->specFor($agent, $this->config->render($agent)));
+                Log::info("Agente {$agent->id} recreado: cambiaron los mounts");
+            } else {
+                $this->docker->restart($agent->container_name);
+            }
         } else {
             return $this->start($agent);
         }
@@ -271,6 +309,76 @@ class AgentManager
         $agent->save();
 
         return $agent;
+    }
+
+    /**
+     * ¿El contenedor actual tiene otros mounts que los de la config
+     * renderizada? (comparacion dest+modo+source resuelta; orden ignorado).
+     */
+    protected function mountsChanged(Agent $agent): bool
+    {
+        if (! $agent->container_name || $this->docker->status($agent->container_name) === null) {
+            return true;
+        }
+
+        $rendered = collect($this->config->render($agent))
+            ->map(fn (string $v) => $this->mountKey($v))
+            ->sort()->values()->all();
+
+        $current = collect($this->docker->mounts($agent->container_name))
+            ->map(fn (array $m) => ($m['rw'] ? 'rw' : 'ro').'|'.$m['dest'].'|'.(realpath($m['source']) ?: $m['source']))
+            ->sort()->values()->all();
+
+        return $rendered !== $current;
+    }
+
+    /** Clave comparable de una linea `-v host:dest[:modo]`. */
+    protected function mountKey(string $volume): string
+    {
+        $parts = explode(':', $volume);
+        $mode = count($parts) > 2 && end($parts) === 'ro' ? 'ro' : 'rw';
+        $dest = $parts[1] ?? '';
+        $source = $parts[0] ?? '';
+
+        return $mode.'|'.$dest.'|'.(realpath($source) ?: $source);
+    }
+
+    /**
+     * C2 (spike 1.1): un destino del FS que deja de montarse se elimina si
+     * esta vacio (el esqueleto C1 lo pre-creo; no tiene contenido propio).
+     * Si lleva ficheros, se queda en el arbol: desmontado, no perdido.
+     */
+    protected function pruneUnmountedFsDestinations(Agent $agent): void
+    {
+        $fsBase = rtrim((string) (config('taap.fs.fs_host_base') ?: config('taap.fs.fs_base')), '/');
+        if ($fsBase === '' || ! $agent->container_name) {
+            return;
+        }
+        if ($this->docker->status($agent->container_name) === null) {
+            return;
+        }
+
+        // Los destinos "nuevos" segun la config ya renderizada
+        $kept = $agent->fsMounts()->exposed()->get()
+            ->map(fn ($m) => '/fs'.$this->config->canonicalPath((string) $m->path))
+            ->all();
+
+        foreach ($this->docker->mounts($agent->container_name) as $m) {
+            $dest = (string) $m['dest'];
+            // La arena es /fs exacto; solo interesan los destinos expuestos
+            if (! str_starts_with($dest, '/fs/')) {
+                continue;
+            }
+            if (in_array($dest, $kept, true)) {
+                continue;
+            }
+            $host = $fsBase.substr($dest, 3);
+            if (is_dir($host) && count((array) scandir($host)) <= 2) {
+                if (@rmdir($host)) {
+                    Log::info("FS: destino desmontado y vacio eliminado: {$host}");
+                }
+            }
+        }
     }
 
     /**

@@ -174,6 +174,27 @@ class DockerClient
     }
 
     /**
+     * Mounts del contenedor (binds/volumenes; sin tmpfs):
+     * [['source' => ..., 'dest' => ..., 'rw' => bool], ...].
+     */
+    public function mounts(string $name): array
+    {
+        $info = $this->inspect($name);
+        if ($info === null) {
+            return [];
+        }
+
+        return collect($info['Mounts'] ?? [])
+            ->map(fn (array $m) => [
+                'source' => (string) ($m['Source'] ?? ''),
+                'dest' => (string) ($m['Destination'] ?? ''),
+                'rw' => (bool) ($m['RW'] ?? true),
+            ])
+            ->values()
+            ->all();
+    }
+
+    /**
      * `State.StartedAt` del contenedor: cambia en CADA arranque (manual
      * `docker restart` NO incrementa `RestartCount` — verificado), asi que es
      * la senal fiable de "el proceso interno ha renacido" (re-attach
@@ -628,7 +649,7 @@ SH;
      * contenedores pueden estar `Created` (sin apegar) y por tanto no
      * aparecen en `docker network inspect`.
      *
-     * @param list<string> $reserved
+     * @param  list<string>  $reserved
      */
     public function allocateIp(string $networkName, array $reserved = []): ?string
     {
