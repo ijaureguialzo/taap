@@ -12,4 +12,12 @@ enum FsMountMode: string
     case Disabled = 'disabled';
     case ReadOnly = 'read_only';
     case ReadWrite = 'read_write';
+
+    /**
+     * Valores crudos: para reglas de validacion de la API y la web.
+     */
+    public static function values(): array
+    {
+        return array_column(self::cases(), 'value');
+    }
 }

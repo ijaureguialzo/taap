@@ -26,6 +26,8 @@ Guía de instalación y operación de la pila completa en un host con Docker.
   - `/var/lib/taap/squid` — fragmento ACL que escribe el orquestador
   - `/var/lib/taap/agents` — áreas persistentes de cada agente (sesiones,
     workspace, config); sobrevive a `docker compose down`
+  - `/var/lib/taap/fs` — árbol del FS compartido (ver «FS compartido»);
+    sobrevive a `docker compose down`
 - Para modelos que corren **en el propio host** (router local, etc.): nada
   especial — los agentes y el orquestador lo alcanzan vía
   `host.docker.internal`.
@@ -148,6 +150,55 @@ Notas de operación:
 - **Parar/borrar** un agente desde la web detiene y elimina su contenedor;
   los datos (sesiones Pi, workspace) persisten en `/var/lib/taap/agents`.
 
+## FS compartido
+
+Un único árbol físico en el host (`TAAP_FS_ROOT`, defecto
+`/var/lib/taap/fs`) que los usuarios suben/bajan desde la web («Archivos») y
+que los agentes pueden montar carpeta a carpeta.
+
+- **Una raíz física, vistas virtuales**: dentro del orquestador y de la cola
+  el árbol vive en `/data/fs` (bind; `TAAP_FS_BASE`); cada contenedor de
+  agente lo ve en `/fs` como **arena en solo lectura** + los binds de las
+  carpetas que tenga configuradas (`read_write` = rw, `read_only` = `:ro`,
+  `disabled` = sin montaje). El kernel — no el prompt — aplica los modos.
+- **Vistas por rol**: el admin ve el árbol completo; cada usuario ve su
+  home (`/var/lib/taap/fs/<fs_slug>`, un slug corto único asignado en
+  la migración/backfill) y no sale de ella; un path fuera de la home se
+  marca «externa» en la web.
+- **Carpetas por agente**: en la ficha del agente (sección «Carpetas
+  compartidas») el propietario o el admin añaden carpetas con su modo.
+  El agente las ve en el chat con la ruta `/fs<carpeta>`. La API v1
+  también las expone/acepta en los agentes (`fs_mounts`).
+- **Auto-aprobación dentro de lo montado**: en Pi, los comandos `bash`
+  que solo tocan las carpetas montadas en su modo (escribir en rw, leer en
+  ro) no piden confirmación; cualquier cosa fuera de ellas (o una escritura
+  en una carpeta ro) sigue pidiendo aprobación.
+
+**Cambiar `TAAP_FS_ROOT`** (p. ej. moverlo a otro volumen/disco): el bind
+viaja dentro de los contenedores, así que requiere:
+
+```sh
+# en deploy/.env: TAAP_FS_ROOT=/nuevo/ruta/fs
+docker compose -f deploy/compose.yaml -f deploy/compose.traefik.yaml up -d --force-recreate orchestrator queue
+```
+
+y luego el **rollout a la flota de agentes** (recrea los contenedores con
+los nuevos binds, reanudando las sesiones):
+
+```sh
+docker compose -f deploy/compose.yaml exec -T orchestrator php artisan taap:agents:reprovision --dry-run
+docker compose -f deploy/compose.yaml exec -T orchestrator php artisan taap:agents:reprovision
+```
+
+Verifica después con `docker inspect <contenedor>` que cada agente lleva
+`<TAAP_FS_ROOT><path>:/fs<path>` y que los agentes vuelven a `idle`.
+
+**Actualizar** (pull + imágenes nuevas) no toca el FS: los agentes no se
+recrean solos; el puente se re-adjunta y el esqueleto de la arena se
+re-asegura. Solo un cambio de mounts (carpetas del agente, raíz) requiere
+el `taap:agents:reprovision` o el **Reiniciar** de cada ficha (que aplica
+el mismo flujo).
+
 ## App iOS
 
 - Apertura: `mobile/ios/regenerate.sh` (XcodeGen) y abrir `Taap.xcodeproj`.
@@ -162,7 +213,7 @@ Notas de operación:
 make lint         # Pint + build de assets
 cd orchestrator && php artisan test
 cd orchestrator && vendor/bin/phpstan analyse --memory-limit=2G
-./deploy/smoke-e2e.sh   # E2E: proveedor → agente Pi (aprobación + MCP) → Hermes
+./deploy/smoke-e2e.sh   # E2E: proveedor → agente Pi (aprobación + MCP) → Hermes → FS compartido (9.1)
 ./deploy/audit-agents.sh  # auditoría de endurecimiento de los contenedores
 ```
 
@@ -180,6 +231,9 @@ contenedor) o `deploy/compose.traefik.yaml` (labels de Traefik), usa el mismo
 
 Los agentes no necesitan recrearse (el puente `taap:bridge` se re-adjunta
 solo); si cambias el modelo/MCP de uno, usa **Reiniciar** en su ficha.
+Si cambias sus **carpetas del FS** (o la raíz `TAAP_FS_ROOT`), los binds
+cambian: usa `php artisan taap:agents:reprovision` (ver «FS compartido»);
+las sesiones se reanudan, no se pierden.
 
 ## Solución de problemas
 

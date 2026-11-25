@@ -46,8 +46,8 @@
 
 ## 9. Integración y documentación
 
-- [ ] 9.1 E2E sobre `deploy/` (compose): usuario sube un fichero desde "Archivos"; un agente con la carpeta en rw lo lee/escribe sin confirmación en el chat; un segundo agente conectado ve los cambios; el admin ve todo en su explorador; un path en ro se niega a escribir. Verificación: secciones añadidas a `deploy/smoke-e2e.sh` que pasan y su transcripción queda como fixture en el cambio.
-- [ ] 9.2 Documentación: `docs/deployment.md` (qué es `TAAP_FS_ROOT`, que su cambio requiere recreate de orquestador+cola+agentes, y el flujo de rollout 8.1) + nota en los release notes de la versión. Verificación: los comandos documentados son los que usa realmente el despliegue (revisión contra `deploy/`).
+- [x] 9.1 E2E sobre `deploy/` (compose): usuario sube un fichero desde "Archivos"; un agente con la carpeta en rw lo lee/escribe sin confirmación en el chat; un segundo agente conectado ve los cambios; el admin ve todo en su explorador; un path en ro se niega a escribir. Verificación: secciones añadidas a `deploy/smoke-e2e.sh` que pasan y su transcripción queda como fixture en el cambio.
+- [x] 9.2 Documentación: `docs/deployment.md` (qué es `TAAP_FS_ROOT`, que su cambio requiere recreate de orquestador+cola+agentes, y el flujo de rollout 8.1) + nota en los release notes de la versión. Verificación: los comandos documentados son los que usa realmente el despliegue (revisión contra `deploy/`).
 
 ## Workflow follow-up
 

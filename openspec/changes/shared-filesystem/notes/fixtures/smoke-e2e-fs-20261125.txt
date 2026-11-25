@@ -1,0 +1,64 @@
+# Transcripcion: deploy/smoke-e2e.sh (seccion 5 FS compartido, shared-filesystem 9.1)
+# Fecha: 2026-11-25T06:58:30Z — despliegue de desarrollo (docker, host macOS)
+# Resultado: SMOKE OK (secciones 0-5 en verde)
+
+
+== 0. Precondiciones (stack + admin)
+   ok: orquestador responde
+   ok: login admin@taap.local
+   ok: cuota temporal: 100 -> 9 (5 existentes + 4 del smoke)
+
+== 1. Proveedor + modelo
+   ok: provider smoke-qwen-074322 (id 10)
+   ok: model smoke-model-074322 (id 11)
+
+== 2. Agente Pi: chat con aprobacion
+   ok: agente smoke-pi-074322 (id 27)
+   ok: pi ready
+   ok: aprobacion enviada (1992fcd8-5fff-4244-b5ea-09f99c3d2d1b)
+   ok: pi respondio despues de la aprobacion
+   ok: la respuesta incluye la salida de date -u
+
+== 3. Agente Pi: MCP (get_time)
+mcp test server on :9911
+   ok: mcp smoke-mcp-074322 (id 8)
+   ok: mcp conectado (restart aplicado)
+   (sin respuesta; reiniciando agente)
+   ok: el agente respondio con MCP conectado: La herramienta `get_time` devolvió:
+
+```
+2026-11-25T06:51:17.181Z
+```
+
+Es decir
+
+== 4. Agente Hermes: chat
+   ok: agente smoke-hermes-074322 (id 28)
+   ok: hermes ready
+   ok: hermes respondio: HERMES-OK
+
+== 5. FS compartido (shared-filesystem 9.1)
+   ok: carpeta /smoke-fs-074322 creada
+   ok: el admin ve la subida en su explorador: hola.txt
+   ok: agente smoke-fs-rw-074322 (id 29) con /smoke-fs-074322 en read_write
+   ok: fs-rw ready
+   ok: el agente en rw escribio en el arbol compartido (out.txt con MARKA-074322), sin confirmacion
+   ok: el agente leio hola.txt y reporto su contenido: Hecho. Resumen:
+
+1. **Escritura**: `echo "MARKA-074322" > /fs/smoke-fs-074322/ou
+   ok: agente smoke-fs-ro-074322 (id 30) con /smoke-fs-074322 en read_only
+   ok: fs-ro ready
+   ok: el segundo agente (ro) ve el cambio del primero: El contenido de `/fs/smoke-fs-074322/out.txt` es:
+
+```
+MARKA-074322
+```
+
+El coma
+   ok: el agente ro intento escribir: El comando `echo "PROBA" > /fs/smoke-fs-074322/ro.txt` **no se ejecutó**: la ej
+   ok: el arbol no muestra ro.txt (la escritura en read_only se nego): hola.txt,out.txt
+   ok: el explorador del admin ve todo: hola.txt,out.txt
+
+== Resultado
+SMOKE OK: todo el flujo completo funciono
+smoke-e2e.sh: line 62: 51049 Terminated: 15          node mcp-test-server.mjs

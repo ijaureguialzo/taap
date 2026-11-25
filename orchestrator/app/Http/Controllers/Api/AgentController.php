@@ -8,6 +8,7 @@ use App\Agents\EgressSync;
 use App\Agents\QuotaExceededException;
 use App\Enums\AgentRuntime;
 use App\Enums\AgentStatus;
+use App\Enums\FsMountMode;
 use App\Http\Controllers\Controller;
 use App\Jobs\BridgeApplyConfig;
 use App\Models\Agent;
@@ -25,7 +26,7 @@ class AgentController extends Controller
     {
         $agents = Agent::query()
             ->visibleTo($request->user())
-            ->with(['model:id,provider_id', 'model.provider:id,name', 'token:id,token_prefix'])
+            ->with(['model:id,provider_id', 'model.provider:id,name', 'token:id,token_prefix', 'fsMounts'])
             ->latest('id')
             ->get();
 
@@ -46,6 +47,11 @@ class AgentController extends Controller
             'working_dir' => ['nullable', 'string', 'max:255'],
             'mcp_server_ids' => ['array'],
             'mcp_server_ids.*' => ['integer', 'exists:mcp_servers,id'],
+            // Carpetas del FS compartido (shared-filesystem): path canonico
+            // (desde la raiz /fs) + modo disabled/read_only/read_write.
+            'fs_mounts' => ['nullable', 'array'],
+            'fs_mounts.*.path' => ['required_with:fs_mounts', 'string', 'max:255', 'regex:/^\/[A-Za-z0-9._\-\/]*$/', 'not_regex:/\.\./'],
+            'fs_mounts.*.mode' => ['required_with:fs_mounts', Rule::in(FsMountMode::values())],
         ]);
 
         try {
@@ -74,10 +80,12 @@ class AgentController extends Controller
             $agent->mcpServers()->sync(collect($mcpIds)->mapWithKeys(fn (int $id) => [$id => []])->all());
         }
 
+        $this->syncFsMounts($agent, $data['fs_mounts'] ?? null);
+
         $agent = $this->manager->provision($agent);
         $this->manager->start($agent);
 
-        $agent->load('model', 'model.provider', 'token');
+        $agent->load('model', 'model.provider', 'token', 'fsMounts');
 
         return response()->json(['agent' => $this->payload($agent)], 201);
     }
@@ -85,7 +93,7 @@ class AgentController extends Controller
     public function show(Request $request, Agent $agent): JsonResponse
     {
         $this->authorize($request, $agent);
-        $agent->load(['model', 'model.provider', 'token', 'mcpServers']);
+        $agent->load(['model', 'model.provider', 'token', 'mcpServers', 'fsMounts']);
 
         return response()->json([
             'agent' => $this->payload($agent, full: true),
@@ -108,6 +116,11 @@ class AgentController extends Controller
             'working_dir' => ['nullable', 'string', 'max:255'],
             'mcp_server_ids' => ['array'],
             'mcp_server_ids.*' => ['integer', 'exists:mcp_servers,id'],
+            // Carpetas del FS compartido (shared-filesystem): path canonico
+            // (desde la raiz /fs) + modo disabled/read_only/read_write.
+            'fs_mounts' => ['nullable', 'array'],
+            'fs_mounts.*.path' => ['required_with:fs_mounts', 'string', 'max:255', 'regex:/^\/[A-Za-z0-9._\-\/]*$/', 'not_regex:/\.\./'],
+            'fs_mounts.*.mode' => ['required_with:fs_mounts', Rule::in(FsMountMode::values())],
         ]);
 
         $configChanged = false;
@@ -134,6 +147,13 @@ class AgentController extends Controller
                 $agent->mcpServers()->sync(collect($mcpIds)->mapWithKeys(fn (int $id) => [$id => []])->all());
             }
 
+            // Los mounts cambian el spec del contenedor: se aplica el flujo
+            // 6.5 (recrea si cambian; la sesion se conserva en el volumen).
+            if (array_key_exists('fs_mounts', $data)) {
+                $this->syncFsMounts($agent, $data['fs_mounts']);
+                $this->manager->restart($agent);
+            }
+
             $configChanged = true;
         }
 
@@ -142,7 +162,7 @@ class AgentController extends Controller
         app(EgressSync::class)->sync();
         BridgeApplyConfig::dispatch($agent->id);
 
-        $agent->load('model', 'model.provider', 'token');
+        $agent->load('model', 'model.provider', 'token', 'fsMounts');
 
         return response()->json(['agent' => $this->payload($agent)]);
     }
@@ -239,6 +259,26 @@ class AgentController extends Controller
     /**
      * @return array<string, mixed>
      */
+    /**
+     * Sincroniza agent_fs_mounts con el payload recibido (null = no toca;
+     * [] = borra todos). path canonico desde la raiz del arbol + modo.
+     */
+    protected function syncFsMounts(Agent $agent, ?array $fsMounts): void
+    {
+        if ($fsMounts === null) {
+            return;
+        }
+
+        $agent->fsMounts()->delete();
+        foreach ($fsMounts as $m) {
+            $agent->fsMounts()->create([
+                'path' => $m['path'],
+                'mode' => FsMountMode::from($m['mode']),
+            ]);
+        }
+        $agent->unsetRelation('fsMounts');
+    }
+
     protected function payload(Agent $agent, bool $full = false): array
     {
         $data = [
@@ -261,6 +301,11 @@ class AgentController extends Controller
                 'id' => $agent->owner_id,
                 'name' => $agent->owner?->name,
             ],
+            'fs_mounts' => $agent->fsMounts->map(fn ($m) => [
+                'id' => $m->id,
+                'path' => $m->path,
+                'mode' => $m->mode->value,
+            ])->values()->all(),
             'last_active_at' => $agent->last_active_at?->toIso8601String(),
             'created_at' => $agent->created_at?->toIso8601String(),
             'mcp_servers' => $full

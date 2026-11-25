@@ -120,7 +120,7 @@ class ConfigRenderer
             $this->bind($dir.'/fs-arena', '/fs', 'ro'),
         ];
 
-        foreach ($agent->fsMounts()->exposed()->orderBy('path')->get() as $mount) {
+        foreach ($agent->fsMounts()->exposed()->reorder()->orderBy('path')->get() as $mount) {
             $path = $this->canonicalPath($mount->path);
             $suffix = $mount->mode === FsMountMode::ReadOnly ? ':ro' : '';
 
@@ -146,7 +146,11 @@ class ConfigRenderer
 
         foreach ($agent->fsMounts()->exposed()->get() as $mount) {
             $path = $this->canonicalPath($mount->path);
-            File::ensureDirectoryExists($this->fsHostPath($path));
+            // C3: el source en el arbol fisico SE VISTE POR EL PROCESO
+            // (fs_base: /data/fs en el contenedor, misma carpeta fisica que
+            // la raiz del host). No usar fsHostBase: es la via del demonio
+            // (path en el host) y dentro del contenedor no existe.
+            File::ensureDirectoryExists($this->fsProcessPath($path));
             File::ensureDirectoryExists($arena.$path);
         }
     }
@@ -155,6 +159,12 @@ class ConfigRenderer
     protected function fsHostPath(string $path): string
     {
         return (rtrim((string) $this->fsHostBase, '/') ?: '/').$path;
+    }
+
+    /** Arbol fisico visto por el proceso (fs_base): para la precreación. */
+    protected function fsProcessPath(string $path): string
+    {
+        return (rtrim((string) $this->fsBase, '/') ?: '/').$path;
     }
 
     /**
@@ -184,7 +194,7 @@ class ConfigRenderer
      */
     public function fsPromptBlock(Agent $agent): string
     {
-        $exposed = $agent->fsMounts()->exposed()->orderBy('path')->get();
+        $exposed = $agent->fsMounts()->exposed()->reorder()->orderBy('path')->get();
         if ($exposed->isEmpty()) {
             return '';
         }
@@ -206,7 +216,7 @@ class ConfigRenderer
      */
     protected function exposedMounts(Agent $agent)
     {
-        return $agent->fsMounts()->exposed()->orderBy('path')->get();
+        return $agent->fsMounts()->exposed()->reorder()->orderBy('path')->get();
     }
 
     /**

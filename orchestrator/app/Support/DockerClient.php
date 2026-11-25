@@ -184,6 +184,11 @@ class DockerClient
             return [];
         }
 
+        // `docker inspect` devuelve una lista JSON aunque sea un solo nombre
+        if (isset($info[0])) {
+            $info = $info[0];
+        }
+
         return collect($info['Mounts'] ?? [])
             ->map(fn (array $m) => [
                 'source' => (string) ($m['Source'] ?? ''),

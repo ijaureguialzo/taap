@@ -7,6 +7,9 @@
 #   2. Agente Pi   -> chat con APROBACION de comando bash
 #   3. Agente Pi   -> MCP (get_time) conectado y usado
 #   4. Agente Hermes -> chat
+#   5. FS compartido -> subida en "Archivos", agente rw lee/escribe sin
+#      confirmacion, segundo agente ro ve el cambio y no escribe, el admin
+#      lo ve todo en su explorador
 #
 # Precondiciones: `docker compose up -d` (orquestador, reverb, postgres,
 # queue, egress) y un admin existente. Sale 0 si todo paso, 1 si no.
@@ -150,7 +153,7 @@ TOKEN=$(echo "$LOGIN" | json token)
 [ -n "$TOKEN" ] || { fail "login de $ADMIN_EMAIL"; exit 1; }
 ok "login $ADMIN_EMAIL"
 
-# Cuota de agentes: el smoke crea 2; se sube la cuota del admin (y se
+# Cuota de agentes: el smoke crea 4; se sube la cuota del admin (y se
 # restaura en la limpieza) para no chocar con los agentes ya existentes.
 ADMIN_ID=$(api GET /api/v1/users | php -r '
   $d = json_decode(stream_get_contents(STDIN), true);
@@ -160,8 +163,14 @@ QUOTA_BEFORE=$(api GET /api/v1/users | php -r '
   $d = json_decode(stream_get_contents(STDIN), true);
   foreach ($d["users"] ?? [] as $u) if ((int) $u["id"] === (int) $argv[1]) { echo $u["agent_quota"] ?? ""; break; }
 ' "$ADMIN_ID")
-api PUT "/api/v1/users/$ADMIN_ID" '{"role":"admin","agent_quota":8}' > /dev/null
-ok "cuota temporal: ${QUOTA_BEFORE:-default} -> 8"
+EXISTING=$(api GET /api/v1/agents | php -r '
+  $d = json_decode(stream_get_contents(STDIN), true);
+  echo count($d["agents"] ?? []);
+')
+QUOTA=$(( EXISTING + 4 ))
+[ "$QUOTA" -lt 8 ] && QUOTA=8
+api PUT "/api/v1/users/$ADMIN_ID" "{\"role\":\"admin\",\"agent_quota\":$QUOTA}" > /dev/null
+ok "cuota temporal: ${QUOTA_BEFORE:-default} -> $QUOTA ($EXISTING existentes + 4 del smoke)"
 
 # =============================================================================
 say "1. Proveedor + modelo"
@@ -251,13 +260,18 @@ if [ -n "$MCP_ID" ]; then
   RESP=$(api PUT "/api/v1/agents/$AG1_ID" "{\"name\":\"$AG1\",\"mcp_server_ids\":[$MCP_ID]}")
   echo "$RESP" | grep -q 'error' && fail "conectar mcp al agente: $RESP" || ok "mcp conectado (restart aplicado)"
   if wait_status "$AG1_ID" idle 240; then
-    api POST "/api/v1/agents/$AG1_ID/messages" '{"content":"Usa la herramienta get_time y dime que hora es en UTC"}' > /dev/null
-    if wait_agent_message "$AG1_ID" 420; then
-      LAST=$(last_agent_message "$AG1_ID")
-      echo "$LAST" | grep -Eq "UTC|:|hora|T[0-9]" && ok "el agente respondio con MCP conectado: $(echo "$LAST" | head -c 80)" || echo "   info: respuesta no menciona la hora (el modelo pudo usar bash): $(echo "$LAST" | head -c 80)"
-    else
-      fail "sin respuesta del pi sobre MCP"
-    fi
+    MCP_OK=0
+    for try in 1 2; do
+      api POST "/api/v1/agents/$AG1_ID/messages" '{"content":"Usa la herramienta get_time y dime que hora es en UTC"}' > /dev/null
+      if wait_agent_message "$AG1_ID" 420; then
+        LAST=$(last_agent_message "$AG1_ID")
+        echo "$LAST" | grep -Eq "UTC|:|hora|T[0-9]" && ok "el agente respondio con MCP conectado: $(echo "$LAST" | head -c 80)" || echo "   info: respuesta no menciona la hora (el modelo pudo usar bash): $(echo "$LAST" | head -c 80)"
+        MCP_OK=1
+        break
+      fi
+      [ "$try" -lt 2 ] && { echo "   (sin respuesta; reiniciando agente)"; api POST "/api/v1/agents/$AG1_ID/restart" > /dev/null; wait_status "$AG1_ID" idle 240; }
+    done
+    [ "$MCP_OK" = "1" ] || fail "sin respuesta del pi sobre MCP"
   else
     fail "pi no se recupero tras conectar MCP"
   fi
@@ -285,6 +299,120 @@ if wait_status "$AG2_ID" idle 300; then
 else
   fail "hermes no llego a idle"
 fi
+
+# =============================================================================
+say "5. FS compartido (shared-filesystem 9.1)"
+# =============================================================================
+# Flujo completo: el admin sube un fichero a una carpeta del arbol (el
+# mismo endpoint que usa la pagina "Archivos"), un agente Pi con la carpeta
+# en read_write lo lee/escribe SIN confirmacion (extension de auto-aprobacion
+# 6.4), un segundo agente en read_only ve el cambio y se niega a escribir
+# (EROFS), y el explorador del admin lo ve todo.
+
+FS_DIR="/smoke-fs-$TS"
+
+# 5a. El admin crea la carpeta y sube el fichero (API v1 files = "Archivos")
+RESP=$(api POST "/api/v1/files/folders" "{\"path\":\"$FS_DIR\"}")
+echo "$RESP" | grep -q 'error' && fail "crear carpeta $FS_DIR: $RESP" || ok "carpeta $FS_DIR creada"
+
+SMOKE_FILE="/tmp/smoke-fs-$TS.txt"
+printf 'MARKA-%s\n' "$TS" > "$SMOKE_FILE"
+RESP=$(curl -s -X POST "$BASE_URL/api/v1/files/uploads" \
+  -H "Authorization: Bearer $TOKEN" -H "Accept: application/json" \
+  -F "path=$FS_DIR" -F "file=@$SMOKE_FILE;filename=hola.txt")
+echo "$RESP" | grep -q '"ok"\|"name"' || { fail "subida de hola.txt: $RESP"; }
+LIST=$(api GET "/api/v1/files?path=$FS_DIR" | php -r '
+  $d = json_decode(stream_get_contents(STDIN), true);
+  echo implode(",", array_map(fn($e) => $e["name"], $d["entries"] ?? []));
+')
+echo "$LIST" | grep -q "hola.txt" && ok "el admin ve la subida en su explorador: $LIST" || fail "subida no visible: $LIST"
+
+# 5b. Agente A (pi) con la carpeta en read_write: lee y escribe sin confirmacion
+AG3="smoke-fs-rw-$TS"
+RESP=$(api POST /api/v1/agents "{\"name\":\"$AG3\",\"runtime\":\"pi\",\"model_id\":$MODEL_ID_ROW,\"internet_enabled\":false,\"fs_mounts\":[{\"path\":\"$FS_DIR\",\"mode\":\"read_write\"}],\"system_prompt\":\"Eres un agente de shell. Usa la herramienta bash para leer y escribir ficheros en $FS_DIR montado en /fs$FS_DIR. Si un comando falla, di claramente porque fallo.\"}")
+AG3_ID=$(echo "$RESP" | json agent.id)
+[ -n "$AG3_ID" ] || { fail "crear agente fs-rw: $RESP"; }
+ok "agente $AG3 (id $AG3_ID) con $FS_DIR en read_write"
+SMOKE_IDS="$SMOKE_IDS $AG3_ID"
+
+if wait_status "$AG3_ID" idle 240; then ok "fs-rw ready"; else fail "fs-rw no llego a idle"; fi
+
+FS_OK=0
+for try in 1 2 3; do
+  api POST "/api/v1/agents/$AG3_ID/messages" "{\"content\":\"Con la herramienta bash escribe la marca MARKA-$TS en el fichero $FS_DIR/out.txt (ruta /fs$FS_DIR/out.txt) y despues lee /fs$FS_DIR/hola.txt y dime que contiene.\"}" > /dev/null
+  for i in $(seq 1 16); do
+    sleep 15
+    N=$(api GET "/api/v1/agents/$AG3_ID/messages?limit=1" | php -r '
+      $d = json_decode(stream_get_contents(STDIN), true);
+      echo count($d["pending_approvals"] ?? []);
+    ')
+    if [ "${N:-0}" -ge 1 ] 2>/dev/null; then
+      # Auto-aprobacion 6.4 deberia evitarlo en rw; si el modelo pidio algo
+      # de todos modos, se aprueba (info, no fallo).
+      AP_ID=$(api GET "/api/v1/agents/$AG3_ID/messages?limit=1" | php -r '
+        $d = json_decode(stream_get_contents(STDIN), true);
+        echo ($d["pending_approvals"][0]["id"] ?? "");
+      ')
+      echo "   info: pidio aprobacion (auto-aprobacion rw no se disparo); aprobando $AP_ID"
+      [ -n "$AP_ID" ] && api POST "/api/v1/agents/$AG3_ID/approvals/$AP_ID" "{\"approval_id\":\"$AP_ID\",\"approved\":true}" > /dev/null
+    fi
+    S=$(api GET "/api/v1/agents/$AG3_ID/status" | json agent.status)
+    if [ "$S" = "idle" ]; then break; fi
+  done
+  # La prueba objetiva: el fichero escrito por el agente esta en el arbol
+  DL=$(api GET "/api/v1/files/download?path=$FS_DIR/out.txt" 2>/dev/null)
+  if echo "$DL" | grep -q "MARKA-$TS"; then FS_OK=1; break; fi
+  [ "$try" -lt 3 ] && { echo "   (intento $try sin escritura; reiniciando agente)"; api POST "/api/v1/agents/$AG3_ID/restart" > /dev/null; wait_status "$AG3_ID" idle 240; }
+done
+
+if [ "$FS_OK" = "1" ]; then
+  ok "el agente en rw escribio en el arbol compartido (out.txt con MARKA-$TS), sin confirmacion"
+  LAST=$(last_agent_message "$AG3_ID")
+  echo "$LAST" | grep -q "MARKA-$TS" && ok "el agente leio hola.txt y reporto su contenido: $(echo "$LAST" | head -c 80)" || echo "   info: la respuesta no cita la marca literal: $(echo "$LAST" | head -c 80)"
+else
+  fail "el agente en rw no llego a escribir en el arbol compartido"
+fi
+
+# 5c. Agente B (pi) con la carpeta en read_only: ve el cambio y no puede escribir
+AG4="smoke-fs-ro-$TS"
+RESP=$(api POST /api/v1/agents "{\"name\":\"$AG4\",\"runtime\":\"pi\",\"model_id\":$MODEL_ID_ROW,\"internet_enabled\":false,\"fs_mounts\":[{\"path\":\"$FS_DIR\",\"mode\":\"read_only\"}],\"system_prompt\":\"Eres un agente de shell. Usa la herramienta bash para inspeccionar $FS_DIR montado en /fs$FS_DIR. Si un comando falla, di claramente porque fallo.\"}")
+AG4_ID=$(echo "$RESP" | json agent.id)
+[ -n "$AG4_ID" ] || { fail "crear agente fs-ro: $RESP"; }
+ok "agente $AG4 (id $AG4_ID) con $FS_DIR en read_only"
+SMOKE_IDS="$SMOKE_IDS $AG4_ID"
+
+if wait_status "$AG4_ID" idle 240; then ok "fs-ro ready"; else fail "fs-ro no llego a idle"; fi
+
+api POST "/api/v1/agents/$AG4_ID/messages" "{\"content\":\"Lee /fs$FS_DIR/out.txt con la herramienta bash y dime el contenido.\"}" > /dev/null
+if wait_agent_message "$AG4_ID" 420; then
+  LAST=$(last_agent_message "$AG4_ID")
+  echo "$LAST" | grep -q "MARKA-$TS" && ok "el segundo agente (ro) ve el cambio del primero: $(echo "$LAST" | head -c 80)" || echo "   info: el ro respondio sin citar la marca: $(echo "$LAST" | head -c 80)"
+else
+  fail "sin respuesta del agente ro sobre la lectura"
+fi
+
+api POST "/api/v1/agents/$AG4_ID/messages" "{\"content\":\"Intenta escribir PROBA en /fs$FS_DIR/ro.txt con la herramienta bash. Si falla, di claramente que no puedes escribir.\"}" > /dev/null
+# La comprobacion decisiva es el arbol (abajo): el modelo puede no citar la
+# negacion literal, o no responder en el plazo (model intermitente): info.
+if wait_agent_message "$AG4_ID" 420; then
+  ok "el agente ro intento escribir: $(last_agent_message "$AG4_ID" | head -c 80)"
+else
+  echo "   info: el ro no respondio en el plazo (el arbol es la prueba decisiva)"
+fi
+LIST=$(api GET "/api/v1/files?path=$FS_DIR" | php -r '
+  $d = json_decode(stream_get_contents(STDIN), true);
+  echo implode(",", array_map(fn($e) => $e["name"], $d["entries"] ?? []));
+')
+echo "$LIST" | grep -q "ro.txt" && fail "el read_only consiguio crear ro.txt en el arbol: $LIST" || ok "el arbol no muestra ro.txt (la escritura en read_only se nego): $LIST"
+
+# 5d. El explorador del admin ve el estado final del arbol
+LIST=$(api GET "/api/v1/files?path=$FS_DIR" | php -r '
+  $d = json_decode(stream_get_contents(STDIN), true);
+  echo implode(",", array_map(fn($e) => $e["name"], $d["entries"] ?? []));
+')
+echo "$LIST" | grep -q "hola.txt" && echo "$LIST" | grep -q "out.txt" && ok "el explorador del admin ve todo: $LIST" || fail "explorador del admin incompleto: $LIST"
+
+rm -f "$SMOKE_FILE"
 
 # =============================================================================
 say "Resultado"

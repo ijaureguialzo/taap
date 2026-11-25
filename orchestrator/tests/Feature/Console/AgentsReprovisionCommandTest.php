@@ -8,6 +8,7 @@ use App\Models\Agent;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Queue;
+use PHPUnit\Framework\MockObject\MockObject;
 use Tests\TestCase;
 
 /**
@@ -40,10 +41,7 @@ class AgentsReprovisionCommandTest extends TestCase
         ]);
     }
 
-    /**
-     * @return \PHPUnit\Framework\MockObject\MockObject
-     */
-    protected function mockManager(): \PHPUnit\Framework\MockObject\MockObject
+    protected function mockManager(): MockObject
     {
         $mock = $this->createMock(AgentManager::class);
         $mock->method('restart')->willReturnCallback(fn ($a) => $a);

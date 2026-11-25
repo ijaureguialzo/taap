@@ -81,6 +81,10 @@ services:
       REVERB_APP_SECRET: ${REVERB_APP_SECRET:-taap-local}
       DOCKER_HOST: unix:///var/run/docker.sock
       SQUID_HOST: egress
+      # FS compartido (shared-filesystem, design D9): explicitas, para no
+      # depender de los defectos del config (ver deploy/env.example).
+      TAAP_FS_BASE: /data/fs
+      TAAP_FS_HOST_BASE: ${TAAP_FS_ROOT:-/var/lib/taap/fs}
     ports:
       - "${TAAP_PORT:-8000}:8000"
       - "${TAAP_WS_PORT:-8080}:8080"
@@ -142,6 +146,8 @@ services:
       REVERB_APP_KEY: ${REVERB_APP_KEY:-taap-local}
       REVERB_APP_SECRET: ${REVERB_APP_SECRET:-taap-local}
       SQUID_HOST: egress
+      TAAP_FS_BASE: /data/fs
+      TAAP_FS_HOST_BASE: ${TAAP_FS_ROOT:-/var/lib/taap/fs}
       # Socket de Docker: los jobs de la cola default pueden tocar el
       # runtime (BridgeApplyConfig -> restart del contenedor en Pi/Hermes).
       # Sin el socket, restart() ve status null, cae en start() y el

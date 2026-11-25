@@ -98,7 +98,7 @@ class Agent extends Model
      */
     public function fsMounts(): HasMany
     {
-        return $this->hasMany(AgentFsMount::class);
+        return $this->hasMany(AgentFsMount::class)->orderBy('id');
     }
 
     /**

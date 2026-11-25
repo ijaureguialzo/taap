@@ -26,7 +26,11 @@ AS_APP php artisan reverb:start --host=0.0.0.0 --port=8080 &
 REVERB_PID=$!
 AS_APP php artisan schedule:work &
 SCHED_PID=$!
-AS_APP php artisan taap:bridge &
+# El bridge es la red de vida de los agentes (re-attach, stale-check,
+# status): sin supervision, una excepcion sin reintentos (p. ej. una caida
+# de postgres) lo deja muerto para siempre y los agentes quedan colgados
+# en `starting`. El loop lo re-levanta.
+AS_APP sh -c 'while :; do php artisan taap:bridge; echo "[entrypoint] taap:bridge salio; re-levantando en 5s"; sleep 5; done' &
 BRIDGE_PID=$!
 
 trap 'kill $REVERB_PID $SCHED_PID $BRIDGE_PID 2>/dev/null; exit 0' TERM INT
