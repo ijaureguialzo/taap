@@ -5,7 +5,9 @@ namespace App\Agents;
 use App\Enums\AgentRuntime;
 use App\Enums\FsMountMode;
 use App\Models\Agent;
+use App\Models\AgentFsMount;
 use App\Models\Model;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Str;
 
@@ -168,6 +170,54 @@ class ConfigRenderer
         return $path;
     }
 
+    /* ================= FS compartido en la config nativa (design D8) ================= */
+
+    /**
+     * Bloque de FS compartido para el prompt del agente (design D8): los
+     * paths conectados (con el prefijo /fs, lo que ve el shell) + sus
+     * modos. Vacio si no hay carpetas expuestas (sin efecto observable).
+     */
+    public function fsPromptBlock(Agent $agent): string
+    {
+        $exposed = $agent->fsMounts()->exposed()->orderBy('path')->get();
+        if ($exposed->isEmpty()) {
+            return '';
+        }
+
+        $lines = $exposed->map(
+            fn (AgentFsMount $m) => '- '.('/fs'.$this->canonicalPath($m->path))
+                .' ('.($m->mode === FsMountMode::ReadWrite ? 'read/write' : 'read-only').')'
+        );
+
+        return "Shared filesystem (mounted under /fs):\n"
+            .$lines->implode("\n")."\n"
+            .'Writing outside the read/write folders fails (kernel read-only mounts).';
+    }
+
+    /**
+     * Paths expuestos (design D2: los visibles en el contenedor).
+     *
+     * @return Collection<int, AgentFsMount>
+     */
+    protected function exposedMounts(Agent $agent)
+    {
+        return $agent->fsMounts()->exposed()->orderBy('path')->get();
+    }
+
+    /**
+     * Bloque del prompt combinado (prompt del admin + FS compartido), o el
+     * original si no hay FS (sin efecto observable).
+     */
+    protected function promptWithFs(Agent $agent): ?string
+    {
+        $block = $this->fsPromptBlock($agent);
+        if ($block === '') {
+            return $agent->system_prompt;
+        }
+
+        return trim(($agent->system_prompt ? $agent->system_prompt."\n\n" : '').$block);
+    }
+
     /**
      * @return list<string>
      */
@@ -199,8 +249,8 @@ class ConfigRenderer
         if ($token) {
             $env[] = 'API_KEY='.$token;
         }
-        if ($agent->system_prompt) {
-            $env[] = 'SYSTEM_PROMPT='.escapeshellarg($agent->system_prompt);
+        if ($prompt = $this->promptWithFs($agent)) {
+            $env[] = 'SYSTEM_PROMPT='.escapeshellarg($prompt);
         }
         File::put($dir.'/config/agent.env', implode("\n", $env)."\n");
 
@@ -360,17 +410,33 @@ class ConfigRenderer
         // los lleva solo si el admin los ajusto en la config del agente.
         $config = $agent->config ?? [];
         $permissions = $config['permissions'] ?? null;
-
         $claude = [
             'model' => $model?->model_id,
             'anthropic_base_url' => $proxy,
             'anthropic_api_key' => $token,
-            'system_prompt' => $agent->system_prompt,
+            'system_prompt' => $this->promptWithFs($agent),
             'mcp_servers' => $mcpServers === [] ? new \stdClass : $mcpServers,
             'workdir' => '/workspace',
             'state_file' => '/data/session-state.json',
         ];
-        if (is_array($permissions)) {
+
+        // Permisos: los del admin (si los fijó) + los del FS compartido
+        // (design D8): lecturas en /fs siempre permitidas; ediciones solo
+        // en los paths read/write (fuera de ellos: ask, default actual).
+        // El kernel (binds ro/rw) sigue siendo el enforcement real.
+        $permissions = is_array($permissions) ? $permissions : [];
+        $exposed = $this->exposedMounts($agent);
+        if ($exposed->isNotEmpty()) {
+            $fsAllow = array_merge(
+                ['Read(/fs/**)'],
+                $exposed
+                    ->filter(fn (AgentFsMount $m) => $m->mode === FsMountMode::ReadWrite)
+                    ->map(fn (AgentFsMount $m) => 'Edit(/fs'.$this->canonicalPath($m->path).'/**)')
+                    ->all(),
+            );
+            $permissions['allow'] = array_values(array_unique(array_merge($permissions['allow'] ?? [], $fsAllow)));
+        }
+        if ($permissions !== []) {
             $claude['permissions'] = $permissions;
         }
         if (isset($config['approval_timeout_seconds'])) {
@@ -417,6 +483,16 @@ class ConfigRenderer
         $args = [
             '-c', 'approval_policy='.($this->codexStr($agent, 'approval_policy') ?? 'on-request'),
             '-c', 'sandbox_mode='.($this->codexStr($agent, 'sandbox_mode') ?? 'workspace-write'),
+            // FS compartido (design D8): writable roots = workspace + los
+            // paths read/write (el :ro lo fuerza el kernel; la sandbox evita
+            // rondas de aprobacion de codex dentro de lo montado).
+            '-c', 'sandbox_workspace_write.writable_roots='.json_encode(
+                array_merge(['/workspace'], $this->exposedMounts($agent)
+                    ->filter(fn (AgentFsMount $m) => $m->mode === FsMountMode::ReadWrite)
+                    ->map(fn (AgentFsMount $m) => '/fs'.$this->canonicalPath($m->path))
+                    ->all()),
+                JSON_UNESCAPED_SLASHES,
+            ),
             // Web search (spike 2.1): el binary 0.171 incluye SIEMPRE la
             // tool `web_search` en el request /v1/responses; un upstream que
             // no la soporta (orcarouter: 400) cae el turno entero. Desactivada
@@ -556,6 +632,18 @@ class ConfigRenderer
             'list' => 'allow',
         ];
 
+        // FS compartido (design D8): dentro de los paths, lectura/edicion sin
+        // rondas (el kernel sigue forzando los :ro); fuera, defaults actuales.
+        $exposed = $this->exposedMounts($agent);
+        if ($exposed->isNotEmpty()) {
+            $globs = fn (bool $rwOnly) => $exposed
+                ->when($rwOnly, fn ($q) => $q->filter(fn (AgentFsMount $m) => $m->mode === FsMountMode::ReadWrite))
+                ->map(fn (AgentFsMount $m) => '/fs'.$this->canonicalPath($m->path).'/**')
+                ->all();
+            $permission['read'] = ['allow' => array_merge($globs(false), ['**'])];
+            $permission['edit'] = ['allow' => $globs(true), 'ask' => ['**']];
+        }
+
         // MCP: http por la puerta del orquestador (token de agente); stdio
         // con command/args (la imagen lleva node+python3, paridad Pi/Codex).
         $mcp = [];
@@ -593,8 +681,8 @@ class ConfigRenderer
             'permission' => $permission,
             'mcp' => $mcp === [] ? new \stdClass : $mcp,
         ];
-        if ($agent->system_prompt) {
-            $opencode['instructions'] = $agent->system_prompt;
+        if ($prompt = $this->promptWithFs($agent)) {
+            $opencode['instructions'] = $prompt;
         }
 
         File::ensureDirectoryExists($dir.'/config/opencode');
