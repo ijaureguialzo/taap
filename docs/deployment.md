@@ -90,6 +90,14 @@ layout y la app lo pide a `GET /api/v1/reverb-config`). Con los defectos,
 ambos conectan a `wss://ws.taap.test` (443) a través de Traefik; el
 navegador bloquearía un `ws://` directo desde la página HTTPS.
 
+Lo mismo aplica a la propia app web (router de `FQDN_TAAP`): la página se
+sirve por https, pero `APP_URL` es la URL interna (http) que usan los
+agentes. `TAAP_FORCE_HTTPS=true` (fijada en `deploy/env.example`) fuerza
+el esquema de las URLs que la aplicación genera —assets de Vite, redirects,
+`url()`/`asset()`—, y así el CSS/JS cargan sin contenido mixto. Tri-estado:
+`true` → https; `false` → http; sin definir → derivado del esquema de
+`APP_URL` (el estado de siempre; no afecta el dev local en http).
+
 **Desplegar en otro dominio** (p. ej. producción en `itlent.eus`): sin
 tocar código, en el `.env` del host,
 
@@ -108,8 +116,9 @@ make build && make up
 ```
 
 **Solo LAN / sin Traefik** (p. ej. la app iOS apuntando a la IP del host):
-`TAAP_PUBLIC_HOST=<IP del host>`, `TAAP_PUBLIC_SCHEME=http` y
-`TAAP_REVERB_PUBLIC_PORT=<TAAP_WS_PORT>`.
+`TAAP_PUBLIC_HOST=<IP del host>`, `TAAP_PUBLIC_SCHEME=http`,
+`TAAP_REVERB_PUBLIC_PORT=<TAAP_WS_PORT>` y `TAAP_FORCE_HTTPS=false` (o sin
+definir).
 
 ## Primer modelo (endpoint propio)
 
@@ -243,4 +252,5 @@ las sesiones se reanudan, no se pierden.
 | El modelo no responde desde un agente | Comprueba el endpoint: `curl <url>/models` desde el host; para routers locales, la URL debe ser `host.docker.internal` |
 | Egress 403 para un host | El host no está en la allowlist de squid (solo hosts de modelos) |
 | WSS no conecta (web o iOS) | Comprueba que el host resuelve `ws.taap.test` (o el `FQDN_WS` configurado), que el certificado lo cubre y que `TAAP_PUBLIC_HOST`/`TAAP_PUBLIC_SCHEME`/`TAAP_REVERB_PUBLIC_PORT` apuntan a donde debe; en solo LAN usa la IP + `http` + `TAAP_WS_PORT` (ver «Endpoints públicos») |
+| CSS/JS no cargan (página en blanco, contenido mixto en la consola) | La página es https pero los assets salen http: `TAAP_FORCE_HTTPS=true` en `deploy/.env` y `make build && make up` (ver «Endpoints públicos»); si usas caché de config, regénerala (`php artisan config:cache`) |
 | Aprobación nunca aparece | El modelo no invocó la herramienta (modelos pequeños dudan): reenvía el mensaje |
