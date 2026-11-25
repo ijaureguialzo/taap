@@ -173,6 +173,75 @@
                     </div>
                 </div>
 
+                {{-- Carpetas del FS compartido (shared-filesystem 7.1) --}}
+                <div class="card">
+                    <div class="card-header"><x-icon name="folder2" class="me-1" />{{ __('agents.fs_folders') }}</div>
+                    <div class="card-body">
+                        @forelse ($fsMounts as $m)
+                            <div class="d-flex align-items-center gap-2 mb-2">
+                                <code class="small flex-grow-1 break-all">/fs{{ $m['path'] }}</code>
+                                @if ($m['external'])
+                                    <span class="badge text-bg-secondary" title="{{ __('agents.fs_external') }}">{{ __('agents.fs_external') }}</span>
+                                @endif
+                                <select class="form-select form-select-sm w-auto"
+                                        x-on:change="$wire.updateFsMode('{{ $m['id'] }}', $event.target.value)">
+                                    @foreach (['disabled' => 'fs_mode.disabled', 'read_only' => 'fs_mode.read_only', 'read_write' => 'fs_mode.read_write'] as $value => $label)
+                                        <option value="{{ $value }}" @selected($m['mode'] === $value)>{{ __('agents.'.$label) }}</option>
+                                    @endforeach
+                                </select>
+                                <button class="btn btn-outline-danger btn-sm" wire:click="removeFsMount('{{ $m['id'] }}')"
+                                        data-confirm="{{ __('agents.fs_removed') }}">
+                                    <x-icon name="trash3" label="{{ __('agents.fs_remove') }}" class="me-1" />
+                                </button>
+                            </div>
+                        @empty
+                            <p class="text-muted small mb-2">{{ __('agents.fs_empty') }}</p>
+                        @endforelse
+
+                        <div class="border rounded p-2 mt-2">
+                            <div class="d-flex align-items-center gap-2 mb-1">
+                                <button class="btn btn-outline-secondary btn-sm" wire:click="fsBrowseTo('/')">/
+                                </button>
+                                <code class="small flex-grow-1 break-all">{{ $fsBrowse }}</code>
+                                <button class="btn btn-outline-secondary btn-sm" wire:click="fsSelectDir">{{ __('agents.fs_select') }}</button>
+                            </div>
+                            <table class="table table-sm table-bordered align-middle mb-2">
+                                <tbody>
+                                    @forelse ($fsEntries as $e)
+                                        <tr @class(['text-muted' => $e['type'] !== 'dir'])>
+                                            <td>
+                                                @if ($e['type'] === 'dir')
+                                                    <button class="btn btn-link btn-sm p-0 text-start" wire:click="fsBrowseTo('{{ $fsBrowse === '/' ? '/' : rtrim($fsBrowse, '/') }}/{{ $e['name'] }}')">
+                                                        <x-icon name="folder2" class="me-1" />{{ $e['name'] }}
+                                                    </button>
+                                                @else
+                                                    <span class="text-muted"><x-icon name="file" class="me-1" />{{ $e['name'] }}</span>
+                                                @endif
+                                            </td>
+                                            <td class="text-end small text-muted">{{ $e['type'] === 'dir' ? __('files.type.dir') : number_format($e['size']) }}</td>
+                                        </tr>
+                                    @empty
+                                        <tr><td class="text-muted small">{{ __('files.empty') }}</td></tr>
+                                    @endforelse
+                                </tbody>
+                            </table>
+                            <div class="d-flex gap-2">
+                                <input type="text" wire:model="newFsPath" class="form-control form-control-sm flex-grow-1"
+                                       placeholder="{{ __('agents.fs_path_ph') }}" wire:keydown.enter="addFsMount">
+                                <select wire:model="newFsMode" class="form-select form-select-sm w-auto">
+                                    @foreach (['disabled' => 'fs_mode.disabled', 'read_only' => 'fs_mode.read_only', 'read_write' => 'fs_mode.read_write'] as $value => $label)
+                                        <option value="{{ $value }}">{{ __('agents.'.$label) }}</option>
+                                    @endforeach
+                                </select>
+                                <button class="btn btn-primary btn-sm" wire:click="addFsMount"><x-icon name="plus-lg" class="me-1" />{{ __('agents.fs_add') }}</button>
+                            </div>
+                            @if ($fsError)
+                                <div class="text-danger small mt-1">{{ $fsError }}</div>
+                            @endif
+                        </div>
+                    </div>
+                </div>
+
                 <div class="card border-danger">
                     <div class="card-body py-2">
                         <button class="btn btn-outline-danger btn-sm" wire:click="delete"

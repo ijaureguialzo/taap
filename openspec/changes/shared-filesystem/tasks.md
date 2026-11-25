@@ -38,7 +38,7 @@
 
 ## 7. Web: configuración de carpetas por agente
 
-- [ ] 7.1 En `Agents/Detail`: sección de carpetas del FS compartido — añadir (picker de directorios), editar modo (`desactivada`/`solo lectura`/`lectura/escritura`) y borrar; el picker del propietario navega desde su home, el del admin desde la raíz; paths externos se muestran canónicos con marca "externa". Verificación: tests Livewire: el propietario no puede añadir un path fuera de su home; el admin sí; guardar crea/actualiza `agent_fs_mounts`; el cambio de modo dispara el flujo 6.5 con su aviso.
+- [x] 7.1 En `Agents/Detail`: sección de carpetas del FS compartido — añadir (picker de directorios), editar modo (`desactivada`/`solo lectura`/`lectura/escritura`) y borrar; el picker del propietario navega desde su home, el del admin desde la raíz; paths externos se muestran canónicos con marca "externa". Verificación: tests Livewire: el propietario no puede añadir un path fuera de su home; el admin sí; guardar crea/actualiza `agent_fs_mounts`; el cambio de modo dispara el flujo 6.5 con su aviso.
 
 ## 8. Rollout
 
