@@ -163,6 +163,11 @@ class ConfigRenderer
     public function canonicalPath(string $path): string
     {
         $path = '/'.ltrim(trim($path), '/');
+        // Tolerante: un path guardado con el prefijo /fs (la vista del
+        // contenedor) se normaliza a la vista desde la raiz del arbol.
+        if (str_starts_with($path, '/fs/')) {
+            $path = substr($path, 3);
+        }
         if ($path !== '/') {
             $path = rtrim($path, '/');
         }
@@ -252,6 +257,22 @@ class ConfigRenderer
         if ($prompt = $this->promptWithFs($agent)) {
             $env[] = 'SYSTEM_PROMPT='.escapeshellarg($prompt);
         }
+        // FS compartido (6.4): la extension de aprobacion auto-aprueba los
+        // comandos que quedan dentro de estos paths (rw = lectura+escritura,
+        // ro = lectura). "export " para que llegue al proceso pi aunque el
+        // entrypoint no use "set -a". Sin montados: no se exportan.
+        if ($rw = $this->exposedMounts($agent)
+            ->filter(fn ($m) => $m->mode === FsMountMode::ReadWrite)
+            ->map(fn ($m) => '/fs'.$this->canonicalPath((string) $m->path))
+            ->implode(',')) {
+            $env[] = 'export TAAP_FS_RW='.$rw;
+        }
+        if ($ro = $this->exposedMounts($agent)
+            ->filter(fn ($m) => $m->mode === FsMountMode::ReadOnly)
+            ->map(fn ($m) => '/fs'.$this->canonicalPath((string) $m->path))
+            ->implode(',')) {
+            $env[] = 'export TAAP_FS_RO='.$ro;
+        }
         File::put($dir.'/config/agent.env', implode("\n", $env)."\n");
 
         // /data/models.json -> provider "taap" = Model Proxy del orquestador
@@ -288,11 +309,18 @@ class ConfigRenderer
         File::put($dir.'/data/mcp.json', json_encode(['mcpServers' => $mcpServers === [] ? new \stdClass : $mcpServers], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES)."\n");
 
         // /data/extensions/taap-approval.ts -> extension que pide confirmacion
-        // antes de cada bash (-> extension_ui_request -> approval.request)
+        // antes de cada bash (-> extension_ui_request -> approval.request),
+        // con la politica de auto-aprobacion del FS (shared-filesystem 6.4).
         $ext = base_path('resources/agents/pi/taap-approval.ts');
         if (is_file($ext)) {
             File::ensureDirectoryExists($dir.'/data/extensions');
             File::copy($ext, $dir.'/data/extensions/taap-approval.ts');
+            // FUERA de /extensions (pi auto-carga todo *.ts de alli y
+            // exigiria un factory default): vive en la raiz del data.
+            File::copy(
+                base_path('resources/agents/pi/taap-fs-policy.ts'),
+                $dir.'/data/taap-fs-policy.ts',
+            );
         }
 
         return [

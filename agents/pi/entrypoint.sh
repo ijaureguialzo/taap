@@ -18,7 +18,7 @@
 # writable desde el host). Pi lee de ~/.pi/agent/.
 # La extension taap-approval se copia a ~/.pi/agent/ (tambien writable).
 set -e
-[ -f /config/agent.env ] && . /config/agent.env
+[ -f /config/agent.env ] && { set -a; . /config/agent.env; set +a; }
 
 # Asegurar que los subdirectorios de ~/.pi/agent/ existen. El bind mount
 # reemplaza el contenido de ~/.pi/agent/ pero no garantiza que todos los
