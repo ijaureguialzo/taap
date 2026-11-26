@@ -9,6 +9,7 @@ use App\Livewire\Mcp;
 use App\Livewire\Models;
 use App\Livewire\Providers;
 use App\Livewire\Audit;
+use App\Livewire\Health;
 use App\Livewire\Usage;
 use App\Livewire\Users;
 use App\Services\FileSystemException;
@@ -69,6 +70,8 @@ Route::middleware(['auth'])->group(function () {
         ->middleware('role:admin')->name('audit.index');
     Route::get('usage', Usage\Index::class)
         ->middleware('role:admin')->name('usage.index');
+    Route::get('health', Health\Index::class)
+        ->middleware('role:admin')->name('health.index');
 
     Route::get('profile', Profile::class)->name('profile.edit');
 });

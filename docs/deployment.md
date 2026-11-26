@@ -74,6 +74,14 @@ curl -s localhost:8011/up   # 200
 Abre `https://taap.test` (o `http://localhost:8011`), entra con el admin y ve
 el dashboard.
 
+## Salud del sistema
+
+Panel de salud operativo (rol admin): `/health` — agentes por estado en
+vivo (refresh cada 10 s), últimos fallos (agent_events `type=error`) y
+salud de proveedores (estado + última comprobación, si no se ha comprobado,
+se muestra «sin comprobar»). API: `GET /api/v1/health/summary` (admin) con
+el mismo shape (`agents_by_status`, `recent_failures`, `providers`).
+
 ## Uso de modelos
 
 El proxy de modelos escribe una entrada de telemetría por petición

@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\AgentController;
 use App\Http\Controllers\Api\AuditController;
+use App\Http\Controllers\Api\HealthController;
 use App\Http\Controllers\Api\UsageController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\ChatController;
@@ -90,6 +91,9 @@ Route::prefix('v1')->group(function () {
 
         /* uso de modelos (admin) */
         Route::get('usage', [UsageController::class, 'index']);
+
+        /* salud operativa (admin) */
+        Route::get('health/summary', [HealthController::class, 'summary']);
 
         /* agentes */
         Route::get('agents', [AgentController::class, 'index']);
