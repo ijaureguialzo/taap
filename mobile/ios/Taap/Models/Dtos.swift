@@ -329,3 +329,41 @@ enum JSONValue: Decodable, Encodable, Hashable {
         }
     }
 }
+
+// MARK: - Archivos (explorador de FS compartido)
+
+struct FileEntryDTO: Decodable, Identifiable, Hashable {
+    let name: String
+    let type: String
+    let size: Int
+    let mtime: String
+    let owner: String?
+
+    var id: String { name }
+    var isDir: Bool { type == "dir" }
+    /// Cuota de tamaño legible (0 B si es directorio).
+    var sizeDisplay: String {
+        isDir ? "—" : ByteCountFormatter.string(fromByteCount: Int64(size), countStyle: .file)
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case name, type, size, mtime, owner
+    }
+}
+
+struct FilesEnvelope: Decodable {
+    let path: String
+    let entries: [FileEntryDTO]
+}
+
+struct CreateFolderResponse: Decodable {
+    let path: String
+}
+
+struct RenameResponse: Decodable {
+    let path: String
+}
+
+struct DeletedResponse: Decodable {
+    let deleted: String?
+}

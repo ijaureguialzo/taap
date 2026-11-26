@@ -297,6 +297,136 @@ final class ApiClient {
     func timeline(agentId: Int, hours: Int = 24) async throws -> TimelineResponse {
         try await request("api/v1/agents/\(agentId)/timeline?hours=\(hours)")
     }
+
+    // MARK: - Archivos
+
+    func files(at path: String = "/") async throws -> FilesEnvelope {
+        let encoded = path.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+        let res: FilesEnvelope = try await request("api/v1/files?path=\(encoded)")
+        return res
+    }
+
+    func createFolder(path: String) async throws -> String {
+        let res: CreateFolderResponse = try await request(
+            "api/v1/files/folders",
+            method: "POST",
+            body: ["path": AnyEncodable(path)]
+        )
+        return res.path
+    }
+
+    func renameFile(path: String, newName: String) async throws -> String {
+        let res: RenameResponse = try await request(
+            "api/v1/files/rename",
+            method: "POST",
+            body: ["path": AnyEncodable(path), "newName": AnyEncodable(newName)]
+        )
+        return res.path
+    }
+
+    /// Sube un fichero (multipart). La URL es absoluta; la petición NO va con
+    /// Authorization header (el controlador NO lo exige además del token
+    /// base). Nota: el endpoint usa multipart, no JSON.
+    func uploadFile(path: String, fileURL: URL) async throws {
+        let url = url(for: "api/v1/files/uploads")
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        if let token { request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization") }
+
+        let boundary = "----taap-\(UUID().uuidString)"
+        request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+
+        let fileData = try Data(contentsOf: fileURL)
+
+        var body = Data()
+        body.append("--\(boundary)\r\n".data(using: .utf8)!)
+        body.append("Content-Disposition: form-data; name=\"path\"\r\n\r\n".data(using: .utf8)!)
+        body.append("\(path)\r\n".data(using: .utf8)!)
+        body.append("--\(boundary)\r\n".data(using: .utf8)!)
+        body.append("Content-Disposition: form-data; name=\"file\"; filename=\"\(fileURL.lastPathComponent)\"\r\n".data(using: .utf8)!)
+        body.append("Content-Type: application/octet-stream\r\n\r\n".data(using: .utf8)!)
+        body.append(fileData)
+        body.append("\r\n--\(boundary)--\r\n".data(using: .utf8)!)
+        request.httpBody = body
+
+        let (data, response): (Data, URLResponse)
+        do {
+            (data, response) = try await Self.session.data(for: request)
+        } catch {
+            throw ApiError.network("Sin conexión con el servidor")
+        }
+
+        guard let http = response as? HTTPURLResponse else {
+            throw ApiError.network("Respuesta inválida")
+        }
+        if http.statusCode == 401 {
+            token = nil
+            throw ApiError.notAuthenticated
+        }
+        if http.statusCode >= 400 {
+            let msg = (try? JSONDecoder().decode([String: String].self, from: data))?["message"]
+                ?? (try? JSONDecoder().decode(ApiMessage.self, from: data))?.message
+                ?? "error HTTP"
+            throw ApiError.http(http.statusCode, msg)
+        }
+    }
+
+    func deletePath(path: String) async throws {
+        let _: DeletedResponse = try await request(
+            "api/v1/files",
+            method: "DELETE",
+            body: ["path": AnyEncodable(path)]
+        )
+    }
+
+    /// Descarga un fichero/zip a un archivo temporal y devuelve la URL para
+    /// compartirlo (UIActivityViewController).
+    func download(path: String) async throws -> (url: URL, filename: String) {
+        let name: String
+        if path.hasSuffix("/") || path.isEmpty { name = "download" } else { name = (path as NSString).lastPathComponent }
+        let url = url(for: "api/v1/files/download?path=\(path.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "")")
+
+        var request = URLRequest(url: url)
+        if let token { request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization") }
+
+        let (data, response): (Data, URLResponse)
+        do {
+            (data, response) = try await Self.session.data(for: request)
+        } catch {
+            throw ApiError.network("Sin conexión con el servidor")
+        }
+
+        guard let http = response as? HTTPURLResponse else {
+            throw ApiError.network("Respuesta inválida")
+        }
+        if http.statusCode == 401 {
+            token = nil
+            throw ApiError.notAuthenticated
+        }
+        if http.statusCode >= 400 {
+            throw ApiError.http(http.statusCode, "HTTP \(http.statusCode)")
+        }
+
+        // El nombre real lo da Content-Disposition (p. ej. "x.zip"); si no,
+        // se deriva del path.
+        let disposition = http.value(forHTTPHeaderField: "Content-Disposition") ?? ""
+        let filename = Self.filenameFromDisposition(disposition) ?? name
+
+        let tmpDir = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first!
+        let tmp = tmpDir.appendingPathComponent("\(UUID().uuidString)-\(filename)")
+        try data.write(to: tmp)
+
+        return (tmp, filename)
+    }
+
+    private static func filenameFromDisposition(_ disposition: String) -> String? {
+        guard let match = disposition.range(of: #"filename="([^"]+)"#, options: .regularExpression) else { return nil }
+        let extracted = String(disposition[match])
+            .replacingOccurrences(of: "filename=", with: "")
+            .trimmingCharacters(in: .whitespaces)
+            .trimmingCharacters(in: CharacterSet(charactersIn: "\""))
+        return extracted.isEmpty ? nil : extracted
+    }
 }
 
 // Envolventes de los endpoints de lista.
@@ -363,5 +493,3 @@ struct AnyEncodable: Encodable {
         try encodeClosure(encoder)
     }
 }
-
-

@@ -159,3 +159,29 @@ final class LoginResponseTests: XCTestCase {
         XCTAssertEqual(dict["recovery_code"], "r456")
     }
 }
+
+final class FilesEnvelopeTests: XCTestCase {
+    private let decoder = JSONDecoder()
+
+    func test_files_envelope_decodes() throws {
+        let json = """
+        {"path": "/datos", "entries": [
+            {"name": "docs", "type": "dir", "size": 0, "mtime": "2026-11-26T10:00:00Z", "owner": null},
+            {"name": "notes.txt", "type": "file", "size": 2048, "mtime": "2026-11-26T10:00:00Z", "owner": null}
+        ]}
+        """
+        let res = try decoder.decode(FilesEnvelope.self, from: Data(json.utf8))
+        XCTAssertEqual(res.path, "/datos")
+        XCTAssertEqual(res.entries.count, 2)
+        XCTAssertTrue(res.entries[0].isDir)
+        XCTAssertFalse(res.entries[1].isDir)
+        XCTAssertEqual(res.entries[1].name, "notes.txt")
+    }
+
+    func test_entry_size_display_for_files() throws {
+        let entry = FileEntryDTO(name: "a.bin", type: "file", size: 2048, mtime: "2026-11-26T10:00:00Z", owner: nil)
+        XCTAssertTrue(entry.sizeDisplay.contains("KB"))
+        let dir = FileEntryDTO(name: "sub", type: "dir", size: 0, mtime: "2026-11-26T10:00:00Z", owner: nil)
+        XCTAssertEqual(dir.sizeDisplay, "—")
+    }
+}

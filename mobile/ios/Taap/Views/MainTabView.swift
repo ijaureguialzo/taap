@@ -9,11 +9,14 @@ struct MainTabView: View {
     enum Tab: Hashable {
         case agents
         case settings
+        case files
     }
 
     var body: some View {
         NavigationStack {
-            if let selected = appState.selectedAgentId {
+            if selectedTab == .files {
+                FilesView()
+            } else if let selected = appState.selectedAgentId {
                 AgentDetailView(agentId: selected)
                     .id(selected)
                     .onDisappear {
@@ -21,11 +24,29 @@ struct MainTabView: View {
                     }
             } else {
                 AgentListView(onSelect: { id in
+                    selectedTab = .agents
                     appState.selectedAgentId = id
                 })
             }
         }
         .toolbar {
+            ToolbarItem(placement: .navigationBarLeading) {
+                if selectedTab == .files {
+                    Button {
+                        selectedTab = .agents
+                    } label: {
+                        Label(appState.t("files.agents"), systemImage: "arrow.left")
+                    }
+                }
+            }
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button {
+                    selectedTab = .files
+                } label: {
+                    Image(systemName: "folder")
+                }
+                .accessibilityLabel(appState.t("files.title"))
+            }
             ToolbarItem(placement: .navigationBarTrailing) {
                 Menu {
                     Picker(appState.t("menu.theme"), selection: $theme) {
