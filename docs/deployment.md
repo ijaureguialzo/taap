@@ -82,6 +82,26 @@ salud de proveedores (estado + última comprobación, si no se ha comprobado,
 se muestra «sin comprobar»). API: `GET /api/v1/health/summary` (admin) con
 el mismo shape (`agents_by_status`, `recent_failures`, `providers`).
 
+## Backup y restore
+
+`taap:backup` produce un bundle fechado (`<TAAP_BACKUP_DIR>/<timestamp>/`)
+con `db.sql.gz` (dump de Postgres vía docker compose, o copia de sqlite),
+`fs-root.tar.gz` (raíz de `TAAP_FS_HOST_BASE`), `agent-data.tar.gz`
+(`TAAP_AGENT_DATA_HOST`) y `manifest.json` con sha256 y tamaño por parte.
+Para volver a restaurar:
+
+```sh
+php artisan taap:backup:restore <bundle> --yes
+```
+
+La restauración **borra y sobrescribe** los datos existentes en el destino.
+Antes de cualquier escritura, verifica los hashes del manifiesto y aborta en
+cualquier fallo de integridad. El bundle **excluye secretos** (`.env`, claves
+de proveedores, tokens): reponerlos es manual tras la restauración
+(recrear `.env`, volver a crear proveedores si hace falta). Regla de
+ventana: detener orquestador y cola durante el restore; las sesiones de
+agentes se reanudan al arrancar de nuevo.
+
 ## Uso de modelos
 
 El proxy de modelos escribe una entrada de telemetría por petición

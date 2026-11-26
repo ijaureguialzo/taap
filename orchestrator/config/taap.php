@@ -227,6 +227,11 @@ return [
         'internal_url' => env('TAAP_PROXY_INTERNAL_URL', 'http://taap-orchestrator:8000'),
     ],
 
+    /* Raiz de directorios de backups (ver taap:backup/restore). */
+    'backup' => [
+        'dir' => env('TAAP_BACKUP_DIR', 'backups'),
+    ],
+
     /* Puerta MCP: el orquestador expone una puerta JSON-RPC por agente y
        reenvía a los servidores MCP registrados (stdio dentro del contenedor
        del agente, o URL con credenciales de TAAP). */
