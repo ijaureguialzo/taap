@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Proxy;
 use App\Http\Controllers\Controller;
 use App\Models\Agent;
 use App\Support\UpstreamIdentity;
+use App\Services\ModelUsageLogger;
 use App\Models\AgentToken;
 use App\Models\ModelProvider;
 use Illuminate\Http\JsonResponse;
@@ -115,6 +116,8 @@ class ModelProxyController extends Controller
             }
         }
 
+        $startedAt = microtime(true);
+
         try {
             $response = Http::withHeaders($headers)
                 ->timeout(1800)
@@ -122,14 +125,27 @@ class ModelProxyController extends Controller
         } catch (\Throwable $e) {
             Log::warning('ModelProxy: error upstream: '.$e->getMessage());
 
+            app(ModelUsageLogger::class)->record(
+                $agent, $provider, $agent->model,
+                0, 0, null,
+                (int) round((microtime(true) - $startedAt) * 1000),
+                $wantsStream
+            );
+
             return response()->json(
                 ['error' => ['message' => 'error de conexión con el proveedor']],
                 502
             );
         }
 
-        Log::info('ModelProxy: upstream rc='.$response->status());
+        $latencyMs = (int) round((microtime(true) - $startedAt) * 1000);
         $data = $response->json();
+
+        // Telemetria best-effort (model-usage-tracking): no debe romper el
+        // camino feliz. Los tokens se leen del body sintetizado (no del SSE).
+        $this->logUsage($agent, $provider, $data, $response->status(), $latencyMs, $wantsStream, $isAnthropic);
+
+        Log::info('ModelProxy: upstream rc='.$response->status());
 
         if ($response->successful()) {
             // Relay nativo: si el upstream respondio su propio stream
@@ -202,6 +218,8 @@ class ModelProxyController extends Controller
             $headers['Host'] = $this->upstreamHost;
         }
 
+        $startedAt = microtime(true);
+
         try {
             $response = Http::withHeaders($headers)
                 ->timeout(1800)
@@ -209,11 +227,29 @@ class ModelProxyController extends Controller
         } catch (\Throwable $e) {
             Log::warning('ModelProxy: error upstream (responses): '.$e->getMessage());
 
+            app(ModelUsageLogger::class)->record(
+                $agent, $provider, $agent->model,
+                0, 0, null,
+                (int) round((microtime(true) - $startedAt) * 1000),
+                (bool) $request->input('stream')
+            );
+
             return response()->json(
                 ['error' => ['message' => 'error de conexión con el proveedor']],
                 502
             );
         }
+
+        $latencyMs = (int) round((microtime(true) - $startedAt) * 1000);
+
+        // Telemetria best-effort (model-usage-tracking). En passthrough SSE
+        // los tokens no se pueden leer sin parsear el stream; se registra
+        // el estado y la latencia sin tokens.
+        app(ModelUsageLogger::class)->record(
+            $agent, $provider, $agent->model,
+            0, 0, $response->status(), $latencyMs,
+            (bool) $request->input('stream')
+        );
 
         // El upstream no tiene la ruta: error claro del proxy (spec).
         if ($response->status() === 404 || $response->status() === 405) {
@@ -334,6 +370,30 @@ class ModelProxyController extends Controller
         }
 
         return $data;
+    }
+
+    /**
+     * Registra el uso de la petición como telemetría (best-effort). Los
+     * tokens se leen del body JSON que el upstream respondió (Chat:
+     * prompt_tokens/completion_tokens; Anthropic: input_tokens/output_tokens).
+     *
+     * @param  array<string, mixed>|null  $data
+     */
+    protected function logUsage(Agent $agent, ?\App\Models\ModelProvider $provider, ?array $data, int $status, int $latencyMs, bool $stream, bool $isAnthropic): void
+    {
+        $usage = is_array($data['usage'] ?? null) ? $data['usage'] : [];
+
+        $tokensInput = (int) ($isAnthropic
+            ? ($usage['input_tokens'] ?? 0)
+            : ($usage['prompt_tokens'] ?? 0));
+        $tokensOutput = (int) ($isAnthropic
+            ? ($usage['output_tokens'] ?? 0)
+            : ($usage['completion_tokens'] ?? 0));
+
+        app(ModelUsageLogger::class)->record(
+            $agent, $provider, $agent->model,
+            $tokensInput, $tokensOutput, $status, $latencyMs, $stream
+        );
     }
 
     /**

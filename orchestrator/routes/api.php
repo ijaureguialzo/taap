@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\AgentController;
 use App\Http\Controllers\Api\AuditController;
+use App\Http\Controllers\Api\UsageController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\ChatController;
 use App\Http\Controllers\Api\FileController;
@@ -86,6 +87,9 @@ Route::prefix('v1')->group(function () {
 
         /* auditoría (admin) */
         Route::get('audit', [AuditController::class, 'index']);
+
+        /* uso de modelos (admin) */
+        Route::get('usage', [UsageController::class, 'index']);
 
         /* agentes */
         Route::get('agents', [AgentController::class, 'index']);

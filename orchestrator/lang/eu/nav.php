@@ -6,6 +6,7 @@ return [
     'providers' => 'Eskaintzaileak',
     'mcp' => 'MCP',
     'files' => 'Fitxak',
+    'usage' => 'Erabilera',
     'audit' => 'Auditoria',
     'users' => 'Erabiltzaileak',
     'profile' => 'Nire profila',

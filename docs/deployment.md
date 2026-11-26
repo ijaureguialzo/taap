@@ -74,6 +74,18 @@ curl -s localhost:8011/up   # 200
 Abre `https://taap.test` (o `http://localhost:8011`), entra con el admin y ve
 el dashboard.
 
+## Uso de modelos
+
+El proxy de modelos escribe una entrada de telemetría por petición
+(`model_usage`: agente, proveedor, modelo, tokens entrada/salida, estado y
+latencia) de forma best-effort — si la escritura falla, la respuesta se
+sirve igual. No hay retención automática en esta versión.
+
+- Web: `/usage` (rol admin) — agregados (requests, tokens, errores) por
+  agente y lista paginada de peticiones.
+- API: `GET /api/v1/usage?agent_id=&provider_id=&from=&to=&page=` (admin):
+  filas paginadas + `totals`, `per_agent` y `per_provider`.
+
 ## Auditoría
 
 El panel de administración registra de forma inmutable cada acción admin

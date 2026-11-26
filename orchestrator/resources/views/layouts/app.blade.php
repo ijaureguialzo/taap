@@ -67,6 +67,7 @@
                     @if (auth()->user()->isAdmin())
                         <li class="nav-item"><a class="nav-link" href="{{ route('users.index') }}"><x-icon name="people" class="me-1" />{{ __('nav.users') }}</a></li>
                         <li class="nav-item"><a class="nav-link" href="{{ route('audit.index') }}"><x-icon name="clock-history" class="me-1" />{{ __('nav.audit') }}</a></li>
+                        <li class="nav-item"><a class="nav-link" href="{{ route('usage.index') }}"><x-icon name="graph-up" class="me-1" />{{ __('nav.usage') }}</a></li>
                     @endif
                 </ul>
                 <span class="navbar-text me-3 d-none d-md-inline">
