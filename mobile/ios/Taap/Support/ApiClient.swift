@@ -147,7 +147,24 @@ final class ApiClient {
     @discardableResult
     func login(email: String, password: String) async throws -> LoginResponse {
         let res: LoginResponse = try await request("api/v1/auth/login", method: "POST", body: LoginRequest(email: email, password: password))
-        token = res.token
+        if let token = res.token {
+            self.token = token
+        }
+        return res
+    }
+
+    /// Completa el reto 2FA (stateless, HMAC): devuelve token + user
+    /// cuando el código es válido. Sin sesión: el challenge es el token.
+    @discardableResult
+    func twoFactorChallenge(challenge: String, code: String? = nil, recoveryCode: String? = nil) async throws -> LoginResponse {
+        let res: LoginResponse = try await request(
+            "api/v1/auth/two-factor/challenge",
+            method: "POST",
+            body: TwoFactorChallengeRequest(challenge: challenge, code: code, recoveryCode: recoveryCode)
+        )
+        if let token = res.token {
+            self.token = token
+        }
         return res
     }
 

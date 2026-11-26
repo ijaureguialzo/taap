@@ -118,3 +118,44 @@ final class DtosTests: XCTestCase {
         XCTAssertNil(res.errors?["name"])
     }
 }
+
+final class LoginResponseTests: XCTestCase {
+    private let decoder = JSONDecoder()
+    private func decode(_ json: String) throws -> LoginResponse {
+        try decoder.decode(LoginResponse.self, from: Data(json.utf8))
+    }
+
+    /// Challenge 2FA: sin token ni user; solo el challenge firmado.
+    func test_challenge_response_decodes() throws {
+        let json = """
+        {"requires_two_factor": true, "challenge": "abc123"}
+        """
+        let res = try decode(json)
+        XCTAssertTrue(res.requiresTwoFactor)
+        XCTAssertEqual(res.challenge, "abc123")
+        XCTAssertNil(res.token)
+        XCTAssertNil(res.user)
+    }
+
+    /// Login feliz: token + user, sin reto.
+    func test_success_response_decodes() throws {
+        let json = """
+        {"requires_two_factor": false, "token": "tok",
+         "user": {"id": 7, "name": "Test", "email": "t@x", "role": "user"}}
+        """
+        let res = try decode(json)
+        XCTAssertFalse(res.requiresTwoFactor)
+        XCTAssertEqual(res.token, "tok")
+        XCTAssertEqual(res.user?.id, 7)
+    }
+
+    /// Challenge de recuperación también se decodifica.
+    func test_challenge_payload_encodes_recovery_code() throws {
+        let req = TwoFactorChallengeRequest(challenge: "c123", code: nil, recoveryCode: "r456")
+        let data = try JSONEncoder().encode(req)
+        let dict = try JSONDecoder().decode([String: String].self, from: data)
+        XCTAssertEqual(dict["challenge"], "c123")
+        XCTAssertNil(dict["code"])
+        XCTAssertEqual(dict["recovery_code"], "r456")
+    }
+}

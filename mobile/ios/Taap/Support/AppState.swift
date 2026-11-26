@@ -115,19 +115,68 @@ final class AppState: ObservableObject {
 
     // MARK: - Sesión
 
-    func login(email: String, password: String) async -> Bool {
+    /// Challenge 2FA pendiente (stateless): lo guarda el login cuando el
+    /// usuario tiene 2FA habilitado. La vista lo consume y lo completa con
+    /// `completeTwoFactor`. nil = no hay reto pendiente.
+    var pendingChallenge: String? = nil
+
+    /// `true` si el login requirió el reto 2FA (antes de completarlo).
+    var needsTwoFactor: Bool { pendingChallenge != nil }
+
+    /// Resultado del intento de login: éxito, reto 2FA o fallo.
+    enum LoginResult {
+        case loggedIn
+        case requiresTwoFactor
+        case failed
+    }
+
+    func login(email: String, password: String) async -> LoginResult {
         do {
             let res = try await api.login(email: email, password: password)
-            TokenStore.shared.token = res.token
-            currentUser = res.user
+            if res.requiresTwoFactor, let challenge = res.challenge {
+                pendingChallenge = challenge
+                return .requiresTwoFactor
+            }
+            guard let token = res.token, let user = res.user else {
+                return .failed
+            }
+            TokenStore.shared.token = token
+            currentUser = user
+            isAuthenticated = true
+            await refreshAgents()
+            await loadReverbConfig()
+            return .loggedIn
+        } catch {
+            flash(error.localizedDescription, kind: .error)
+            return .failed
+        }
+    }
+
+    /// Completa el reto 2FA con un código TOTP (o un código de recuperación).
+    func completeTwoFactor(code: String, recoveryCode: String? = nil) async -> Bool {
+        guard let challenge = pendingChallenge else { return false }
+        do {
+            let res = try await api.twoFactorChallenge(challenge: challenge, code: code, recoveryCode: recoveryCode)
+            guard let token = res.token, let user = res.user else { return false }
+            pendingChallenge = nil
+            TokenStore.shared.token = token
+            currentUser = user
             isAuthenticated = true
             await refreshAgents()
             await loadReverbConfig()
             return true
         } catch {
+            // 'requires_two_factor' perdido / credenciales expiradas:
+            // limpiar el reto para permitir re-login fresco.
+            pendingChallenge = nil
             flash(error.localizedDescription, kind: .error)
             return false
         }
+    }
+
+    /// Descarta el reto pendiente (el usuario cancela el login 2FA).
+    func cancelTwoFactor() {
+        pendingChallenge = nil
     }
 
     func loadReverbConfig() async {

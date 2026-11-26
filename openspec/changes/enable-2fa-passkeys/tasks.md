@@ -12,7 +12,7 @@
 
 ## 3. iOS — paridad de login
 
-- [ ] 3.1 `LoginView`/`ApiClient`: cuando la API responde `requires_two_factor`, mostrar el sheet de challenge (código TOTP) y reintentar el login con el código; verificar con unit test/flow simple del flujo 2FA
+- [x] 3.1 `LoginView`/`ApiClient`: cuando la API responde `requires_two_factor`, mostrar el sheet de challenge (código TOTP) y reintentar el login con el código; verificar con unit test/flow simple del flujo 2FA
 
 ## 4. Verificación final
 

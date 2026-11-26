@@ -7,9 +7,31 @@ struct LoginRequest: Encodable {
     let password: String
 }
 
+/// Respuesta de login: cuando el usuario tiene 2FA habilitado, solo lleva
+/// `requiresTwoFactor` + `challenge` (un token HMAC de corta vida) — sin
+/// token ni usuario. Al completar el reto, `twoFactorChallenge` responde
+/// como un login normal (token + user).
 struct LoginResponse: Decodable {
-    let token: String
-    let user: UserDTO
+    let requiresTwoFactor: Bool
+    let challenge: String?
+    let token: String?
+    let user: UserDTO?
+
+    enum CodingKeys: String, CodingKey {
+        case requiresTwoFactor = "requires_two_factor"
+        case challenge, token, user
+    }
+}
+
+struct TwoFactorChallengeRequest: Encodable {
+    let challenge: String
+    let code: String?
+    let recoveryCode: String?
+
+    enum CodingKeys: String, CodingKey {
+        case challenge, code
+        case recoveryCode = "recovery_code"
+    }
 }
 
 // MARK: - Usuarios
