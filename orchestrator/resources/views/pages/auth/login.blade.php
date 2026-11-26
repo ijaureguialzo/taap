@@ -30,9 +30,13 @@
                 <button type="submit" class="btn btn-primary w-100"><x-icon name="person" class="me-1" />{{ __('login.submit') }}</button>
             </form>
 
-            <p class="text-center small text-muted mt-3 mb-0">
-                <a href="{{ route('register') }}" class="text-decoration-none">{{ __('login.register') }}</a>
-            </p>
+            @if (app(\App\Support\Settings::class)->isRegistrationEnabled())
+                <p class="text-center small text-muted mt-3 mb-0">
+                    <a href="{{ route('register') }}" class="text-decoration-none">{{ __('login.register') }}</a>
+                </p>
+            @else
+                <p class="text-center small text-muted mt-3 mb-0">{{ __('register.closed_note') }}</p>
+            @endif
         </div>
     </div>
 </x-layouts::auth>

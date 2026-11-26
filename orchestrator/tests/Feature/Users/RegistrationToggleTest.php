@@ -91,4 +91,20 @@ class RegistrationToggleTest extends TestCase
     {
         $this->get(route('register'))->assertOk();
     }
+
+    public function test_login_page_hides_register_link_when_registration_is_closed(): void
+    {
+        app(Settings::class)->setRegistrationEnabled(false);
+
+        $this->get(route('login'))
+            ->assertOk()
+            ->assertDontSee('/register');
+    }
+
+    public function test_login_page_shows_register_link_when_registration_is_open(): void
+    {
+        $this->get(route('login'))
+            ->assertOk()
+            ->assertSee('/register');
+    }
 }
