@@ -8,4 +8,6 @@ return [
     'password_confirmation' => 'Erepitu pasahitza',
     'submit' => 'Erregistratu',
     'login' => 'Kontua baduzu? Sartu',
+    'closed' => 'Erabiltzaileen erregistratzea itxita.',
+    'closed_note' => 'Erabiltzaileen erregistratzea itxita. Jarri harremanetan administratzailearekin.',
 ];

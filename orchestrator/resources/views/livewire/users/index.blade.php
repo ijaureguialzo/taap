@@ -164,6 +164,10 @@
         {{ $users->links() }}
     </div>
 
+    <div class="mt-4">
+        <livewire:admin.registration-toggle />
+    </div>
+
     <script>
         document.querySelectorAll('.users-index [data-confirm]').forEach(btn => {
             btn.addEventListener('click', (e) => {

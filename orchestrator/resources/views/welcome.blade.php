@@ -8,9 +8,13 @@
                 <li>• {{ __('footer.feat3', ['d' => 'Chat en tiempo real desde web y móvil']) }}</li>
             </ul>
             <a href="{{ route('login') }}" class="btn btn-primary w-100">{{ __('login.submit') }}</a>
-            <p class="text-center small text-muted mt-3 mb-0">
-                <a href="{{ route('register') }}" class="text-decoration-none">{{ __('login.register') }}</a>
-            </p>
+            @if (app(\App\Support\Settings::class)->isRegistrationEnabled())
+                <p class="text-center small text-muted mt-3 mb-0">
+                    <a href="{{ route('register') }}" class="text-decoration-none">{{ __('login.register') }}</a>
+                </p>
+            @else
+                <p class="text-center small text-muted mt-3 mb-0">{{ __('register.closed_note') }}</p>
+            @endif
         </div>
     </div>
 </x-layouts::auth>

@@ -19,8 +19,11 @@ Route::view('/', 'welcome')->name('home');
 Route::middleware('guest')->group(function () {
     Route::get('login', fn () => view('pages.auth.login'))->name('login');
     Route::post('login', [LoginController::class, 'login'])->name('login.store');
-    Route::get('register', fn () => view('pages.auth.register'))->name('register');
-    Route::post('register', [RegisterController::class, 'register'])->name('register.store');
+
+    Route::middleware('registration.enabled')->group(function () {
+        Route::get('register', fn () => view('pages.auth.register'))->name('register');
+        Route::post('register', [RegisterController::class, 'register'])->name('register.store');
+    });
 });
 
 Route::post('logout', [LoginController::class, 'logout'])

@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\EnsureRegistrationEnabled;
 use App\Http\Middleware\EnsureUserRole;
 use App\Http\Middleware\SetLocale;
 use App\Services\FileSystemException;
@@ -19,6 +20,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'role' => EnsureUserRole::class,
             'locale' => SetLocale::class,
+            'registration.enabled' => EnsureRegistrationEnabled::class,
         ]);
 
         $middleware->append(SetLocale::class);
