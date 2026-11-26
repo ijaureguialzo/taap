@@ -2,8 +2,8 @@
 
 ## 1. Server — Fortify config
 
-- [ ] 1.1 Habilitar `Features::twoFactorAuthentication()` y `Features::passkeys()` en `config/fortify.php` y registrarlos en `FortifyServiceProvider`; verificar que `php artisan config:clear` y `php artisan test` (auth) pasan
-- [ ] 1.2 Extender `LoginController`: tras contraseña correcta, si el usuario tiene 2FA habilitado inicia sesión en modo desafío y redirige a `/two-factor-challenge`; reusar rate limiting `login`/`two-factor`; verificar con feature test que login sin 2FA responde directo y con 2FA redirige al challenge
+- [x] 1.1 Habilitar `Features::twoFactorAuthentication()` y `Features::passkeys()` en `config/fortify.php` y registrarlos en `FortifyServiceProvider`; verificar que `php artisan config:clear` y `php artisan test` (auth) pasan
+- [x] 1.2 Extender `LoginController`: tras contraseña correcta, si el usuario tiene 2FA habilitado inicia sesión en modo desafío y redirige a `/two-factor-challenge`; reusar rate limiting `login`/`two-factor`; verificar con feature test que login sin 2FA responde directo y con 2FA redirige al challenge
 
 ## 2. Profile + API v1
 

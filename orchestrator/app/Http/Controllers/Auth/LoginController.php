@@ -27,6 +27,18 @@ class LoginController extends Controller
             ]);
         }
 
+        // Login manual + reto 2FA (Fortify): el reto lo resuelve la ruta
+        // fortify /two-factor-challenge, que valida el código con el secret
+        // cifrado del usuario y establece la sesión al salir bien.
+        if ($user->hasEnabledTwoFactorAuthentication()) {
+            $request->session()->put([
+                'login.id' => $user->getKey(),
+                'login.remember' => $request->boolean('remember'),
+            ]);
+
+            return redirect()->route('two-factor.login');
+        }
+
         Auth::login($user, $request->boolean('remember'));
 
         $request->session()->regenerate();

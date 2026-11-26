@@ -161,12 +161,14 @@ return [
     */
 
     /*
-    | v1 (design D10): solo login + registro. Sin envio de email
-    | (reset de contrasena lo hace el admin) y sin 2FA/passkeys
-    | (fuera de alcance de v1; las columnas de usuarios permanecen).
+    | 2FA (TOTP) + passkeys (WebAuthn). Las columnas two_factor_* y la tabla
+    | passkeys ya existian desde la migracion original; el login manual de la
+    | app mantiene su flujo y delega el reto 2FA a Fortify (ver LoginController).
     */
     'features' => [
         Features::registration(),
+        Features::twoFactorAuthentication(),
+        Features::passkeys(),
         /* La ruta password.confirm se registra siempre en Fortify 1.x;
            la vista esta en pages/auth/confirm-password. */
     ],
