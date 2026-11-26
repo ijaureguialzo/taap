@@ -23,6 +23,7 @@ use Illuminate\Support\Facades\Route;
 Route::prefix('v1')->group(function () {
     /* auth */
     Route::post('auth/login', [AuthController::class, 'login']);
+    Route::post('auth/two-factor/challenge', [AuthController::class, 'twoFactorChallenge']);
 
     // (autorizacion via el mismo criterio que AgentController) (protocolo Pusher): la app firma su suscripcion.
     // Respuesta: { auth: "key:signature" }
@@ -73,6 +74,14 @@ Route::prefix('v1')->group(function () {
         Route::post('auth/tokens', [AuthController::class, 'createToken']);
         Route::delete('auth/tokens/{tokenId}', [AuthController::class, 'deleteToken']);
         Route::put('auth/profile', [AuthController::class, 'updateProfile']);
+
+        // 2FA / passkeys
+        Route::get('auth/profile/two-factor', [AuthController::class, 'twoFactorStatus']);
+        Route::post('auth/profile/two-factor', [AuthController::class, 'enableTwoFactor']);
+        Route::post('auth/profile/two-factor/confirm', [AuthController::class, 'confirmTwoFactor']);
+        Route::delete('auth/profile/two-factor', [AuthController::class, 'disableTwoFactor']);
+        Route::get('auth/profile/passkeys', [AuthController::class, 'passkeys']);
+        Route::delete('auth/profile/passkeys/{passkeyId}', [AuthController::class, 'deletePasskey']);
 
         /* agentes */
         Route::get('agents', [AgentController::class, 'index']);
