@@ -74,6 +74,24 @@ curl -s localhost:8011/up   # 200
 Abre `https://taap.test` (o `http://localhost:8011`), entra con el admin y ve
 el dashboard.
 
+## Autenticación en dos pasos (2FA) y passkeys
+
+Todas las cuentas locales pueden habilitar 2FA (TOTP) y/o registrar passkeys
+(WebAuthn) desde el perfil. La autenticación es **opt-in**: un usuario sin
+2FA entra con su contraseña como antes.
+
+- Web: perfil → «Autenticación en dos pasos». Escanea el QR, confirma el
+  código de 6 dígitos y guarda los códigos de recuperación (se muestran una
+  sola vez). Passkeys se registran desde el mismo perfil (requiere un
+  navegador con WebAuthn).
+- iOS: al iniciar sesión, si el servidor responde `requires_two_factor`, la app
+  muestra el reto con el código (o un código de recuperación). Login por
+  passkey en iOS nativo no está incluido (los passkeys funcionan sobre Web).
+- Sesiones sin 2FA habilitado siguen funcionando sin cambios.
+
+El 2FA no es obligatorio por rol en esta versión (los admins pueden optarse
+por sí mismos). Para forzarlo, habrá una futura fase que lo exigirá.
+
 ## Endpoints públicos (FQDN y websocket)
 
 La pila expone dos hosts por Traefik (FQDN configurables en `deploy/.env`):

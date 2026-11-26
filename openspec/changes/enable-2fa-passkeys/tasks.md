@@ -16,4 +16,4 @@
 
 ## 4. Verificación final
 
-- [ ] 4.1 Verificar suite completa (`php artisan test` + iOS unit tests) y actualización de `docs/` (perfil/logout/2FA en 3 idiomas); verificar con `git status` limpio y e2e opcional en staging
+- [x] 4.1 Verificar suite completa (`php artisan test` + iOS unit tests) y actualización de `docs/` (perfil/logout/2FA en 3 idiomas); verificar con `git status` limpio y e2e opcional en staging
