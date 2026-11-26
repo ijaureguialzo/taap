@@ -229,27 +229,17 @@ class AgentManagerFsMountsTest extends TestCase
             $out = $run('mkdir /fs/otra 2>&1 || true');
             $this->assertStringContainsString('Read-only file system', $out);
 
-            // fixture: transcripcion del inspect (los mounts tal cual el daemon)
+            // los binds tal cual los ve el daemon (Config.Volumes solo lleva
+            // los named volumes de la imagen; los -v de runtime van en .Mounts)
             $inspectLines = [];
             exec('docker inspect '.$name.' 2>/dev/null', $inspectLines);
             $inspect = json_decode(implode("\n", $inspectLines), true);
             $this->assertIsArray($inspect);
-            // los binds tal cual los ve el daemon (Config.Volumes solo lleva
-            // los named volumes de la imagen; los -v de runtime van en .Mounts)
             $mounts = collect($inspect[0]['Mounts'] ?? [])
                 ->filter(fn (array $m) => ($m['Type'] ?? '') === 'bind')
                 ->mapWithKeys(fn (array $m) => [$m['Destination'] => $m['Source'].(($m['Mode'] ?? '') === 'ro' ? ':ro' : '')])
                 ->all();
             ksort($mounts);
-            // paths temporales volatiles: normalizarlos en el fixture
-            $fixtureJson = str_replace($root, '<tmp>', json_encode([
-                'image' => 'taap/pi:local',
-                'readonly' => $inspect[0]['HostConfig']['ReadonlyRootfs'] ?? null,
-                'volumes' => $mounts,
-            ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
-            $fixturePath = base_path('../openspec/changes/shared-filesystem/notes/fixtures/inspect-6.2-fs-mounts.json');
-            @mkdir(dirname($fixturePath), 0777, true);
-            file_put_contents($fixturePath, $fixtureJson."\n");
 
             $this->assertSame([
                 '/fs' => $arena.':ro',
