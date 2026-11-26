@@ -7,6 +7,7 @@ return [
     'mcp' => 'MCP',
     'files' => 'Files',
     'users' => 'Users',
+    'profile' => 'My profile',
     'logout' => 'Log out',
     'theme' => 'Theme',
     'theme.auto' => 'System',

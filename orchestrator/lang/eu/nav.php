@@ -7,6 +7,7 @@ return [
     'mcp' => 'MCP',
     'files' => 'Fitxak',
     'users' => 'Erabiltzaileak',
+    'profile' => 'Nire profila',
     'logout' => 'Saioa itxi',
     'theme' => 'Gaia',
     'theme.auto' => 'Sistema',

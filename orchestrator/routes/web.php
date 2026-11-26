@@ -3,6 +3,7 @@
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\RegisterController;
 use App\Livewire\Agents;
+use App\Livewire\Profile;
 use App\Livewire\Files;
 use App\Livewire\Mcp;
 use App\Livewire\Models;
@@ -63,12 +64,5 @@ Route::middleware(['auth'])->group(function () {
     Route::get('users', Users\Index::class)
         ->middleware('role:admin')->name('users.index');
 
-    Route::get('profile/language', fn () => view('pages.profile.language'))->name('profile.language');
-    Route::post('profile/language', function (Request $request) {
-        $data = $request->validate(['locale' => ['required', 'in:es,en,eu']]);
-        $request->user()->forceFill(['locale' => $data['locale']])->save();
-        session()->put('locale', $data['locale']);
-
-        return redirect()->route('profile.language')->with('success', __('actions.save'));
-    });
+    Route::get('profile', Profile::class)->name('profile.edit');
 });

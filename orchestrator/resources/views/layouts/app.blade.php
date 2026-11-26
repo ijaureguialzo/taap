@@ -81,6 +81,12 @@
                         </a>
                         <ul class="dropdown-menu dropdown-menu-end">
                             <li><span class="dropdown-item-text text-muted small">{{ auth()->user()->email }}</span></li>
+                            <li>
+                                <a class="dropdown-item" href="{{ route('profile.edit') }}">
+                                    <x-icon name="person-circle" class="me-2" />
+                                    {{ __('nav.profile') }}
+                                </a>
+                            </li>
                             <li><hr class="dropdown-divider"></li>
                             <li><span class="dropdown-item-text text-muted small text-uppercase">{{ __('nav.theme') }}</span></li>
                             <li>
