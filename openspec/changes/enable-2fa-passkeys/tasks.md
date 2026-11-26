@@ -7,7 +7,7 @@
 
 ## 2. Profile + API v1
 
-- [ ] 2.1 Perfil web (`Livewire/Profile`): habilitar/deshabilitar TOTP (con recovery codes de un solo uso visibles una sola vez) y gestión de passkeys (registrar/eliminar); verificar con feature test que el habilitar cambia el reto del próximo login
+- [x] 2.1 Perfil web (`Livewire/Profile`): habilitar/deshabilitar TOTP (con recovery codes de un solo uso visibles una sola vez) y gestión de passkeys (registrar/eliminar); verificar con feature test que el habilitar cambia el reto del próximo login
 - [ ] 2.2 API v1 perfil: endpoints para habilitar/deshabilitar 2FA y listar/eliminar passkeys, con recovery codes enmascarados; verificar con API test que un usuario habilitado no inicia sesión sin el reto TOTP
 
 ## 3. iOS — paridad de login
