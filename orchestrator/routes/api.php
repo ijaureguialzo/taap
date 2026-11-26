@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\FileController;
 use App\Http\Controllers\Api\McpController;
 use App\Http\Controllers\Api\ModelController;
 use App\Http\Controllers\Api\RuntimeController;
+use App\Http\Controllers\Api\SettingsController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Proxy\McpBridgeController;
 use App\Http\Controllers\Proxy\ModelProxyController;
@@ -118,8 +119,16 @@ Route::prefix('v1')->group(function () {
         Route::post('files/uploads', [FileController::class, 'upload']);
         Route::delete('files', [FileController::class, 'destroy']);
 
-        /* usuarios (admin) */ Route::get('users', [UserController::class, 'index']);
+        /* usuarios (admin) */
+        Route::get('users', [UserController::class, 'index']);
+        Route::post('users', [UserController::class, 'store']);
         Route::put('users/{user}', [UserController::class, 'update']);
+        Route::delete('users/{user}', [UserController::class, 'destroy']);
+        Route::post('users/{user}/password', [UserController::class, 'resetPassword']);
+
+        /* ajustes (admin) */
+        Route::get('settings', [SettingsController::class, 'show']);
+        Route::put('settings', [SettingsController::class, 'update']);
     });
 });
 

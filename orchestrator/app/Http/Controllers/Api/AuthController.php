@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Support\UserLifecycle;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -83,19 +84,32 @@ class AuthController extends Controller
 
     public function updateProfile(Request $request): JsonResponse
     {
-        $data = $request->validate([
+        $rules = [
             'name' => ['required', 'string', 'max:255'],
             'locale' => ['required', 'in:'.implode(',', config('taap.locales'))],
-            'password' => ['nullable', 'string', 'min:8', 'confirmed'],
-        ]);
+        ];
+
+        if (filled($request->input('password'))) {
+            // Cambio de contraseña: contraseña actual obligatoria (spec
+            // users-and-roles) y revocación total excepto el token actual.
+            $rules['password'] = ['required', 'string', 'min:8', 'confirmed'];
+            $rules['current_password'] = ['required', 'string', 'current_password'];
+        }
+
+        $data = $request->validate($rules);
 
         $user = $request->user();
         $user->name = $data['name'];
         $user->locale = $data['locale'];
-        if (! empty($data['password'])) {
-            $user->password = $data['password'];
-        }
         $user->save();
+
+        if (filled($data['password'] ?? null)) {
+            app(UserLifecycle::class)->changePassword(
+                $user,
+                $data['password'],
+                keepTokenId: $user->currentAccessToken()?->id,
+            );
+        }
 
         return response()->json(['user' => $this->userPayload($user->refresh())]);
     }
