@@ -8,6 +8,7 @@ use App\Livewire\Files;
 use App\Livewire\Mcp;
 use App\Livewire\Models;
 use App\Livewire\Providers;
+use App\Livewire\Audit;
 use App\Livewire\Users;
 use App\Services\FileSystemException;
 use App\Services\FilesystemService;
@@ -63,6 +64,8 @@ Route::middleware(['auth'])->group(function () {
     })->name('files.download');
     Route::get('users', Users\Index::class)
         ->middleware('role:admin')->name('users.index');
+    Route::get('audit', Audit\Index::class)
+        ->middleware('role:admin')->name('audit.index');
 
     Route::get('profile', Profile::class)->name('profile.edit');
 });

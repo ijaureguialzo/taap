@@ -3,6 +3,8 @@
 namespace App\Livewire\Agents;
 
 use App\Agents\AgentManager;
+use App\Services\AuditLogger;
+use Illuminate\Support\Facades\DB;
 use App\Agents\Timeline;
 use App\Enums\AgentStatus;
 use App\Enums\FsMountMode;
@@ -135,10 +137,20 @@ class Detail extends Component
     public function delete(): void
     {
         $manager = app(AgentManager::class);
+        $current = auth()->user();
+        $isAdmin = $current?->isAdmin() ?? false;
+        $agentName = $this->agent->name;
+        $agentId = $this->agent->id;
 
         try {
             $manager->terminate($this->agent);
-            $this->agent->delete(); // soft delete (la fila)
+            DB::transaction(function () use ($current, $isAdmin, $agentId, $agentName) {
+                $this->agent->delete(); // soft delete (la fila)
+
+                if ($isAdmin) {
+                    app(AuditLogger::class)->log($current, 'agent.destroyed', 'agent', (string) $agentId, ['name' => $agentName]);
+                }
+            });
         } catch (\Throwable $e) {
             report($e);
             session()->flash('error', $e->getMessage());

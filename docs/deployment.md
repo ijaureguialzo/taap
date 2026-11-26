@@ -74,6 +74,22 @@ curl -s localhost:8011/up   # 200
 Abre `https://taap.test` (o `http://localhost:8011`), entra con el admin y ve
 el dashboard.
 
+## Auditoría
+
+El panel de administración registra de forma inmutable cada acción admin
+(alta/edición/borrado de usuarios, proveedores, modelos, MCP, toggle de
+registro y borrado de agentes) en la tabla `audit_log`. La entrada se escribe
+en la misma transacción que la operación: si la escritura falla, la operación
+no se aplica.
+
+- Web: `/audit` (rol admin) — filtros por actor, acción, objetivo y rango de
+  fechas, con paginación.
+- API: `GET /api/v1/audit?action=&target_type=&actor_id=&from=&to=&page=`
+  (admin).
+
+La tabla de auditoría es de solo lectura desde la app. La retención de datos
+(borrado de entradas) queda deliberadamente fuera del alcance de esta versión.
+
 ## Autenticación en dos pasos (2FA) y passkeys
 
 Todas las cuentas locales pueden habilitar 2FA (TOTP) y/o registrar passkeys

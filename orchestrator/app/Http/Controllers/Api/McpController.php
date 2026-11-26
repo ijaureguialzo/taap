@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\McpServer;
+use App\Services\AuditLogger;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -24,7 +26,14 @@ class McpController extends Controller
         $data['name'] = $request->validate(['name' => ['required', 'string', 'max:64', 'unique:mcp_servers,name']])['name'];
         $data['created_by'] = $request->user()->id;
 
-        $server = McpServer::create($data);
+        $current = $request->user();
+
+        $server = DB::transaction(function () use ($data, $current) {
+            $server = McpServer::create($data);
+            app(AuditLogger::class)->log($current, 'mcp.created', 'mcp', (string) $server->id, ['name' => $server->name]);
+
+            return $server;
+        });
 
         return response()->json(['server' => $this->payload($server)], 201);
     }
@@ -36,15 +45,25 @@ class McpController extends Controller
         $data = $this->validated($request, $server);
         $data['name'] = $request->validate(['name' => ['required', 'string', 'max:64', 'unique:mcp_servers,name,'.$server->id]])['name'];
 
-        $server->update($data);
+        $current = $request->user();
+
+        DB::transaction(function () use ($server, $data, $current) {
+            $server->update($data);
+            app(AuditLogger::class)->log($current, 'mcp.updated', 'mcp', (string) $server->id, ['name' => $server->name]);
+        });
 
         return response()->json(['server' => $this->payload($server->refresh())]);
     }
 
     public function destroy(Request $request, McpServer $server): JsonResponse
     {
-        $this->requireAdmin($request);
-        $server->delete();
+        $current = $request->user();
+
+        DB::transaction(function () use ($server, $current) {
+            $name = $server->name;
+            $server->delete();
+            app(AuditLogger::class)->log($current, 'mcp.deleted', 'mcp', (string) $server->id, ['name' => $name]);
+        });
 
         return response()->json(['ok' => true]);
     }

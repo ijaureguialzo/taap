@@ -3,7 +3,9 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Services\AuditLogger;
 use App\Support\Settings;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -26,7 +28,12 @@ class SettingsController extends Controller
             'registration_enabled' => ['required', 'boolean'],
         ]);
 
-        app(Settings::class)->setRegistrationEnabled((bool) $data['registration_enabled']);
+        $current = $request->user();
+
+        DB::transaction(function () use ($data, $current) {
+            app(Settings::class)->setRegistrationEnabled((bool) $data['registration_enabled']);
+            app(AuditLogger::class)->log($current, 'registration.toggled', 'settings', null, ['enabled' => (bool) $data['registration_enabled']]);
+        });
 
         return response()->json([
             'registration_enabled' => (bool) $data['registration_enabled'],

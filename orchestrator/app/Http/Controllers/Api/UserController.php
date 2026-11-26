@@ -4,8 +4,10 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Services\AuditLogger;
 use App\Support\UserLifecycle;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -36,15 +38,23 @@ class UserController extends Controller
             'locale' => ['nullable', 'in:'.implode(',', config('taap.locales'))],
         ]);
 
-        $user = User::create([
-            'name' => $data['name'],
-            'email' => $data['email'],
-            'password' => $data['password'],
-            'role' => $data['role'],
-            'active' => $data['active'] ?? true,
-            'agent_quota' => $data['agent_quota'] ?? null,
-            'locale' => $data['locale'] ?? app()->getLocale(),
-        ]);
+        $current = $request->user();
+
+        $user = DB::transaction(function () use ($data, $current, &$user) {
+            $user = User::create([
+                'name' => $data['name'],
+                'email' => $data['email'],
+                'password' => $data['password'],
+                'role' => $data['role'],
+                'active' => $data['active'] ?? true,
+                'agent_quota' => $data['agent_quota'] ?? null,
+                'locale' => $data['locale'] ?? app()->getLocale(),
+            ]);
+
+            app(AuditLogger::class)->log($current, 'user.created', 'user', (string) $user->id, ['email' => $user->email, 'role' => $data['role']]);
+
+            return $user;
+        });
 
         return response()->json(['user' => $this->userPayload($user)], 201);
     }
@@ -73,21 +83,33 @@ class UserController extends Controller
             }
         }
 
+        $wasActive = $user->active;
         $disconnecting = $user->active && ($data['active'] ?? true) === false;
         $reactivating = ! $user->active && ($data['active'] ?? false) === true;
 
-        if ($disconnecting) {
-            app(UserLifecycle::class)->stopAndRevoke($user);
-        } elseif ($reactivating) {
-            app(UserLifecycle::class)->reactivate($user);
-        }
+        DB::transaction(function () use ($user, $current, $disconnecting, $reactivating, $data) {
+            if ($disconnecting) {
+                app(UserLifecycle::class)->stopAndRevoke($user);
+            } elseif ($reactivating) {
+                app(UserLifecycle::class)->reactivate($user);
+            }
 
-        $user->forceFill([
-            'role' => $data['role'],
-            'active' => $data['active'] ?? $user->active,
-            'agent_quota' => $data['agent_quota'] ?? $user->agent_quota,
-            'locale' => $data['locale'] ?? $user->locale,
-        ])->save();
+            $user->forceFill([
+                'role' => $data['role'],
+                'active' => $data['active'] ?? $user->active,
+                'agent_quota' => $data['agent_quota'] ?? $user->agent_quota,
+                'locale' => $data['locale'] ?? $user->locale,
+            ])->save();
+
+            $auditor = app(AuditLogger::class);
+            if ($disconnecting) {
+                $auditor->log($current, 'user.disabled', 'user', (string) $user->id, ['email' => $user->email]);
+            } elseif ($reactivating) {
+                $auditor->log($current, 'user.reactivated', 'user', (string) $user->id, ['email' => $user->email]);
+            } else {
+                $auditor->log($current, 'user.updated', 'user', (string) $user->id, ['email' => $user->email, 'role' => $data['role']]);
+            }
+        });
 
         return response()->json(['user' => $this->userPayload($user->fresh())]);
     }
@@ -100,7 +122,12 @@ class UserController extends Controller
             abort(422, 'No puedes eliminar tu propia cuenta');
         }
 
-        app(UserLifecycle::class)->deleteUser($user);
+        $current = $request->user();
+
+        DB::transaction(function () use ($user, $current) {
+            app(UserLifecycle::class)->deleteUser($user);
+            app(AuditLogger::class)->log($current, 'user.deleted', 'user', (string) $user->id, ['email' => $user->email]);
+        });
 
         return response()->json(['ok' => true]);
     }
@@ -117,7 +144,12 @@ class UserController extends Controller
             'password' => ['required', 'string', 'min:8'],
         ]);
 
-        app(UserLifecycle::class)->changePassword($user, $data['password']);
+        $current = $request->user();
+
+        DB::transaction(function () use ($user, $current, $data) {
+            app(UserLifecycle::class)->changePassword($user, $data['password']);
+            app(AuditLogger::class)->log($current, 'user.password_reset', 'user', (string) $user->id, ['email' => $user->email]);
+        });
 
         return response()->json(['ok' => true]);
     }

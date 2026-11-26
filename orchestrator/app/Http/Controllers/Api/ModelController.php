@@ -6,6 +6,8 @@ use App\Enums\AgentRuntime;
 use App\Http\Controllers\Controller;
 use App\Models\Model;
 use App\Models\ModelProvider;
+use App\Services\AuditLogger;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -39,7 +41,14 @@ class ModelController extends Controller
             'api_key' => ['nullable', 'string', 'max:255'],
         ]);
 
-        $provider = ModelProvider::create($data + ['created_by' => $request->user()->id]);
+        $current = $request->user();
+
+        $provider = DB::transaction(function () use ($data, $current) {
+            $provider = ModelProvider::create($data + ['created_by' => $current->id]);
+            app(AuditLogger::class)->log($current, 'provider.created', 'provider', (string) $provider->id, ['name' => $provider->name]);
+
+            return $provider;
+        });
 
         return response()->json(['provider' => $this->providerPayload($provider)], 201);
     }
@@ -61,15 +70,25 @@ class ModelController extends Controller
             unset($data['api_key']);
         }
 
-        $provider->update($data);
+        $current = $request->user();
+
+        DB::transaction(function () use ($provider, $data, $current) {
+            $provider->update($data);
+            app(AuditLogger::class)->log($current, 'provider.updated', 'provider', (string) $provider->id, ['name' => $provider->name]);
+        });
 
         return response()->json(['provider' => $this->providerPayload($provider->refresh())]);
     }
 
     public function deleteProvider(Request $request, ModelProvider $provider): JsonResponse
     {
-        $this->requireAdmin($request);
-        $provider->delete();
+        $current = $request->user();
+
+        DB::transaction(function () use ($provider, $current) {
+            $name = $provider->name;
+            $provider->delete();
+            app(AuditLogger::class)->log($current, 'provider.deleted', 'provider', (string) $provider->id, ['name' => $name]);
+        });
 
         return response()->json(['ok' => true]);
     }
@@ -131,18 +150,45 @@ class ModelController extends Controller
             'capabilities.*' => ['string'],
         ]);
 
-        Model::firstOrCreate(
-            ['provider_id' => $data['provider_id'], 'model_id' => $data['model_id']],
-            $data
-        );
+        $current = $request->user();
+
+        $model = DB::transaction(function () use ($data, $current) {
+            $existing = Model::where('provider_id', $data['provider_id'])
+                ->where('model_id', $data['model_id'])
+                ->first();
+
+            $created = false;
+            if ($existing) {
+                $existing->update($data);
+                $model = $existing;
+            } else {
+                $model = Model::create($data);
+                $created = true;
+            }
+
+            app(AuditLogger::class)->log(
+                $current,
+                $created ? 'model.created' : 'model.updated',
+                'model',
+                (string) $model->id,
+                ['model_id' => $data['model_id'], 'provider_id' => $data['provider_id']]
+            );
+
+            return $model;
+        });
 
         return response()->json(['ok' => true], 201);
     }
 
     public function delete(Request $request, Model $model): JsonResponse
     {
-        $this->requireAdmin($request);
-        $model->delete();
+        $current = $request->user();
+
+        DB::transaction(function () use ($model, $current) {
+            $modelId = $model->model_id;
+            $model->delete();
+            app(AuditLogger::class)->log($current, 'model.deleted', 'model', (string) $model->id, ['model_id' => $modelId]);
+        });
 
         return response()->json(['ok' => true]);
     }

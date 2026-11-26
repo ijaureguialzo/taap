@@ -3,6 +3,8 @@
 namespace App\Livewire\Models;
 
 use App\Models\Model;
+use App\Services\AuditLogger;
+use Illuminate\Support\Facades\DB;
 use App\Models\ModelProvider;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Auth;
@@ -101,11 +103,22 @@ class Index extends Component
             'capabilities' => $this->capabilities,
         ];
 
-        if ($this->edit_id) {
-            Model::whereKey($this->edit_id)->update($data);
-        } else {
-            Model::create($data);
-        }
+        $id = DB::transaction(function () use ($data) {
+            $current = Auth::user();
+            $auditor = app(AuditLogger::class);
+
+            if ($this->edit_id) {
+                Model::whereKey($this->edit_id)->update($data);
+                $auditor->log($current, 'model.updated', 'model', (string) $this->edit_id, ['model_id' => $data['model_id']]);
+
+                return $this->edit_id;
+            }
+
+            $created = Model::create($data);
+            $auditor->log($current, 'model.created', 'model', (string) $created->id, ['model_id' => $data['model_id']]);
+
+            return $created->id;
+        });
 
         $this->cancel();
         session()->flash('success', __('actions.save'));
@@ -117,7 +130,14 @@ class Index extends Component
             return;
         }
 
-        Model::whereKey($id)->delete();
+        DB::transaction(function () use ($id) {
+            $model = Model::whereKey($id)->first();
+            Model::whereKey($id)->delete();
+
+            if ($model) {
+                app(AuditLogger::class)->log(Auth::user(), 'model.deleted', 'model', (string) $id, ['model_id' => $model->model_id]);
+            }
+        });
     }
 
     /**

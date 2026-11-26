@@ -2,8 +2,10 @@
 
 namespace App\Livewire\Admin;
 
+use App\Services\AuditLogger;
 use App\Support\Settings;
 use Illuminate\Contracts\View\View;
+use Illuminate\Support\Facades\DB;
 use Livewire\Component;
 
 class RegistrationToggle extends Component
@@ -17,7 +19,10 @@ class RegistrationToggle extends Component
 
     public function save(): void
     {
-        app(Settings::class)->setRegistrationEnabled($this->enabled);
+        DB::transaction(function () {
+            app(Settings::class)->setRegistrationEnabled($this->enabled);
+            app(AuditLogger::class)->log(auth()->user(), 'registration.toggled', 'settings', null, ['enabled' => $this->enabled]);
+        });
 
         session()->flash('success', __('settings.registration_saved'));
     }

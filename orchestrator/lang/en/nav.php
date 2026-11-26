@@ -6,6 +6,7 @@ return [
     'providers' => 'Providers',
     'mcp' => 'MCP',
     'files' => 'Files',
+    'audit' => 'Audit',
     'users' => 'Users',
     'profile' => 'My profile',
     'logout' => 'Log out',

@@ -4,8 +4,10 @@ namespace App\Livewire\Users;
 
 use App\Enums\UserRole;
 use App\Models\User;
+use App\Services\AuditLogger;
 use App\Support\UserLifecycle;
 use Illuminate\Contracts\View\View;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rules\Password;
 use Illuminate\Validation\Rule;
 use Livewire\Component;
@@ -109,18 +111,29 @@ class Index extends Component
         $disconnecting = $wasActive && ! $this->active;
         $reactivating = ! $wasActive && $this->active;
 
-        if ($disconnecting) {
-            $this->lifecycle()->stopAndRevoke($user);
-        } elseif ($reactivating) {
-            $this->lifecycle()->reactivate($user);
-        }
+        DB::transaction(function () use ($user, $current, $disconnecting, $reactivating) {
+            if ($disconnecting) {
+                $this->lifecycle()->stopAndRevoke($user);
+            } elseif ($reactivating) {
+                $this->lifecycle()->reactivate($user);
+            }
 
-        $user->forceFill([
-            'role' => $this->role,
-            'active' => $this->active,
-            'agent_quota' => $this->max_agents,
-            'locale' => $this->language,
-        ])->save();
+            $user->forceFill([
+                'role' => $this->role,
+                'active' => $this->active,
+                'agent_quota' => $this->max_agents,
+                'locale' => $this->language,
+            ])->save();
+
+            $auditor = app(AuditLogger::class);
+            if ($disconnecting) {
+                $auditor->log($current, 'user.disabled', 'user', (string) $user->id, ['email' => $user->email]);
+            } elseif ($reactivating) {
+                $auditor->log($current, 'user.reactivated', 'user', (string) $user->id, ['email' => $user->email]);
+            } else {
+                $auditor->log($current, 'user.updated', 'user', (string) $user->id, ['email' => $user->email, 'role' => $this->role->value]);
+            }
+        });
 
         $this->cancel();
         session()->flash('success', __('actions.save'));
@@ -143,7 +156,13 @@ class Index extends Component
             return;
         }
 
-        $this->lifecycle()->changePassword($user, $this->reset_password);
+        $current = auth()->user();
+
+        DB::transaction(function () use ($user, $current) {
+            $this->lifecycle()->changePassword($user, $this->reset_password);
+
+            app(AuditLogger::class)->log($current, 'user.password_reset', 'user', (string) $user->id, ['email' => $user->email]);
+        });
 
         $this->reset(['reset_password', 'reset_password_confirmation']);
         session()->flash('success', __('users.password_reset_done'));
@@ -160,15 +179,21 @@ class Index extends Component
             'create_language' => ['required', Rule::in(['es', 'en', 'eu'])],
         ]);
 
-        User::create([
-            'name' => $this->create_name,
-            'email' => $this->create_email,
-            'password' => $this->create_password,
-            'role' => $this->create_role,
-            'active' => $this->create_active,
-            'locale' => $this->create_language,
-            'agent_quota' => $this->create_max_agents,
-        ]);
+        $current = auth()->user();
+
+        DB::transaction(function () use ($current) {
+            $user = User::create([
+                'name' => $this->create_name,
+                'email' => $this->create_email,
+                'password' => $this->create_password,
+                'role' => $this->create_role,
+                'active' => $this->create_active,
+                'locale' => $this->create_language,
+                'agent_quota' => $this->create_max_agents,
+            ]);
+
+            app(AuditLogger::class)->log($current, 'user.created', 'user', (string) $user->id, ['email' => $user->email, 'role' => $this->create_role]);
+        });
 
         $this->cancel();
         session()->flash('success', __('users.created'));
@@ -183,8 +208,12 @@ class Index extends Component
         }
 
         $user = User::findOrFail($id);
+        $current = auth()->user();
 
-        $this->lifecycle()->deleteUser($user);
+        DB::transaction(function () use ($user, $current) {
+            $this->lifecycle()->deleteUser($user);
+            app(AuditLogger::class)->log($current, 'user.deleted', 'user', (string) $user->id, ['email' => $user->email]);
+        });
 
         $this->cancel();
         session()->flash('success', __('users.deleted'));

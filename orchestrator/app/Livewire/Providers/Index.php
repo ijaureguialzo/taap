@@ -5,7 +5,9 @@ namespace App\Livewire\Providers;
 use App\Models\Agent;
 use App\Models\Model;
 use App\Models\ModelProvider;
+use App\Services\AuditLogger;
 use App\Support\UpstreamIdentity;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Http;
@@ -95,20 +97,30 @@ class Index extends Component
             'base_url' => $this->base_url,
         ];
 
-        if ($this->edit_id) {
-            if ($key !== null || $this->delete_key) {
-                $data['api_key'] = $key;
+        $id = DB::transaction(function () use ($data, $key) {
+            $auditor = app(AuditLogger::class);
+            $current = Auth::user();
+
+            if ($this->edit_id) {
+                if ($key !== null || $this->delete_key) {
+                    $data['api_key'] = $key;
+                }
+                // Catalogo compartido (D1): un admin puede editar CUALQUIER
+                // provider; la barrera de acceso es la guarda de rol, no el creador.
+                // created_by NO se toca: es campo de auditoria (quien lo creo).
+                ModelProvider::whereKey($this->edit_id)->update($data);
+                $auditor->log($current, 'provider.updated', 'provider', (string) $this->edit_id, ['name' => $data['name']]);
+
+                return $this->edit_id;
             }
-            // Catalogo compartido (D1): un admin puede editar CUALQUIER
-            // provider; la barrera de acceso es la guarda de rol, no el creador.
-            // created_by NO se toca: es campo de auditoria (quien lo creo).
-            ModelProvider::whereKey($this->edit_id)->update($data);
-            $id = $this->edit_id;
-        } else {
+
             $data['api_key'] = $key;
             $data['created_by'] = Auth::user()->id;
-            $id = ModelProvider::create($data)->id;
-        }
+            $created = ModelProvider::create($data);
+            $auditor->log($current, 'provider.created', 'provider', (string) $created->id, ['name' => $data['name']]);
+
+            return $created->id;
+        });
 
         $provider = ModelProvider::query()->findOrFail($id);
 
@@ -170,8 +182,15 @@ class Index extends Component
             return;
         }
 
-        // Barrera: guarda de rol (D1); created_by queda como auditoria.
-        ModelProvider::whereKey($id)->delete();
+        DB::transaction(function () use ($id) {
+            // Barrera: guarda de rol (D1); created_by queda como auditoria.
+            $provider = ModelProvider::whereKey($id)->first();
+            ModelProvider::whereKey($id)->delete();
+
+            if ($provider) {
+                app(AuditLogger::class)->log(Auth::user(), 'provider.deleted', 'provider', (string) $id, ['name' => $provider->name]);
+            }
+        });
     }
 
     /**

@@ -13,6 +13,8 @@ use App\Http\Controllers\Controller;
 use App\Jobs\BridgeApplyConfig;
 use App\Models\Agent;
 use App\Models\Model;
+use App\Services\AuditLogger;
+use Illuminate\Support\Facades\DB;
 use Closure;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -172,7 +174,17 @@ class AgentController extends Controller
         $this->authorize($request, $agent);
 
         $this->manager->terminate($agent);
-        $agent->delete();
+
+        DB::transaction(function () use ($request, $agent) {
+            $agentName = $agent->name;
+            $agentId = $agent->id;
+            $agent->delete();
+
+            $current = $request->user();
+            if ($current?->isAdmin()) {
+                app(AuditLogger::class)->log($current, 'agent.destroyed', 'agent', (string) $agentId, ['name' => $agentName]);
+            }
+        });
 
         return response()->json(['ok' => true]);
     }

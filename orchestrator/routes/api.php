@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\AgentController;
+use App\Http\Controllers\Api\AuditController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\ChatController;
 use App\Http\Controllers\Api\FileController;
@@ -82,6 +83,9 @@ Route::prefix('v1')->group(function () {
         Route::delete('auth/profile/two-factor', [AuthController::class, 'disableTwoFactor']);
         Route::get('auth/profile/passkeys', [AuthController::class, 'passkeys']);
         Route::delete('auth/profile/passkeys/{passkeyId}', [AuthController::class, 'deletePasskey']);
+
+        /* auditoría (admin) */
+        Route::get('audit', [AuditController::class, 'index']);
 
         /* agentes */
         Route::get('agents', [AgentController::class, 'index']);
