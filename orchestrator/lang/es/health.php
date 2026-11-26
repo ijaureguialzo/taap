@@ -11,4 +11,7 @@ return [
     'no_failures' => 'Sin fallos recientes.',
     'offline' => 'desconectado',
     'unchecked' => 'sin comprobar',
+    'notifications' => 'Notificaciones de fallo',
+    'notifications_hint' => 'Últimos intentos de webhook por agente (configurable vía API v1).',
+    'no_notifications' => 'Sin notificaciones recientes.',
 ];

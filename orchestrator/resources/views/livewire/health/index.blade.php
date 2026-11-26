@@ -47,6 +47,28 @@
         </div>
     </div>
 
+    <div class="card mb-3">
+        <div class="card-body">
+            <h2 class="h6">{{ __('health.notifications') }}</h2>
+            <p class="small text-muted mb-2">{{ __('health.notifications_hint') }}</p>
+            @if ($lastNotifications === [])
+                <p class="small text-muted mb-0">{{ __('health.no_notifications') }}</p>
+            @else
+                <ul class="list-unstyled small mb-0">
+                    @foreach ($lastNotifications as $n)
+                        <li class="d-flex justify-content-between border-bottom py-1">
+                            <span>{{ $n['agent_name'] ?? '#'.$n['agent_id'] }}</span>
+                            <span>
+                                <span class="badge bg-{{ $n['status'] === 'sent' ? 'success' : 'warning' }}">{{ $n['status'] }}</span>
+                                <span class="text-muted ms-2">{{ $n['at'] ? \Illuminate\Support\Carbon::parse($n['at'])->diffForHumans() : '' }}</span>
+                            </span>
+                        </li>
+                    @endforeach
+                </ul>
+            @endif
+        </div>
+    </div>
+
     <div class="card">
         <div class="card-body">
             <h2 class="h6">{{ __('health.recent_failures') }}</h2>

@@ -74,6 +74,23 @@ curl -s localhost:8011/up   # 200
 Abre `https://taap.test` (o `http://localhost:8011`), entra con el admin y ve
 el dashboard.
 
+## Webhook de fallo de agente
+
+Cuando un agente transiciona a «error», el orquestador envía un POST
+JSON al webhook configurado (admin) con el payload
+`{ event: 'agent.failed', agent_id, name, runtime, status_from, status_to, cause, at, url }`.
+
+- Configuración (admin, API v1 — `failure_webhook_url` / `failure_webhook_secret`
+  en `PUT /api/v1/settings`; el secret se cifra en reposo y nunca se devuelve
+  ni se audita): URL y secreto HMAC compartido.
+- La firma se viaja en la cabecera `X-TaaP-Signature: sha256=<hmac(secret, body)>`
+  junto a `X-TaaP-Event`. El receptor debe verificar la firma antes de procesar.
+- Reintentos: hasta 3 intentos (10/30/60 s) en errores 5xx/timeout; los 4xx no
+  reintentan (URL rota). El último intento (resultado + http_code) aparece en el
+  panel `/health`.
+- La notificación es best-effort: nunca bloquea la transición del agente ni
+  el chat.
+
 ## Salud del sistema
 
 Panel de salud operativo (rol admin): `/health` — agentes por estado en

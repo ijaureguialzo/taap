@@ -11,4 +11,7 @@ return [
     'no_failures' => 'Ez dago huts egiterik.',
     'offline' => 'deskonektatua',
     'unchecked' => 'ez da egiaztatze behar',
+    'notifications' => 'Hutsegite abisatzeak',
+    'notifications_hint' => 'Azken webhook saioak agenteren arabera (API v1 bidez konfiguragarri).',
+    'no_notifications' => 'Ez dago abisatzerik.',
 ];

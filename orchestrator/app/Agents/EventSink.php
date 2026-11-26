@@ -4,9 +4,11 @@ namespace App\Agents;
 
 use App\Broadcasts\AgentEventBroadcast;
 use App\Enums\AgentStatus;
+use App\Jobs\SendAgentFailureNotification;
 use App\Models\Agent;
 use App\Models\AgentEventRow;
 use App\Models\ChatMessage;
+use App\Support\Settings;
 use Illuminate\Broadcasting\BroadcastEvent;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Log;
@@ -197,6 +199,8 @@ class EventSink
             return;
         }
 
+        $previous = $agent->status;
+
         Log::info("EventSink: setStatus {$agent->id} ".$agent->status->value.' -> '.$status->value.' de: '.collect(debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 4))->map(fn ($f) => ($f['class'] ?? '?').'::'.$f['function'])->implode(' <- '));
         $agent->status = $status;
         if ($status === AgentStatus::Working || $status === AgentStatus::Idle) {
@@ -204,10 +208,40 @@ class EventSink
         }
         $agent->save();
 
+        // Webhook saliente al fallo (agent-failure-notifications): encolamos
+        // la notificación fuera del camino crítico; los fallos del webhook no
+        // bloquean ni cambian la transición.
+        if ($status === AgentStatus::Error) {
+            $settings = app(Settings::class);
+            // El job re-chequea la configuración al procesarse: encendemos
+            // el job solo si el webhook está configurado (evita un job vacío).
+            if ($settings->failureWebhookUrl()) {
+                SendAgentFailureNotification::dispatch(
+                    $agent->id,
+                    $previous?->value ?? '',
+                    $status->value,
+                    $this->causeForError($agent)
+                );
+            }
+        }
+
         // Avisamos el cambio a quien no vio los eventos intermedios
         $this->dispatch(
             $agent->refresh(),
             AgentEvent::statusChange($status->value)
         );
+    }
+
+    /** Última causa de error de un agente (payload del evento más reciente). */
+    protected function causeForError(Agent $agent): string
+    {
+        $last = $agent->events()
+            ->where('type', 'error')
+            ->latest('occurred_at')
+            ->first();
+
+        $payload = (array) ($last?->payload ?? []);
+
+        return (string) ($payload['message'] ?? 'error');
     }
 }

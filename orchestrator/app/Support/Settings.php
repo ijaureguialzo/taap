@@ -2,6 +2,7 @@
 
 namespace App\Support;
 
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -61,5 +62,68 @@ class Settings
     public function setRegistrationEnabled(bool $enabled): void
     {
         $this->set('registration_enabled', $enabled ? 'true' : 'false');
+    }
+
+    /** Webhook saliente de fallo de agente (agent-failure-notifications). */
+    public function failureWebhookUrl(): ?string
+    {
+        $url = $this->get('failure_webhook_url');
+
+        return filled($url) ? $url : null;
+    }
+
+    public function setFailureWebhookUrl(?string $url): void
+    {
+        $this->set('failure_webhook_url', filled($url) ? trim((string) $url) : null);
+    }
+
+    public function failureWebhookSecret(): ?string
+    {
+        $raw = $this->get('failure_webhook_secret');
+
+        if (! filled($raw)) {
+            return null;
+        }
+
+        try {
+            return Crypt::decryptString($raw);
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
+    public function setFailureWebhookSecret(?string $secret): void
+    {
+        if (! filled($secret)) {
+            $this->set('failure_webhook_secret', null);
+
+            return;
+        }
+
+        $this->set('failure_webhook_secret', Crypt::encryptString((string) $secret));
+    }
+
+    public function storeLastNotification(string $agentId, string $status, ?int $httpCode, ?string $error): void
+    {
+        $this->set('failure_notification_last_'.$agentId, json_encode([
+            'status' => $status,
+            'http_code' => $httpCode,
+            'error' => $error,
+            'at' => now()->toIso8601String(),
+        ]));
+    }
+
+    /** @return array{status: string, http_code: ?int, error: ?string, at: ?string}|null */
+    public function lastNotification(string $agentId): ?array
+    {
+        $raw = $this->get('failure_notification_last_'.$agentId);
+
+        if (! filled($raw)) {
+            return null;
+        }
+
+        $data = json_decode($raw, true);
+
+        return is_array($data) ? $data : null;
     }
 }
