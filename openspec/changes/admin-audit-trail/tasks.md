@@ -18,4 +18,4 @@
 
 ## 4. Verificación final
 
-- [ ] 4.1 Suite completa + docs (sección de auditoría en docs/deployment.md); verificar con `php artisan test` verde
+- [x] 4.1 Suite completa + docs (sección de auditoría en docs/deployment.md); verificar con `php artisan test` verde
