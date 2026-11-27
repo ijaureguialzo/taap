@@ -89,3 +89,14 @@ comandos HTTP + stream de eventos; sesiones persistentes que sobreviven
 reinicios), Model Proxy con rutas Anthropic y Responses, y registro de runtimes
 por capacidad.
 Ver `docs/release-notes-v1.1.md`.
+
+v1.2: FS compartido (un árbol físico único montado por agente con modos
+anclados al kernel: arena `:ro` + binds por path). Ver
+`docs/release-notes-v1.2.md`.
+
+v1.3 (esta release): Liquid Glass en la app iOS (iOS 26), 2FA/passkeys,
+auditoría inmutable, telemetría de uso de modelos, panel de salud, backup/restore,
+webhook de fallo, plantillas de agente, búsqueda/exportación del chat, visor de
+logs del agente y explorador de ficheros en la app iOS.
+Ver `docs/release-notes-v1.3.md`. Todos los cambios están archivados en
+`openspec/changes/archive/`.
