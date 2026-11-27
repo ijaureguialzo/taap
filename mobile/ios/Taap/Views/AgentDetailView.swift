@@ -257,9 +257,11 @@ struct AgentDetailView: View {
                     .padding(8)
                     .background(TaapColor.primary, in: Circle())
             }
+            .buttonStyle(.plain)
             .disabled(draft.trimmingCharacters(in: .whitespaces).isEmpty)
         }
         .padding(12)
+        .background(TaapColor.surfaceElevated)
     }
 
     // MARK: - Logs

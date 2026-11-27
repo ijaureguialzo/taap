@@ -53,7 +53,7 @@ struct LoginView: View {
                         .frame(maxWidth: .infinity)
                 }
             }
-            .buttonStyle(.borderedProminent)
+            .buttonStyle(.glassProminent)
             .disabled(busy || email.isEmpty || password.isEmpty)
         }
         .padding(24)
@@ -163,7 +163,7 @@ struct TwoFactorSheet: View {
                     Text(appState.t("login.two_factor_cancel"))
                         .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.bordered)
+                .buttonStyle(.glass)
 
                 Button {
                     onVerify()
@@ -176,7 +176,7 @@ struct TwoFactorSheet: View {
                             .frame(maxWidth: .infinity)
                     }
                 }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(.glassProminent)
                 .disabled(busy || code.trimmingCharacters(in: .whitespaces).isEmpty)
             }
             .padding(.horizontal, 8)

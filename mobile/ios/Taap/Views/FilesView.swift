@@ -71,7 +71,7 @@ struct FilesView: View {
                             Button(appState.t("files.save")) {
                                 Task { await doRename(target) }
                             }
-                            .buttonStyle(.borderedProminent)
+                            .buttonStyle(.glassProminent)
                         }
                     }
                     .navigationTitle(appState.t("files.rename"))
@@ -87,9 +87,9 @@ struct FilesView: View {
                         Button(appState.t("files.create")) {
                             Task { await createFolder() }
                         }
-                        .buttonStyle(.borderedProminent)
+                        .buttonStyle(.glassProminent)
                         Button(appState.t("files.cancel")) { creatingFolder = false }
-                            .buttonStyle(.bordered)
+                            .buttonStyle(.glass)
                     }
                 }
                 .navigationTitle(appState.t("files.new_folder"))

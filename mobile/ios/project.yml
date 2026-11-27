@@ -2,7 +2,7 @@ name: Taap
 options:
   bundleIdPrefix: app.taan
   deploymentTarget:
-    iOS: "17.0"
+    iOS: "26.0"
   developmentLanguage: es
 settings:
   base:

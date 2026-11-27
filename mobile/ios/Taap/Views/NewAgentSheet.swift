@@ -100,6 +100,7 @@ struct NewAgentSheet: View {
                     }
                     // Sin runtimes cargados (orquestador viejo: 404) o sin
                     // modelo elegido, la creacion queda deshabilitada.
+                    .buttonStyle(.glassProminent)
                     .disabled(busy || name.isEmpty || modelId == nil || runtimes.isEmpty)
                 }
             }

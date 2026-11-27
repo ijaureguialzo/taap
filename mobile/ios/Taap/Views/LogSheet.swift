@@ -43,6 +43,7 @@ struct LogSheet: View {
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button(appState.t("agents.logs_copy"), action: onCopy)
+                    .buttonStyle(.glassProminent)
                 }
                 ToolbarItem(placement: .cancellationAction) {
                     Button(appState.t("actions.cancel")) { dismiss() }

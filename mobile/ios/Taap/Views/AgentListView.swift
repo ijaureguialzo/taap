@@ -15,7 +15,7 @@ struct AgentListView: View {
                     Text(appState.t("agents.empty"))
                 } actions: {
                     Button(appState.t("agents.new")) { showingNew = true }
-                        .buttonStyle(.borderedProminent)
+                        .buttonStyle(.glassProminent)
                 }
             } else if appState.agentsLoading && appState.agents.isEmpty {
                 ProgressView()
@@ -47,6 +47,7 @@ struct AgentListView: View {
                 } label: {
                     Image(systemName: "plus")
                 }
+                .buttonStyle(.glassProminent)
             }
         }
         .sheet(isPresented: $showingNew) {
@@ -81,9 +82,10 @@ struct AgentRowView: View {
                         .font(.headline)
                     Text(agent.runtime.uppercased())
                         .font(.caption2)
-                        .padding(.horizontal, 5)
-                        .padding(.vertical, 1)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
                         .background(.quaternary, in: Capsule())
+                        .glassEffect(.regular.tint(TaapColor.primary.opacity(0.3)), in: Capsule())
                 }
                 Text(statusText)
                     .font(.subheadline)
