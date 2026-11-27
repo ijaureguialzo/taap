@@ -6,6 +6,7 @@ use App\Agents\AgentManager;
 use App\Enums\AgentRuntime;
 use App\Enums\AgentStatus;
 use App\Models\Agent;
+use App\Models\AgentTemplate;
 use App\Models\Model;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Auth;
@@ -34,6 +35,12 @@ class Create extends Component
     public bool $auto_restart = true;
 
     public string $system_prompt = '';
+
+    /** Plantilla seleccionada en el picker (null = sin plantilla). */
+    public ?int $template_id = null;
+
+    /** Nombre de la plantilla usada y aplicada (flash). */
+    public ?string $last_template_name = null;
 
     /**
      * Tipos de proveedor compatibles con el runtime elegido (ios-
@@ -87,6 +94,42 @@ class Create extends Component
     {
         if ($this->model_id !== null) {
             $this->discarded_model_id = null;
+        }
+    }
+
+    /**
+     * Aplica una plantilla del usuario: pre-rellena runtime, modelo e
+     * Internet. El usuario puede modificar/confirmar antes de crear.
+     */
+    public function applyTemplate(): void
+    {
+        if ($this->template_id !== null) {
+            $template = AgentTemplate::where('owner_id', Auth::id())->find($this->template_id);
+
+            if ($template) {
+                $this->runtime = $template->runtime;
+                $this->internet_enabled = $template->internet;
+
+                if ($template->model_id !== null) {
+                    $model = Model::with('provider')->find($template->model_id);
+                    if ($model && $model->isCompatibleWith(AgentRuntime::fromString($template->runtime))) {
+                        $this->model_id = $model->id;
+                        $this->discarded_model_id = null;
+                    } else {
+                        // El modelo no sigue siendo compatible con el runtime
+                        // de la plantilla: se descarta con aviso (el submit
+                        // lo valida igual).
+                        $this->model_id = null;
+                        $this->discarded_model_id = $template->model_id;
+                    }
+                } else {
+                    $this->model_id = null;
+                    $this->discarded_model_id = null;
+                }
+
+                $this->last_template_name = $template->name;
+                session()->flash('success', __('agents.template_applied', ['name' => $template->name]));
+            }
         }
     }
 
@@ -151,6 +194,8 @@ class Create extends Component
         return view('livewire.agents.create', [
             'models' => $models,
             'runtimes' => AgentRuntime::supported(),
+            'templates' => AgentTemplate::where('owner_id', Auth::id())->orderBy('name')->get(),
+            'application_enabled' => $this->template_id !== null,
             'canCreate' => Auth::user()->canCreateAgent(),
             'discarded_model' => $discarded,
         ]);

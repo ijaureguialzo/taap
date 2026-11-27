@@ -60,4 +60,9 @@ return [
     'fs_removed' => 'Carpeta eliminada.',
     'fs_removed' => 'Carpeta eliminada.',
     'fs_remove' => 'Eliminar',
+    'template_title' => 'Plantilla',
+    'template_none' => 'Sin plantilla',
+    'template_apply' => 'Usar plantilla',
+    'template_hint' => 'La plantilla pre-rellena runtime, modelo e Internet; puedes modificarlo antes de crear.',
+    'template_applied' => 'Plantilla «%name%» aplicada',
 ];

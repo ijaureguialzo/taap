@@ -60,4 +60,9 @@ return [
     'fs_removed' => 'Folder removed.',
     'fs_removed' => 'Folder removed.',
     'fs_remove' => 'Remove',
+    'template_title' => 'Template',
+    'template_none' => 'No template',
+    'template_apply' => 'Use template',
+    'template_hint' => 'The template pre-fills runtime, model and Internet; you can edit them before creating.',
+    'template_applied' => 'Template «%name%» applied',
 ];

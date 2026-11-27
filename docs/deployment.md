@@ -91,6 +91,19 @@ JSON al webhook configurado (admin) con el payload
 - La notificación es best-effort: nunca bloquea la transición del agente ni
   el chat.
 
+## Plantillas de agente
+
+Cada usuario puede crear plantillas de agente — nombre, runtime, modelo
+sugerido, servidores MCP precargados, Internet y límites — y usarlas como
+punto de partida en la creación (web y iOS). La plantilla se aplica
+pre-llenando runtime, modelo e Internet; el usuario puede modificarlos
+libremente antes de crear. Las reglas son: runtime en el registro, modelo
+compatible con el runtime, y nombre único por usuario.
+
+- Web: página de creación — picker «Plantilla» + botón «Usar plantilla».
+- API v1: `GET/POST/PUT/DELETE /api/v1/templates` (owner-only; el admin puede
+  listar las de cualquiera con `?all=true`, pero no editarlas).
+
 ## Salud del sistema
 
 Panel de salud operativo (rol admin): `/health` — agentes por estado en

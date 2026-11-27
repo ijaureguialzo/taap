@@ -13,6 +13,24 @@
     <div class="card">
         <div class="card-body">
             <form wire:submit="submit" class="needs-validation">
+                @if ($templates->isNotEmpty())
+                    <div class="template-picker mb-3">
+                        <label class="form-label">{{ __('agents.template_title') }}</label>
+                        <div class="d-flex gap-2">
+                            <select wire:model="template_id" class="form-select">
+                                <option value="">{{ __('agents.template_none') }}</option>
+                                @foreach ($templates as $template)
+                                    <option value="{{ $template->id }}">{{ $template->name }}</option>
+                                @endforeach
+                            </select>
+                            <button type="button" class="btn btn-outline-primary" wire:click="applyTemplate" @disabled(! $template_id)>
+                                {{ __('agents.template_apply') }}
+                            </button>
+                        </div>
+                        <div class="form-text">{{ __('agents.template_hint') }}</div>
+                    </div>
+                @endif
+
                 <div class="mb-3">
                     <label class="form-label">{{ __('agents.name') }} *</label>
                     <input type="text" wire:model="name" class="form-control @error('name') is-invalid @enderror"

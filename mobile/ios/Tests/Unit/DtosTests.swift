@@ -185,3 +185,31 @@ final class FilesEnvelopeTests: XCTestCase {
         XCTAssertEqual(dir.sizeDisplay, "—")
     }
 }
+
+final class AgentTemplateDTOTests: XCTestCase {
+    private let decoder = JSONDecoder()
+
+    func test_template_envelope_decodes() throws {
+        let json = """
+        {"templates": [
+            {"id": 4, "name": "Revisor", "runtime": "pi", "model_id": 7, "internet": true, "cpu": 2.0, "memory": "2g"}
+        ]}
+        """
+        let res = try decoder.decode(TemplatesEnvelope.self, from: Data(json.utf8))
+        XCTAssertEqual(res.templates.count, 1)
+        XCTAssertEqual(res.templates[0].name, "Revisor")
+        XCTAssertEqual(res.templates[0].modelId, 7)
+        XCTAssertTrue(res.templates[0].internet)
+    }
+
+    func test_template_without_model_decodes() throws {
+        let json = """
+        {"templates": [
+            {"id": 5, "name": "Agente vacío", "runtime": "codex", "model_id": null, "internet": false, "cpu": null, "memory": null}
+        ]}
+        """
+        let res = try decoder.decode(TemplatesEnvelope.self, from: Data(json.utf8))
+        XCTAssertNil(res.templates[0].modelId)
+        XCTAssertFalse(res.templates[0].internet)
+    }
+}

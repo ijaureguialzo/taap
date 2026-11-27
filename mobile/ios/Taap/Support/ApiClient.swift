@@ -247,6 +247,13 @@ final class ApiClient {
         try await requestRaw("api/v1/agents/\(agentId)/approvals/resolve", method: "POST", body: body)
     }
 
+    // MARK: - Plantillas
+
+    func templates() async throws -> [AgentTemplateDTO] {
+        let res: TemplatesEnvelope = try await request("api/v1/templates")
+        return res.templates
+    }
+
     // MARK: - Catálogos
 
     /// Ruta de `GET /models` con el filtro opcional por runtime

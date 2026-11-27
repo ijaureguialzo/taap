@@ -18,8 +18,15 @@ struct NewAgentSheet: View {
     /// re-restauracion, misma semantica que la web sobre ids de modelo).
     @State private var discardedModel: ModelDTO?
     @State private var internet = false
+    @State private var templates: [AgentTemplateDTO] = []
+    @State private var selectedTemplateId: Int? = nil
+    @State private var applyingTemplate = false
     @State private var busy = false
     @State private var error: String?
+
+    private var selectedTemplate: AgentTemplateDTO? {
+        templates.first(where: { $0.id == selectedTemplateId })
+    }
 
     var body: some View {
         NavigationStack {
@@ -35,6 +42,22 @@ struct NewAgentSheet: View {
                             Text(rt.label).tag(Optional(rt.id))
                         }
                     }
+                    if !templates.isEmpty {
+                        Picker(appState.t("agents.template"), selection: $selectedTemplateId) {
+                            Text(appState.t("agents.template_none")).tag(nil as Int?)
+                            ForEach(templates) { template in
+                                Text(template.name).tag(template.id)
+                            }
+                        }
+                        Button {
+                            Task { await applyTemplate() }
+                        } label: {
+                            Text(appState.t("agents.template_apply"))
+                        }
+                        .disabled(selectedTemplate == nil)
+                        .font(.caption)
+                    }
+
                     Picker(appState.t("agents.model"), selection: $modelId) {
                         Text("—").tag(nil as Int?)
                         ForEach(models) { model in
@@ -91,6 +114,7 @@ struct NewAgentSheet: View {
                 await loadRuntimesAndModels()
             }
             .onChange(of: runtime) { _, newRuntime in
+                guard !applyingTemplate else { return }
                 handleRuntimeChange(newRuntime)
             }
             .onChange(of: modelId) { _, newModelId in
@@ -103,14 +127,16 @@ struct NewAgentSheet: View {
 
     // MARK: - Carga
 
-    /// Primer carga: runtimes del registro y, con el primero, los modelos
-    /// filtrados. Fallo de runtimes → error visible + creacion deshabilitada
-    /// (sin fallback hardcodeado, design D6).
+    /// Primer carga: runtimes del registro, plantillas del usuario (best
+    /// effort) y, con el primero, los modelos filtrados. Fallo de runtimes →
+    /// error visible + creacion deshabilitada (sin fallback hardcodeado).
     private func loadRuntimesAndModels() async {
         do {
             let list = try await appState.api.runtimes()
             runtimes = list
             error = nil
+            // Plantillas: best-effort (sin ellas, la creación funciona igual).
+            templates = (try? await appState.api.templates()) ?? []
             if let first = list.first, runtime == nil {
                 // Fijar el runtime dispara .onChange -> carga los modelos.
                 runtime = first.id
@@ -124,6 +150,27 @@ struct NewAgentSheet: View {
             models = []
             self.error = appState.t("agents.runtimes_load_error")
         }
+    }
+
+    /// Aplica una plantilla: runtime, modelo e Internet. El modelo solo se
+    /// aplica si sigue siendo compatible con su runtime.
+    private func applyTemplate() async {
+        guard let template = selectedTemplate else { return }
+        applyingTemplate = true
+
+        runtime = template.runtime
+        internet = template.internet
+
+        await refreshForRuntime(template.runtime)
+
+        if let id = template.modelId, models.contains(where: { $0.id == id }) {
+            modelId = id
+            discardedModel = nil
+        } else {
+            modelId = nil
+        }
+
+        applyingTemplate = false
     }
 
     /// Al cambiar de runtime (design D5): re-fetch de `models(runtime:)` y

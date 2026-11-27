@@ -60,4 +60,9 @@ return [
     'fs_removed' => 'Karpeta kenduta.',
     'fs_removed' => 'Karpeta kenduta.',
     'fs_remove' => 'Kendu',
+    'template_title' => 'Txantiloia',
+    'template_none' => 'Txantiloirik ez',
+    'template_apply' => 'Erabili txantiloia',
+    'template_hint' => 'Txantiloiak runtime, eredu eta Interneteko konfigurazioa betetzen du; egin ezazu aldaketak sortu aurretik.',
+    'template_applied' => '«%name%» txantiloia aplikatu da',
 ];

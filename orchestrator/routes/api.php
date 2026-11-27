@@ -10,6 +10,7 @@ use App\Http\Controllers\Api\FileController;
 use App\Http\Controllers\Api\McpController;
 use App\Http\Controllers\Api\ModelController;
 use App\Http\Controllers\Api\RuntimeController;
+use App\Http\Controllers\Api\TemplateController;
 use App\Http\Controllers\Api\SettingsController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Proxy\McpBridgeController;
@@ -111,6 +112,12 @@ Route::prefix('v1')->group(function () {
         Route::get('agents/{agent}/timeline', [ChatController::class, 'timeline']);
         Route::post('agents/{agent}/messages', [ChatController::class, 'send']);
         Route::post('agents/{agent}/approvals/{approvalId}', [ChatController::class, 'approve']);
+
+        /* plantillas de agente */
+        Route::get('templates', [TemplateController::class, 'index']);
+        Route::post('templates', [TemplateController::class, 'store']);
+        Route::put('templates/{template}', [TemplateController::class, 'update']);
+        Route::delete('templates/{template}', [TemplateController::class, 'destroy']);
 
         /* runtimes del registro (ios-model-runtime-compatibility: los
            clientes construyen sus selectores desde esta lista, no desde

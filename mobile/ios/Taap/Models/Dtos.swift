@@ -367,3 +367,22 @@ struct RenameResponse: Decodable {
 struct DeletedResponse: Decodable {
     let deleted: String?
 }
+
+// MARK: - Plantillas de agente
+
+struct AgentTemplateDTO: Decodable, Identifiable, Hashable {
+    let id: Int
+    let name: String
+    let runtime: String
+    let modelId: Int?
+    let internet: Bool
+    let cpu: Double?
+    let memory: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id, name, runtime, internet, cpu, memory
+        case modelId = "model_id"
+    }
+}
+
+struct TemplatesEnvelope: Decodable { let templates: [AgentTemplateDTO] }
