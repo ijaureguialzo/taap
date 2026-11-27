@@ -599,6 +599,26 @@ SH;
     }
 
     /**
+     * Log + estado del proceso (para el visor de logs): el resultado inclui
+     * stdout, stderr y exit code, de modo que los errores del daemon
+     * (p. ej. "No such container") sean distinguibles de una salida vacía.
+     *
+     * @return array{exitCode: int, stdout: string, stderr: string}
+     */
+    public function logsWithStatus(string $name, int $tail = 100): array
+    {
+        $process = new Process(array_merge([$this->bin], ['logs', '--tail', (string) $tail, $name]));
+        $process->setTimeout(30);
+        $process->run();
+
+        return [
+            'exitCode' => $process->getExitCode(),
+            'stdout' => $process->getOutput(),
+            'stderr' => $process->getErrorOutput(),
+        ];
+    }
+
+    /**
      * @param  list<string>  $command
      */
     public function exec(string $name, array $command, bool $tty = false): Process

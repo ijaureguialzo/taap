@@ -7,6 +7,7 @@ use App\Services\AuditLogger;
 use Illuminate\Support\Facades\DB;
 use App\Agents\Timeline;
 use App\Enums\AgentStatus;
+use App\Services\AgentLogs;
 use App\Enums\FsMountMode;
 use App\Jobs\BridgeApplyConfig;
 use App\Models\Agent;
@@ -32,6 +33,43 @@ class Detail extends Component
 
     /** Estado en vivo (canal Reverb) para el badge del header. */
     public ?string $liveStatus = null;
+
+    /* Visor de logs del agente (agent-log-viewer) */
+
+    /** Visibilidad del visor de logs (solo se carga al pedirlo). */
+    public bool $showLogs = false;
+
+    public int $logsTail = 200;
+
+    public string $logsOutput = '';
+
+    public string $logsStatus = 'ok';
+
+    public function toggleLogs(): void
+    {
+        $this->showLogs = ! $this->showLogs;
+
+        if ($this->showLogs) {
+            $this->refreshLogs();
+        }
+    }
+
+    public function refreshLogs(): void
+    {
+        $result = app(AgentLogs::class)->tail($this->agent, $this->logsTail);
+        $this->logsStatus = $result['status'];
+        $this->logsOutput = implode("\n", $result['lines']);
+    }
+
+    public function setLogsTail(int $tail): void
+    {
+        if (in_array($tail, [50, 200, 500], true)) {
+            $this->logsTail = $tail;
+            if ($this->showLogs) {
+                $this->refreshLogs();
+            }
+        }
+    }
 
     /* Carpetas del FS compartido (shared-filesystem 7.1) */
 
@@ -371,6 +409,10 @@ class Detail extends Component
             'windows' => $windows,
             'capabilities' => $capabilities,
             'fsMounts' => $fsMounts,
+            'logsOutput' => $this->showLogs ? $this->logsOutput : '',
+            'logsStatus' => $this->logsStatus,
+            'showLogs' => $this->showLogs,
+            'logsTail' => $this->logsTail,
         ]);
     }
 }

@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\AgentController;
+use App\Http\Controllers\Api\AgentLogController;
 use App\Http\Controllers\Api\AuditController;
 use App\Http\Controllers\Api\HealthController;
 use App\Http\Controllers\Api\UsageController;
@@ -106,6 +107,7 @@ Route::prefix('v1')->group(function () {
         Route::post('agents/{agent}/stop', [AgentController::class, 'stop']);
         Route::post('agents/{agent}/restart', [AgentController::class, 'restart']);
         Route::get('agents/{agent}/status', [AgentController::class, 'status']);
+        Route::get('agents/{agent}/logs', [AgentLogController::class, 'logs']);
 
         /* chat */
         Route::get('agents/{agent}/messages', [ChatController::class, 'messages']);

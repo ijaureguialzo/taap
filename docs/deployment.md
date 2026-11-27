@@ -91,6 +91,14 @@ JSON al webhook configurado (admin) con el payload
 - La notificación es best-effort: nunca bloquea la transición del agente ni
   el chat.
 
+## Visor de logs del agente
+
+Vista read-only del tail de logs del contenedor del agente (owner/admin),
+en la ficha del agente (web y iOS). Selector de tamaño (50/200/500 líneas),
+copia al portapapeles, status claro para `no-container` y `unavailable`.
+API: `GET /api/v1/agents/{id}/logs?tail={50|200|500}` → `{status, lines}`.
+Solo tail: sin retención de logs (el daemon docker es el único origen).
+
 ## Búsqueda y exportación del chat
 
 El chat es buscable y exportable (por agente, owner/admin):

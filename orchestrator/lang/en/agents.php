@@ -65,4 +65,11 @@ return [
     'template_apply' => 'Use template',
     'template_hint' => 'The template pre-fills runtime, model and Internet; you can edit them before creating.',
     'template_applied' => 'Template «%name%» applied',
+    'logs_title' => 'Agent logs',
+    'logs_show' => 'Show logs',
+    'logs_hide' => 'Hide logs',
+    'logs_no_container' => 'The agent has no container with log output.',
+    'logs_unavailable' => 'Could not read the logs (is Docker down?).',
+    'logs_copy' => 'Copy',
+    'logs_copied' => 'Copied',
 ];

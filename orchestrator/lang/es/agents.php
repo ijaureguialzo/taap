@@ -65,4 +65,11 @@ return [
     'template_apply' => 'Usar plantilla',
     'template_hint' => 'La plantilla pre-rellena runtime, modelo e Internet; puedes modificarlo antes de crear.',
     'template_applied' => 'Plantilla «%name%» aplicada',
+    'logs_title' => 'Logs del agente',
+    'logs_show' => 'Ver logs',
+    'logs_hide' => 'Ocultar logs',
+    'logs_no_container' => 'El agente no tiene contenedor con salida de logs.',
+    'logs_unavailable' => 'No se pudieron leer los logs (¿Docker caído?).',
+    'logs_copy' => 'Copiar',
+    'logs_copied' => 'Copiado',
 ];

@@ -473,6 +473,17 @@ final class ApiClient {
     }
 
 
+    // MARK: - Logs
+
+    struct LogsResponse: Decodable {
+        let status: String
+        let lines: [String]
+    }
+
+    func logs(agentId: Int, tail: Int = 200) async throws -> LogsResponse {
+        try await request("api/v1/agents/\(agentId)/logs?tail=\(tail)")
+    }
+
 }
 
 // Envolventes de los endpoints de lista.

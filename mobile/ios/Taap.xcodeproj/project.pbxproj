@@ -19,6 +19,7 @@
 		4988C04183886B4DCEEE137F /* AgentSettingsSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3210642FB172B2D6F7E46E13 /* AgentSettingsSheet.swift */; };
 		5264FA91F42954C525EA25EC /* ChatSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4E4451B9204A327BAD14692 /* ChatSession.swift */; };
 		565BD52C3D8FB5DE7CC33112 /* TimelineSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA246ED136BBA260395A00A2 /* TimelineSheet.swift */; };
+		619A138FAC3BA5E1379CF963 /* LogSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3EDDE7F339D0809B2C3080B /* LogSheet.swift */; };
 		62C49EE273F062422E33390D /* ReverbSocket.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC9207EE2E24E54D35F1F194 /* ReverbSocket.swift */; };
 		67A47E8A1D099B1FBED8A650 /* Dtos.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF49C7F6362960E99BA0B73E /* Dtos.swift */; };
 		7A346C57D65A47C940A56EBC /* LocaleStrings.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCB405B5E034A5399EF65C94 /* LocaleStrings.swift */; };
@@ -76,6 +77,7 @@
 		B4E4451B9204A327BAD14692 /* ChatSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatSession.swift; sourceTree = "<group>"; };
 		BAF2F6E7849EF1F227FC7F89 /* LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginView.swift; sourceTree = "<group>"; };
 		C0C89C3B525B6765DAFF76EC /* ReverbSocketTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReverbSocketTests.swift; sourceTree = "<group>"; };
+		C3EDDE7F339D0809B2C3080B /* LogSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LogSheet.swift; sourceTree = "<group>"; };
 		CA246ED136BBA260395A00A2 /* TimelineSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineSheet.swift; sourceTree = "<group>"; };
 		CCB405B5E034A5399EF65C94 /* LocaleStrings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocaleStrings.swift; sourceTree = "<group>"; };
 		CCCC432E62E07498AB4DC52F /* DtosTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DtosTests.swift; sourceTree = "<group>"; };
@@ -151,6 +153,7 @@
 				3210642FB172B2D6F7E46E13 /* AgentSettingsSheet.swift */,
 				4E5A91BA8D2BDEC7AB774798 /* FilesView.swift */,
 				BAF2F6E7849EF1F227FC7F89 /* LoginView.swift */,
+				C3EDDE7F339D0809B2C3080B /* LogSheet.swift */,
 				E204C0F64D1047056B4268C1 /* MainTabView.swift */,
 				8AB2F00C0A30F36F445B9B9D /* NewAgentSheet.swift */,
 				CA246ED136BBA260395A00A2 /* TimelineSheet.swift */,
@@ -322,6 +325,7 @@
 				45C33B002BCCF576C5AF0CC2 /* FilesView.swift in Sources */,
 				312977689A9D98E927BA51D9 /* KeyVault.swift in Sources */,
 				7A346C57D65A47C940A56EBC /* LocaleStrings.swift in Sources */,
+				619A138FAC3BA5E1379CF963 /* LogSheet.swift in Sources */,
 				89483CFFF3CF52A174BC55FA /* LoginView.swift in Sources */,
 				FC1F20E61DA68E6E671A0183 /* MainTabView.swift in Sources */,
 				1CED24351A9D0CE9FD4EECB3 /* NewAgentSheet.swift in Sources */,

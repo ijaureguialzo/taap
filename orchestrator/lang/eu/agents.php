@@ -65,4 +65,11 @@ return [
     'template_apply' => 'Erabili txantiloia',
     'template_hint' => 'Txantiloiak runtime, eredu eta Interneteko konfigurazioa betetzen du; egin ezazu aldaketak sortu aurretik.',
     'template_applied' => '«%name%» txantiloia aplikatu da',
+    'logs_title' => 'Agentearen logak',
+    'logs_show' => 'Erakutsi logak',
+    'logs_hide' => 'Ezkutatu logak',
+    'logs_no_container' => 'Agenteak ez du log-irteerako edukiontzirik.',
+    'logs_unavailable' => 'Ezin izan ziren logak irakurri (Docker amildu al da?).',
+    'logs_copy' => 'Kopiatu',
+    'logs_copied' => 'Kopiatua',
 ];

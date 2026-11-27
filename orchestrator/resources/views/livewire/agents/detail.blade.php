@@ -64,6 +64,34 @@
                 </div>
             </div>
 
+            {{-- Visor de logs (agent-log-viewer) --}}
+            <div class="card" id="logs-card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span><x-icon name="terminal" class="me-1" />{{ __('agents.logs_title') }}</span>
+                    <button class="btn btn-outline-secondary btn-sm" wire:click="toggleLogs">
+                        {{ $showLogs ? __('agents.logs_hide') : __('agents.logs_show') }}
+                    </button>
+                </div>
+                @if ($showLogs)
+                    <div class="card-body small">
+                        <div class="d-flex gap-1 mb-2">
+                            @foreach ([50, 200, 500] as $t)
+                                <button class="btn btn-sm {{ $logsTail === $t ? 'btn-primary' : 'btn-outline-secondary' }}" wire:click="setLogsTail({{ $t }})">{{ $t }}</button>
+                            @endforeach
+                            <button class="btn btn-sm btn-outline-secondary ms-auto" wire:click="refreshLogs"><x-icon name="arrow-repeat" /></button>
+                        </div>
+                        @if ($logsStatus === 'no-container')
+                            <p class="text-muted small mb-0">{{ __('agents.logs_no_container') }}</p>
+                        @elseif ($logsStatus === 'unavailable')
+                            <p class="text-muted small mb-0">{{ __('agents.logs_unavailable') }}</p>
+                        @else
+                            <pre class="logs-pre small mb-2" style="max-height: 320px; overflow: auto; white-space: pre-wrap; word-break: break-all;">{{ $logsOutput }}</pre>
+                        @endif
+                        <button class="btn btn-sm btn-outline-secondary" onclick="window.copyToClipboard(document.querySelector('#logs-card pre')?.textContent || '').then(() => alert('{{ __('agents.logs_copied') }}')).catch(() => {})">{{ __('agents.logs_copy') }}</button>
+                    </div>
+                @endif
+            </div>
+
             {{-- Linea de tiempo (7.2, design D6) --}}
             <div class="card" id="timeline-card">
                 <div class="card-header"><x-icon name="clock-history" class="me-1" />{{ __('timeline.title') }}</div>

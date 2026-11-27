@@ -24,6 +24,10 @@ struct AgentDetailView: View {
     @State private var hasBeenLive = false
     @State private var shareURL: URL?
     @State private var searchQuery = ""
+    @State private var showLogs = false
+    @State private var logsStatus = "ok"
+    @State private var logsLines: [String] = []
+    @State private var logsLoading = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -50,6 +54,12 @@ struct AgentDetailView: View {
                         Label(appState.t("timeline.title"), systemImage: "clock.arrow.circlepath")
                     }
                     Button {
+                        showLogs = true
+                        Task { await loadLogs() }
+                    } label: {
+                        Label(appState.t("agents.logs_title"), systemImage: "terminal")
+                    }
+                    Button {
                         Task { await lifecycle("start") }
                     } label: {
                         Label(appState.t("agents.start"), systemImage: "play.fill")
@@ -68,6 +78,12 @@ struct AgentDetailView: View {
                     Image(systemName: "ellipsis.circle")
                 }
             }
+        }
+        .sheet(isPresented: $showLogs) {
+            LogSheet(status: logsStatus, lines: logsLines, loading: logsLoading, onCopy: {
+                UIPasteboard.general.string = logsLines.joined(separator: "\n")
+            })
+            .presentationDetents([.medium, .large])
         }
         .sheet(isPresented: $showSettings) {
             AgentSettingsSheet(agentId: agentId) { updated in
@@ -244,6 +260,21 @@ struct AgentDetailView: View {
             .disabled(draft.trimmingCharacters(in: .whitespaces).isEmpty)
         }
         .padding(12)
+    }
+
+    // MARK: - Logs
+
+    private func loadLogs() async {
+        logsLoading = true
+        defer { logsLoading = false }
+        do {
+            let r = try await appState.api.logs(agentId: agentId, tail: 200)
+            logsStatus = r.status
+            logsLines = r.lines
+        } catch {
+            logsStatus = "unavailable"
+            logsLines = []
+        }
     }
 
     // MARK: - Acciones
