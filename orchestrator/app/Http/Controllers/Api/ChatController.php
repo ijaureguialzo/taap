@@ -6,9 +6,11 @@ use App\Agents\ChatService;
 use App\Agents\Timeline;
 use App\Http\Controllers\Controller;
 use App\Models\Agent;
+use App\Services\ChatSearch;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Broadcast;
+use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 
 class ChatController extends Controller
 {
@@ -154,6 +156,58 @@ class ChatController extends Controller
                 'messages' => $w['messages'],
                 'note' => $w['note'],
             ])->values(),
+        ]);
+    }
+
+    /**
+     * Búsqueda full-text sobre los mensajes del chat (owner/admin).
+     */
+    public function search(Request $request, Agent $agent): JsonResponse
+    {
+        $this->authorize($request, $agent);
+
+        $data = $request->validate([
+            'q' => ['required', 'string', 'max:200'],
+            'page' => ['nullable', 'integer', 'min:1'],
+            'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
+        ]);
+
+        $result = app(ChatSearch::class)->search(
+            $agent->id,
+            $data['q'],
+            (int) ($data['per_page'] ?? 50),
+            (int) ($data['page'] ?? 1),
+        );
+
+        return response()->json($result);
+    }
+
+    /**
+     * Exportación completa del historial del chat (owner/admin).
+     */
+    public function export(Request $request, Agent $agent): SymfonyResponse
+    {
+        $this->authorize($request, $agent);
+
+        $data = $request->validate([
+            'format' => ['nullable', 'string', 'in:md,json'],
+        ]);
+
+        $format = $data['format'] ?? 'md';
+        $result = app(ChatSearch::class)->export($agent->id, $format);
+
+        $filename = 'chat-'.$agent->id.'-'.now()->format('Ymd-His').($format === 'md' ? '.md' : '.json');
+
+        if ($format === 'json') {
+            return response()->json($result['content'], 200, [
+                'Content-Disposition' => 'attachment; filename="'.$filename.'"',
+                'Content-Type' => 'application/json',
+            ]);
+        }
+
+        return response($result['content'], 200, [
+            'Content-Disposition' => 'attachment; filename="'.$filename.'"',
+            'Content-Type' => 'text/markdown; charset=utf-8',
         ]);
     }
 

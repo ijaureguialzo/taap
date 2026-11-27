@@ -110,6 +110,8 @@ Route::prefix('v1')->group(function () {
         /* chat */
         Route::get('agents/{agent}/messages', [ChatController::class, 'messages']);
         Route::get('agents/{agent}/timeline', [ChatController::class, 'timeline']);
+        Route::get('agents/{agent}/messages/search', [ChatController::class, 'search']);
+        Route::get('agents/{agent}/messages/export', [ChatController::class, 'export']);
         Route::post('agents/{agent}/messages', [ChatController::class, 'send']);
         Route::post('agents/{agent}/approvals/{approvalId}', [ChatController::class, 'approve']);
 

@@ -434,6 +434,45 @@ final class ApiClient {
             .trimmingCharacters(in: CharacterSet(charactersIn: "\""))
         return extracted.isEmpty ? nil : extracted
     }
+    // MARK: - Chat: exportación
+
+    /// Descarga el historial del chat como .md o .json (archivo temporal).
+    func exportChat(agentId: Int, format: String = "md") async throws -> (url: URL, filename: String) {
+        let url = url(for: "api/v1/agents/\(agentId)/messages/export?format=\(format)")
+
+        var request = URLRequest(url: url)
+        if let token { request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization") }
+
+        let (data, response): (Data, URLResponse)
+        do {
+            (data, response) = try await Self.session.data(for: request)
+        } catch {
+            throw ApiError.network("Sin conexión con el servidor")
+        }
+
+        guard let http = response as? HTTPURLResponse else {
+            throw ApiError.network("Respuesta inválida")
+        }
+        if http.statusCode == 401 {
+            token = nil
+            throw ApiError.notAuthenticated
+        }
+        if http.statusCode >= 400 {
+            throw ApiError.http(http.statusCode, "HTTP \(http.statusCode)")
+        }
+
+        let disposition = http.value(forHTTPHeaderField: "Content-Disposition") ?? ""
+        let filename = Self.filenameFromDisposition(disposition)
+            ?? "chat-\(agentId).\(format == "md" ? "md" : "json")"
+
+        let tmpDir = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first!
+        let tmp = tmpDir.appendingPathComponent("\(UUID().uuidString)-\(filename)")
+        try data.write(to: tmp)
+
+        return (tmp, filename)
+    }
+
+
 }
 
 // Envolventes de los endpoints de lista.

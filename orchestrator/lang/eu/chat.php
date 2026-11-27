@@ -21,4 +21,8 @@ return [
     'run' => 'Exekuzioa',
     'error' => 'Agentearen errorea',
     'timeline' => 'Zuk zain egon bitartean egin zuena',
+    'search_placeholder' => 'Bilatu chat-ean…',
+    'search_empty' => 'Emaitzarik ez.',
+    'export_md' => 'MD esportatu',
+    'export_json' => 'JSON esportatu',
 ];

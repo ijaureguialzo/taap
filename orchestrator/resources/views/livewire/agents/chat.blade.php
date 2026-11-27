@@ -5,6 +5,32 @@
 @endphp
 <div class="agent-chat" data-agent-id="{{ $agent->id }}">
 
+    {{-- Buscador de mensajes (chat-search-export) --}}
+    <div class="d-flex gap-2 align-items-center mb-2">
+        <div class="input-group">
+            <span class="input-group-text"><x-icon name="search" /></span>
+            <input type="text" wire:model.live.250ms="searchQuery"
+                   placeholder="{{ __('chat.search_placeholder') }}"
+                   class="form-control form-control-sm">
+        </div>
+        <a href="/api/v1/agents/{{ $agent->id }}/messages/export?format=md"
+           download class="btn btn-outline-secondary btn-sm text-nowrap">{{ __('chat.export_md') }}</a>
+        <a href="/api/v1/agents/{{ $agent->id }}/messages/export?format=json"
+           download class="btn btn-outline-secondary btn-sm text-nowrap">{{ __('chat.export_json') }}</a>
+    </div>
+    @if (count($searchResults) > 0)
+        <div class="search-results border rounded-2 p-2 mb-2 bg-body small">
+            @foreach ($searchResults as $r)
+                <a href="#msg-{{ $r['id'] }}" class="d-block border-bottom py-1 text-decoration-none text-body">
+                    <span class="text-muted me-2">{{ $r['author'] ?? '' }}</span>
+                    {{ \Illuminate\Support\Str::limit($r['content'] ?? '', 80) }}
+                </a>
+            @endforeach
+        </div>
+    @elseif ($searchQuery !== '')
+        <div class="small text-muted mb-2">{{ __('chat.search_empty') }}</div>
+    @endif
+
     {{-- Historial + streaming --}}
     <div class="chat-scroll overflow-auto border rounded-2 p-3 bg-body mb-3" id="chat-box"
          style="flex-grow: 1">
@@ -14,7 +40,7 @@
 
         @foreach ($history as $msg)
             @if ($msg['author'] === 'user')
-                <div class="d-flex justify-content-end mb-3">
+                <div class="d-flex justify-content-end mb-3" id="msg-{{ $msg['id'] }}">
                     <div class="bubble bubble-user">
                         <div class="small mb-1">{{ __('chat.you') }} · <time wire:ignore class="chat-time" data-time="{{ $msg['at'] }}">{{ $msg['at'] }}</time></div>
                         <div class="message-content md-target">{{ $msg['content'] }}</div>
@@ -29,7 +55,7 @@
                     $runId = $msg['meta']['run_id'] ?? null;
                     $acts = $runId ? ($activities[$runId] ?? []) : [];
                 @endphp
-                <div class="d-flex mb-3">
+                <div class="d-flex mb-3" id="msg-{{ $msg['id'] }}">
                     <div class="bubble bubble-agent">
                         <div class="small mb-1">{{ $agent->name }} · <time wire:ignore class="chat-time" data-time="{{ $msg['at'] }}">{{ $msg['at'] }}</time></div>
 

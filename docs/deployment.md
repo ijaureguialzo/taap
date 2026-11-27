@@ -91,6 +91,21 @@ JSON al webhook configurado (admin) con el payload
 - La notificación es best-effort: nunca bloquea la transición del agente ni
   el chat.
 
+## Búsqueda y exportación del chat
+
+El chat es buscable y exportable (por agente, owner/admin):
+
+- **Búsqueda** — barrita de búsqueda en el chat (web): la consulta se ejecuta
+  al cambiar (~250ms) y muestra los mensajes que contienen el término,
+  ordenados por relevancia. API: `GET /api/v1/agents/{id}/messages/search?q=&page=`.
+- **Exportación** — `GET /api/v1/agents/{id}/messages/export?format=md|json`
+  devuelve el historial completo (markdown o JSON) como adjunto.
+
+En Postgres la búsqueda usa `tsvector` + `ts_rank` (índice GIN en la columna
+generada `body_tsvector`); en sqlite usa LIKE (misma escala de datos, mismo
+contrato). En la app iOS, el filtro es local (la sesión ya trae el historial)
+y la exportación se comparte vía share sheet.
+
 ## Plantillas de agente
 
 Cada usuario puede crear plantillas de agente — nombre, runtime, modelo

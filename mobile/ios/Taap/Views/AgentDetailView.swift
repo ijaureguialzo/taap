@@ -22,11 +22,14 @@ struct AgentDetailView: View {
     @State private var live = false
     @State private var windows: [TimelineWindowDTO] = []
     @State private var hasBeenLive = false
+    @State private var shareURL: URL?
+    @State private var searchQuery = ""
 
     var body: some View {
         VStack(spacing: 0) {
             header
             Divider()
+            searchBar
             messageList
             Divider()
             composer
@@ -69,6 +72,11 @@ struct AgentDetailView: View {
         .sheet(isPresented: $showSettings) {
             AgentSettingsSheet(agentId: agentId) { updated in
                 agent = updated
+            }
+        }
+        .sheet(isPresented: .constant(shareURL != nil), onDismiss: { shareURL = nil }) {
+            if let shareURL {
+                ShareSheet(activityItems: [shareURL])
             }
         }
         .sheet(isPresented: $showTimeline) {
@@ -143,13 +151,53 @@ struct AgentDetailView: View {
         return ownerId == appState.currentUser?.id
     }
 
+    // MARK: - Búsqueda (filtro local; el historial viaja en la sesión)
+
+    private var filteredMessages: [ChatMessageDTO] {
+        let query = searchQuery.trimmingCharacters(in: .whitespaces)
+        guard !query.isEmpty else { return session.messages }
+        let lower = query.lowercased()
+        return session.messages.filter { $0.content.lowercased().contains(lower) }
+    }
+
     // MARK: - Mensajes
+
+    private var searchBar: some View {
+        HStack(spacing: 8) {
+            TextField(appState.t("chat.search_placeholder"), text: $searchQuery)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .textFieldStyle(.roundedBorder)
+                .font(.footnote)
+
+            Button {
+                Task { await exportChat() }
+            } label: {
+                Image(systemName: "square.and.arrow.up")
+            }
+            .buttonStyle(.bordered)
+            .disabled(filteredMessages.isEmpty)
+            .accessibilityLabel(appState.t("chat.export_md"))
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+        .background(TaapColor.surfaceElevated)
+    }
+
+    private func exportChat() async {
+        do {
+            let (url, _) = try await appState.api.exportChat(agentId: agentId, format: "md")
+            shareURL = url
+        } catch {
+            appState.flash(error.localizedDescription, kind: .error)
+        }
+    }
 
     private var messageList: some View {
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(spacing: 10) {
-                    ForEach(session.messages) { message in
+                    ForEach(filteredMessages) { message in
                         MessageBubble(message: message)
                             .id(message.id)
                     }

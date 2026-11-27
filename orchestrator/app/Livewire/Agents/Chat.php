@@ -5,6 +5,7 @@ namespace App\Livewire\Agents;
 use App\Agents\ChatService;
 use App\Enums\AgentStatus;
 use App\Models\Agent;
+use App\Services\ChatSearch;
 use App\Models\AgentEventRow;
 use App\Models\ChatMessage;
 use Illuminate\Contracts\View\View;
@@ -35,6 +36,16 @@ class Chat extends Component
      * (message.final).
      */
     public ?string $streaming = null;
+
+    /** Búsqueda de mensajes (chat-search-export): la consulta se ejecuta
+     *  al cambiar (debounce); los resultados se cachean en la componente. */
+    public string $searchQuery = '';
+
+    /** Resultados del último término (cache en componente). */
+    public array $searchResults = [];
+
+    /** Disciplina: ¿la búsqueda viene de un clic? (ya no se re-busca) */
+    public bool $searchPinned = false;
 
     /**
      * Progreso del run actual (ultima herramienta/estado) para el indicador.
@@ -370,6 +381,26 @@ class Chat extends Component
             ])->all())
             ->filter(fn (array $lines) => $lines !== [])
             ->all();
+    }
+
+    public function updatedSearchQuery(string $value): void
+    {
+        $value = trim($value);
+
+        if ($value === '') {
+            $this->searchResults = [];
+
+            return;
+        }
+
+        $this->searchResults = app(ChatSearch::class)->search($this->agent->id, $value, 20)['data'];
+    }
+
+    public function clearSearch(): void
+    {
+        $this->searchQuery = '';
+        $this->searchResults = [];
+        $this->searchPinned = false;
     }
 
     public function render(): View

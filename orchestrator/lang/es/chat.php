@@ -21,4 +21,8 @@ return [
     'run' => 'Ejecución',
     'error' => 'Error del agente',
     'timeline' => 'Lo que hizo mientras no estabas',
+    'search_placeholder' => 'Buscar en el chat…',
+    'search_empty' => 'Sin resultados.',
+    'export_md' => 'Exportar MD',
+    'export_json' => 'Exportar JSON',
 ];
