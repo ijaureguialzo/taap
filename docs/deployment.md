@@ -381,3 +381,25 @@ las sesiones se reanudan, no se pierden.
 | WSS no conecta (web o iOS) | Comprueba que el host resuelve `ws.taap.test` (o el `FQDN_WS` configurado), que el certificado lo cubre y que `TAAP_PUBLIC_HOST`/`TAAP_PUBLIC_SCHEME`/`TAAP_REVERB_PUBLIC_PORT` apuntan a donde debe; en solo LAN usa la IP + `http` + `TAAP_WS_PORT` (ver «Endpoints públicos») |
 | CSS/JS no cargan (página en blanco, contenido mixto en la consola) | La página es https pero los assets salen http: `TAAP_FORCE_HTTPS=true` en `deploy/.env` y `make build && make up` (ver «Endpoints públicos»); si usas caché de config, regénerala (`php artisan config:cache`) |
 | Aprobación nunca aparece | El modelo no invocó la herramienta (modelos pequeños dudan): reenvía el mensaje |
+
+## Tests iOS (local)
+
+La app iOS se construye con Xcode (deployment target iOS 26+) y los tests
+unitarios de la capa Swift no requieren servicio ni red:
+
+```sh
+cd mobile/ios
+./regenerate.sh                     # regenera Taap.xcodeproj desde project.yml
+xcodebuild -project Taap.xcodeproj -scheme Taap \
+  -destination 'platform=iOS Simulator,name=iPhone 17' \
+  test -only-testing:TaapUnitTests
+```
+
+Los tests cubren: DTOs de mensajes/runtimes/modelos, DTO de 2FA (challenge
+and challenge response), Filtros de chat (ApiClient), lógica de Reverb y
+tema y componentes de DTO de modelos. Los tests de UI
+(`TaapUITests`) no corren en CI (requieren simulador completo); se ejecutan
+localmente desde Xcode bajo demanda.
+
+La CI (`.github/workflows/ci.yml`, job `ios`) corre los mismos tests unitarios
+en un runner macOS antes de que el cambio llegue a `main`.

@@ -30,6 +30,7 @@
 		8F9333100E9E7DCDBB5A7BCB /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D07C569F9B1E43845FC38BB /* AppState.swift */; };
 		9311ED1073CADB1D4859B8A1 /* AgentListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D7158ED5B491241B53C921A /* AgentListView.swift */; };
 		93532C672220BEF04625EE56 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5E930B88C7D557C92FCCA47 /* Theme.swift */; };
+		9A8C4CC5569BE21CC2C18521 /* ApiClientTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B52A88533DC528CBF1B53F9 /* ApiClientTests.swift */; };
 		B66A2E03E036BE7162B96900 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 610348FF333845F96E8F2994 /* Assets.xcassets */; };
 		CD35F841284C25BB7962DC1C /* ChatSessionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09A3C03A20871B3880042720 /* ChatSessionTests.swift */; };
 		D4F069EF4DF6AC49A4BED82E /* ThemeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F42BAC3C7BBCF42F7B682C1B /* ThemeTests.swift */; };
@@ -66,6 +67,7 @@
 		4E5A91BA8D2BDEC7AB774798 /* FilesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilesView.swift; sourceTree = "<group>"; };
 		50740E533E309FB267D3386A /* PusherTestServer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PusherTestServer.swift; sourceTree = "<group>"; };
 		50D58600F9939EB6B99B2C84 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		5B52A88533DC528CBF1B53F9 /* ApiClientTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApiClientTests.swift; sourceTree = "<group>"; };
 		610348FF333845F96E8F2994 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		61A6D31504C2E8408FB490C5 /* AgentChannelManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentChannelManager.swift; sourceTree = "<group>"; };
 		6D7158ED5B491241B53C921A /* AgentListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentListView.swift; sourceTree = "<group>"; };
@@ -128,6 +130,7 @@
 		79E71BB6277E0A5F0D745981 /* Unit */ = {
 			isa = PBXGroup;
 			children = (
+				5B52A88533DC528CBF1B53F9 /* ApiClientTests.swift */,
 				09A3C03A20871B3880042720 /* ChatSessionTests.swift */,
 				CCCC432E62E07498AB4DC52F /* DtosTests.swift */,
 				DA1919E8D0F3C70A812E3B1D /* LocaleStringsTests.swift */,
@@ -345,6 +348,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				9A8C4CC5569BE21CC2C18521 /* ApiClientTests.swift in Sources */,
 				CD35F841284C25BB7962DC1C /* ChatSessionTests.swift in Sources */,
 				43BECF47F76929FB159C7C87 /* DtosTests.swift in Sources */,
 				084C4C6373E0E5FDE301CBC0 /* LocaleStringsTests.swift in Sources */,

@@ -69,6 +69,25 @@ jobs:
         run: |
           docker build -t taap/agent-pi:ci agents/pi
           docker build -t taap/agent-hermes:ci agents/hermes
+          docker build -t taap/agent-claude:ci agents/claude
+          docker build -t taap/agent-codex:ci agents/codex
+          docker build -t taap/agent-opencode:ci agents/opencode
+
+  ios:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install xcodegen
+        run: brew install xcodegen
+      - name: Regenerate Xcode project
+        working-directory: mobile/ios
+        run: ./regenerate.sh
+      - name: Run iOS unit tests
+        working-directory: mobile/ios
+        run: >-
+          xcodebuild -project Taap.xcodeproj -scheme Taap
+          -destination 'platform=iOS Simulator,name=iPhone 17'
+          test -only-testing:TaapUnitTests
 
   compose-config:
     runs-on: ubuntu-latest
