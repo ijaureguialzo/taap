@@ -11,8 +11,10 @@ use App\Services\FilesystemService;
 use App\Support\DockerClient;
 use App\Support\ForceHttps;
 use Carbon\CarbonImmutable;
+use Illuminate\Foundation\Events\DiagnosingHealth;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
@@ -50,6 +52,13 @@ class AppServiceProvider extends ServiceProvider
         URL::forceHttps(
             ForceHttps::resolve(config('taap.force_https'), (string) config('app.url'))
         );
+
+        // El healthcheck de Docker golpea /up: que refleje la BD. Sin esta
+        // comprobacion el contenedor reporta healthy aunque no pueda hablar
+        // con Postgres (y la pila arranca a medias).
+        Event::listen(DiagnosingHealth::class, function (): void {
+            DB::connection()->select('select 1');
+        });
     }
 
     /**
