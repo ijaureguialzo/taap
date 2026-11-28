@@ -25,7 +25,7 @@
     <div class="container" style="max-width: 420px">
         <div class="text-center mb-4">
             <x-wordmark size="40" class="mb-1" />
-            <p class="text-muted mb-0">{{ __('footer.tagline') }}</p>
+            <p class="text-muted mb-0">The Agentic AI Playground</p>
         </div>
         {{ $slot }}
     </div>
