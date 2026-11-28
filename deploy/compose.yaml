@@ -126,7 +126,9 @@ services:
       dockerfile: deploy/Dockerfile
     image: taap/orchestrator:${TAAP_VERSION:-local}
     restart: unless-stopped
-    command: php artisan queue:work --tries=2 --sleep=1 --timeout=120
+    # Espera a la BD (mismo wait del orquestador) y luego el worker.
+    entrypoint: /usr/local/bin/taap-entrypoint-queue
+    command: ["php", "artisan", "queue:work", "--tries=2", "--sleep=1", "--timeout=120"]
     env_file: .env
     environment:
       APP_ENV: production

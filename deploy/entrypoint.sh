@@ -15,7 +15,39 @@ set -e
 [ -S /var/run/docker.sock ] && chmod 666 /var/run/docker.sock || true
 
 php artisan storage:link 2>/dev/null || true
-php artisan migrate --force
+
+# Espera a que PostgreSQL responda antes de migrar: el arranque paralelo
+# (o un reinicio de la base) no puede tumbar el contenedor en el primer
+# fallo transitorio. depends_on: service_healthy protege el caso normal,
+# esto cubre los que no (manual, sin depends_on, postgres caido).
+DB_ATTEMPTS=24
+DB_RETRY_SECONDS=5
+
+attempt=1
+# Probe ligero: una conexion real contra la BD. (db:show fallaria aqui:
+# formatea con Number, requiere la extension intl ausente en la imagen.)
+while ! php artisan tinker --execute='DB::select("select 1");' >/dev/null 2>&1; do
+    if [ "$attempt" -ge "$DB_ATTEMPTS" ]; then
+        echo "[entrypoint] ERROR: la base de datos no responde tras $((DB_ATTEMPTS * DB_RETRY_SECONDS))s" >&2
+        exit 1
+    fi
+    echo "[entrypoint] BD no disponible (intento $attempt/$DB_ATTEMPTS); reintentando en ${DB_RETRY_SECONDS}s" >&2
+    sleep "$DB_RETRY_SECONDS"
+    attempt=$((attempt + 1))
+done
+
+# Migraciones con reintentos: un fallo transitorio no debe tumbar el
+# contenedor. Un fallo permanente (p. ej. sintaxis SQL) se agota y sale 1.
+migrate_attempt=1
+while ! php artisan migrate --force; do
+    if [ "$migrate_attempt" -ge 6 ]; then
+        echo "[entrypoint] ERROR: migrate fallo tras $migrate_attempt intentos" >&2
+        exit 1
+    fi
+    echo "[entrypoint] migrate fallo (intento $migrate_attempt/6); reintentando en 5s" >&2
+    sleep 5
+    migrate_attempt=$((migrate_attempt + 1))
+done
 
 AS_APP() {
     # Corre un comando como www-data (33:33)

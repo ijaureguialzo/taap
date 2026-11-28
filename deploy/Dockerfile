@@ -51,7 +51,8 @@ RUN docker-php-ext-install pdo_pgsql pcntl opcache zip
 COPY --from=vendor /app /app
 COPY --from=frontend /app/public/build /app/public/build
 COPY deploy/entrypoint.sh /usr/local/bin/taap-entrypoint
-RUN chmod +x /usr/local/bin/taap-entrypoint && \
+COPY deploy/entrypoint-queue.sh /usr/local/bin/taap-entrypoint-queue
+RUN chmod +x /usr/local/bin/taap-entrypoint /usr/local/bin/taap-entrypoint-queue && \
     mkdir -p /app/storage/framework/{cache,sessions,views} /app/bootstrap/cache /data/agents /data/fs && \
     chown -R www-data:www-data /app/storage /app/bootstrap/cache /data/agents /data/fs && \
     cp /app/.env.example /app/.env && rm /app/.env.example
