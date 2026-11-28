@@ -10,6 +10,9 @@ use Illuminate\Support\Facades\Schema;
  * columna generada tsvector + índice GIN (solo Postgres).
  * En sqlite no hay columna generada: el servicio de búsqueda usa un
  * LIKE equivalente (misma escala de datos, el servidor real es Postgres).
+ *
+ * Postgres solo admite columnas generadas STORED (no VIRTUAL, como MySQL),
+ * asi que se usa storedAs.
  */
 return new class extends Migration
 {
@@ -21,7 +24,7 @@ return new class extends Migration
 
         Schema::table('chat_messages', function (Blueprint $table) {
             $table->tsvector('body_tsvector')
-                ->virtualAs("to_tsvector('simple', coalesce(content, ''))", true);
+                ->storedAs("to_tsvector('simple', coalesce(content, ''))");
         });
 
         // Índice GIN (Postgres): indexamos la columna generada.
